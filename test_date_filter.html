@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Date Filter</title>
+</head>
+<body>
+    <h1>Test Efficiency Stats Date Filter</h1>
+    
+    <button onclick="testWithDate()">Test with Date Range</button>
+    <button onclick="testWithoutDate()">Test without Date Range</button>
+    <button onclick="testBilFilter()">Test with Bil Filter</button>
+    
+    <div id="result"></div>
+    
+    <script>
+    function testWithDate() {
+        const params = new URLSearchParams({
+            filter: 'all',
+            showZeroKwh: false,
+            dateRange: '2025-01-01 to 2025-01-31'
+        });
+        
+        fetch('getEfficiencyStats.php?' + params.toString())
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('result').innerHTML = '<h3>With Date Range:</h3><pre>' + data + '</pre>';
+                console.log('With date range:', data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = '<h3>Error:</h3>' + error;
+            });
+    }
+    
+    function testWithoutDate() {
+        const params = new URLSearchParams({
+            filter: 'all',
+            showZeroKwh: false,
+            dateRange: ''
+        });
+        
+        fetch('getEfficiencyStats.php?' + params.toString())
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('result').innerHTML = '<h3>Without Date Range:</h3><pre>' + data + '</pre>';
+                console.log('Without date range:', data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = '<h3>Error:</h3>' + error;
+            });
+    }
+    
+    function testBilFilter() {
+        const params = new URLSearchParams({
+            filter: '1',
+            showZeroKwh: false,
+            dateRange: '2025-01-01 to 2025-01-31'
+        });
+        
+        fetch('getEfficiencyStats.php?' + params.toString())
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('result').innerHTML = '<h3>With Bil Filter (ID=1):</h3><pre>' + data + '</pre>';
+                console.log('With bil filter:', data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = '<h3>Error:</h3>' + error;
+            });
+    }
+    </script>
+</body>
+</html>

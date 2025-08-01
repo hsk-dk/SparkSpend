@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test getEfficiencyStats</title>
+</head>
+<body>
+    <h1>Test getEfficiencyStats.php</h1>
+    
+    <h2>Test 1: Ingen filter</h2>
+    <button onclick="testNoFilter()">Test uden filter</button>
+    <div id="result1"></div>
+    
+    <h2>Test 2: Med dato filter</h2>
+    <button onclick="testWithDate()">Test med dato 2025-07-30</button>
+    <div id="result2"></div>
+    
+    <h2>Test 3: Med bil filter</h2>
+    <button onclick="testWithVehicle()">Test med bil ID 2</button>
+    <div id="result3"></div>
+
+    <script>
+    async function testNoFilter() {
+        try {
+            const response = await fetch('getEfficiencyStats.php');
+            const data = await response.text();
+            document.getElementById('result1').innerHTML = '<pre>' + data + '</pre>';
+        } catch (error) {
+            document.getElementById('result1').innerHTML = 'Fejl: ' + error.message;
+        }
+    }
+
+    async function testWithDate() {
+        try {
+            const response = await fetch('getEfficiencyStats.php?dateRange=2025-07-30');
+            const data = await response.text();
+            document.getElementById('result2').innerHTML = '<pre>' + data + '</pre>';
+        } catch (error) {
+            document.getElementById('result2').innerHTML = 'Fejl: ' + error.message;
+        }
+    }
+
+    async function testWithVehicle() {
+        try {
+            const response = await fetch('getEfficiencyStats.php?filter=2');
+            const data = await response.text();
+            document.getElementById('result3').innerHTML = '<pre>' + data + '</pre>';
+        } catch (error) {
+            document.getElementById('result3').innerHTML = 'Fejl: ' + error.message;
+        }
+    }
+    </script>
+</body>
+</html>
