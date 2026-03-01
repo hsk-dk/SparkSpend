@@ -156,32 +156,32 @@ try {
     }
 
     /**
-     * Find the most recent charge before a given timestamp for a vehicle
-     * This ensures we match the correct charge with the km driven after that charge
+     * Find and sum all charges between two timestamps for a vehicle
+     * This ensures we account for ALL energy consumed during the trip
      *
      * @param int $vehicleId Vehicle ID
-     * @param int $timestamp Timestamp to search before
-     * @param array $chargesByVehicle Charges grouped by vehicle (must be sorted by time)
-     * @return array|null Most recent charge before timestamp, or null if none found
+     * @param int $timestampAfter Start of period (exclusive)
+     * @param int $timestampBefore End of period (inclusive)
+     * @param array $chargesByVehicle Charges grouped by vehicle
+     * @return array Array with 'total_kwh' and 'total_pris' for the period
      */
-    $findChargeBeforeTime = function($vehicleId, $timestamp, $chargesByVehicle) {
+    $sumChargesBetween = function($vehicleId, $timestampAfter, $timestampBefore, $chargesByVehicle) {
+        $total_kwh = 0;
+        $total_pris = 0;
+
         if (!isset($chargesByVehicle[$vehicleId])) {
-            return null;
+            return ['total_kwh' => 0, 'total_pris' => 0];
         }
 
-        // Find the most recent charge that happened BEFORE this timestamp
-        $mostRecentBefore = null;
-        $maxTime = -PHP_INT_MAX;
-
+        // Sum all charges that happened AFTER the first timestamp and AT OR BEFORE the second timestamp
         foreach ($chargesByVehicle[$vehicleId] as $charge) {
-            // Only consider charges that happened at or before the timestamp
-            if ($charge['datetime'] <= $timestamp && $charge['datetime'] > $maxTime) {
-                $maxTime = $charge['datetime'];
-                $mostRecentBefore = $charge;
+            if ($charge['datetime'] > $timestampAfter && $charge['datetime'] <= $timestampBefore) {
+                $total_kwh += $charge['kwh'];
+                $total_pris += $charge['pris'];
             }
         }
 
-        return $mostRecentBefore;
+        return ['total_kwh' => $total_kwh, 'total_pris' => $total_pris];
     };
 
     // Calculate efficiency statistics
@@ -201,23 +201,18 @@ try {
 
         // Calculate km driven since last measurement for same vehicle
         if ($index > 0 && $vehicleCharges[$index - 1]['vehicleId'] == $vehicleId) {
+            $prevOdometerTime = $vehicleCharges[$index - 1]['cablePluggedInAt'];
+            $currentOdometerTime = $timestamp;
             $kmDriven = $charge['odometer'] - $vehicleCharges[$index - 1]['odometer'];
 
-            // Find the charging session that provided energy for this trip
-            // Match the charge that happened BEFORE this odometer reading
-            $previousCharge = $findChargeBeforeTime($vehicleId, $vehicleCharges[$index - 1]['cablePluggedInAt'], $chargesByVehicle);
+            // Sum all charges that happened between the two odometer readings
+            $chargeData = $sumChargesBetween($vehicleId, $prevOdometerTime, $currentOdometerTime, $chargesByVehicle);
+            $kwh = $chargeData['total_kwh'];
+            $pris = $chargeData['total_pris'];
 
             // Only calculate efficiency if we have valid data
-            if ($previousCharge && $kmDriven > 0) {
-                $kwh = $previousCharge['kwh'];
-                $pris = $previousCharge['pris'];
-
-                // Validate data: check for zero or negative values
-                if ($kwh <= 0) {
-                    // Skip charges with zero or negative kWh - they're data errors
-                    continue;
-                }
-
+            if ($kwh > 0 && $kmDriven > 0) {
+                // Validate data: check for negative km
                 if ($kmDriven < 0) {
                     // Odometer went backwards - likely vehicle reset or data error
                     error_log("Warning: Negative km for vehicle $vehicleId: $kmDriven km (odometer went backwards)");
@@ -236,10 +231,10 @@ try {
                 $krPerKm = round($pris / $kmDriven, 2);
 
                 // Log genuinely suspicious values (anomalies only, not normal EV performance)
-                // Normal EV efficiency: 4-20 km/kWh depending on conditions
+                // Skoda Enyaq real-world range: 3.5-6.5 km/kWh
                 // Only log if outside realistic range
-                if ($kmPerKwh > 25 || $kmPerKwh < 0.5) {
-                    error_log("ANOMALY: Vehicle $vehicleId: $kmDriven km, $kwh kWh = $kmPerKwh km/kWh (charge from " . date('Y-m-d H:i', $previousCharge['datetime']) . ", odometer at " . date('Y-m-d H:i', $vehicleCharges[$index - 1]['cablePluggedInAt']) . ")");
+                if ($kmPerKwh > 8 || $kmPerKwh < 2) {
+                    error_log("ANOMALY: Vehicle $vehicleId: $kmDriven km, $kwh kWh = $kmPerKwh km/kWh (odometer readings at " . date('Y-m-d H:i', $prevOdometerTime) . " and " . date('Y-m-d H:i', $currentOdometerTime) . ")");
                 }
 
                 // Update running totals for cumulative efficiency
