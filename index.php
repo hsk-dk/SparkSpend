@@ -29,8 +29,9 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <link rel="stylesheet" href="includes/style.css">
-  
+
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="includes/app.js"></script>
 
 </head>
 <body>
@@ -405,37 +406,11 @@ require 'includes/QueryBuilder.php';
 		});
 	});
 
-    // Centraliseret fejlhåndtering for fetch
-    const handleFetchResponse = async response => {
-      if (!response.ok) {
-        throw new Error("Netværksrespons var ikke ok");
-      }
-      return await response.json();
-    };
-
-    // Initialiser tooltips for elementer med data-bs-toggle="tooltip"
-    // Moderne approach: initialiserer kun én gang per element, undgår memory leaks
-    const initializeTooltips = () => {
-      document.querySelectorAll('[data-bs-toggle="tooltip"]:not(.tooltip-initialized)').forEach(el => {
-        new bootstrap.Tooltip(el);
-        el.classList.add('tooltip-initialized');
-      });
-    };
-
-    // Debounce utility for performance optimization
-    const debounce = (fn, delayMs) => {
-      let timeoutId = null;
-      return function(...args) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => fn(...args), delayMs);
-      };
-    };
-
     // Hent biler
     const fetchVehicles = async () => {
       try {
         const response = await fetch('getVehicles.php');
-        const data = await handleFetchResponse(response);
+        const data = await appUtils.handleFetchResponse(response);
         if (data.error) {
           console.error("Fejl ved hentning af biler:", data.error);
           return;
@@ -451,11 +426,10 @@ require 'includes/QueryBuilder.php';
       }
     };
 
-// Hent ladeudbuder
     const fetchProviders = async () => {
       try {
         const response = await fetch('getProvideres.php');
-        const data = await handleFetchResponse(response);
+        const data = await appUtils.handleFetchResponse(response);
         if (data.error) {
           console.error("Fejl ved hentning af ladeudbydere:", data.error);
           return;
@@ -485,7 +459,7 @@ require 'includes/QueryBuilder.php';
 
       try {
         const response = await fetch(`getCharges.php?${params.toString()}`);
-        const data = await handleFetchResponse(response);
+        const data = await appUtils.handleFetchResponse(response);
         renderCharges(data);
       } catch (error) {
         console.error('Fejl ved hentning af data:', error);
@@ -600,11 +574,11 @@ require 'includes/QueryBuilder.php';
     chargeTableBodyEl.appendChild(row);
   });
 
- // Opdater summary med tabel og opdater piechartet med de akkumulerede værdier
+  // Opdater summary med tabel og opdater piechartet med de akkumulerede værdier
   updateSummary(totals, overallKwh, overallPris, internalCount, externalCount, internalKwh, externalKwh, internalPrice, externalPrice);
 
   // Initialiser tooltips for nye elementer (non-destructive approach)
-  initializeTooltips();
+  appUtils.initializeTooltips();
 };
 
 
@@ -909,7 +883,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, vehicleId })
         });
-        const result = await handleFetchResponse(response);
+        const result = await appUtils.handleFetchResponse(response);
         if (result.success) {
           internalChargeMsgEl.innerHTML = '<div class="text-success">Intern ladning opdateret!</div>';
           bootstrap.Modal.getInstance(document.getElementById('internalChargeModal')).hide();
@@ -939,7 +913,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, vehicleId, providerId, datetime, kwh, pris })
         });
-        const result = await handleFetchResponse(response);
+        const result = await appUtils.handleFetchResponse(response);
         if (result.success) {
           externalChargeMsgEl.innerHTML = '<div class="text-success">Ekstern ladning opdateret!</div>';
           bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
