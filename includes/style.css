@@ -21,7 +21,17 @@
     --brand-bg: #1a2635;
     --brand-ink: #E8ECEF;
     --brand-light: #243140;
-    --white: #1a2635;
+    --white: #ffffff;
+  }
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -34,6 +44,10 @@
 
 html, body {
   height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -523,7 +537,7 @@ tr:last-child td {
   color: var(--brand-accent);
   text-decoration: none;
   font-size: 12px;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   cursor: pointer;
 }
 
