@@ -96,88 +96,7 @@ require 'includes/QueryBuilder.php';
     </div>
   </div>
 </div>
-<div>
-<h2>Effektivitetsgrafer pr. bil</h2>
-<div class="mb-3">
-  <label class="form-check-label">Vis efficiency:</label>
-  <div class="form-check form-check-inline">
-    <input class="form-check-input" type="radio" name="efficiencyType" id="perTrip" value="perTrip" checked>
-    <label class="form-check-label" for="perTrip">Per tur</label>
-  </div>
-  <div class="form-check form-check-inline">
-    <input class="form-check-input" type="radio" name="efficiencyType" id="cumulative" value="cumulative">
-    <label class="form-check-label" for="cumulative">Samlet gennemsnit</label>
-  </div>
-</div>
-<div id="kmPerKwhChart"></div>
-<div id="krPerKmChart"></div>
-
-</div>
-
-<!-- Cost Analytics Section -->
-<div>
-<h2>Omkostningsanalyse</h2>
-<div class="mb-3">
-  <label class="form-check-label">Gruppering:</label>
-  <div class="form-check form-check-inline">
-    <input class="form-check-input" type="radio" name="costGrouping" id="groupDay" value="day">
-    <label class="form-check-label" for="groupDay">Pr. dag</label>
-  </div>
-  <div class="form-check form-check-inline">
-    <input class="form-check-input" type="radio" name="costGrouping" id="groupWeek" value="week" checked>
-    <label class="form-check-label" for="groupWeek">Pr. uge</label>
-  </div>
-  <div class="form-check form-check-inline">
-    <input class="form-check-input" type="radio" name="costGrouping" id="groupMonth" value="month">
-    <label class="form-check-label" for="groupMonth">Pr. måned</label>
-  </div>
-</div>
-
-<div class="row">
-  <div class="col-md-6">
-    <div id="costTrendChart"></div>
-  </div>
-  <div class="col-md-6">
-    <div id="costStatsBox" class="card p-3">
-      <h5>Omkostningsstatistik</h5>
-      <div id="costStatsContent">
-        <p>Indlæser data...</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-</div>
-
-<!-- Vehicle Comparison Section -->
-<div>
-<h2>Bilsammenligning</h2>
-<div class="mb-3">
-  <label class="form-check-label">Sortering:</label>
-  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_cost')">Samlede omkostninger</button>
-  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('avg_cost_per_kwh')">Pris pr kWh</button>
-  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_kwh')">Samlet forbrug</button>
-  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('charge_count')">Antal ladninger</button>
-</div>
-
-<table>
-  <thead>
-    <tr>
-      <th>Bil</th>
-      <th>Antal ladninger</th>
-      <th>Samlet kWh</th>
-      <th>Samlet pris (DKK)</th>
-      <th>Pris pr kWh</th>
-      <th>Internt (%)</th>
-      <th>Eksternt (%)</th>
-    </tr>
-  </thead>
-  <tbody id="vehicleComparisonTableBody">
-    <tr><td colspan="7" class="text-center">Indlæser data...</td></tr>
-  </tbody>
-</table>
-
-</div>
+<!-- All analytics moved to analytics-section -->
 
   <h2>Ladninger</h2>
 
@@ -368,7 +287,88 @@ require 'includes/QueryBuilder.php';
   <!-- ANALYTICS SECTION - Secondary Tab -->
   <section id="analytics-section" class="tab-section">
     <h2>Analyse og Statistik</h2>
-    <p>Kommende analytics content goes here</p>
+    
+    <!-- Efficiency Charts Card -->
+    <div class="card p-4">
+      <h3>Effektivitetsmålinger</h3>
+      <div class="mb-3">
+        <label class="form-check-label">Vis efficiency:</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="efficiencyType" id="perTrip" value="perTrip" checked>
+          <label class="form-check-label" for="perTrip">Per tur</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="efficiencyType" id="cumulative" value="cumulative">
+          <label class="form-check-label" for="cumulative">Samlet gennemsnit</label>
+        </div>
+      </div>
+      <div id="kmPerKwhChart"></div>
+      <div id="krPerKmChart"></div>
+    </div>
+
+    <!-- Cost Analytics Card -->
+    <div class="card p-4 mt-4">
+      <h3>Omkostningsanalyse</h3>
+      <div class="mb-3">
+        <label class="form-check-label">Gruppering:</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="costGrouping" id="groupDay" value="day">
+          <label class="form-check-label" for="groupDay">Pr. dag</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="costGrouping" id="groupWeek" value="week" checked>
+          <label class="form-check-label" for="groupWeek">Pr. uge</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="costGrouping" id="groupMonth" value="month">
+          <label class="form-check-label" for="groupMonth">Pr. måned</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6">
+          <div id="costTrendChart"></div>
+        </div>
+        <div class="col-md-6">
+          <div id="costStatsBox" class="card p-3">
+            <h5>Omkostningsstatistik</h5>
+            <div id="costStatsContent">
+              <p>Indlæser data...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vehicle Comparison Card -->
+    <div class="card p-4 mt-4">
+      <h3>Bilsammenligning</h3>
+      <div class="mb-3">
+        <label class="form-check-label">Sortering:</label>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_cost')">Samlede omkostninger</button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('avg_cost_per_kwh')">Pris pr kWh</button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_kwh')">Samlet forbrug</button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('charge_count')">Antal ladninger</button>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Bil</th>
+              <th>Antal ladninger</th>
+              <th>Samlet kWh</th>
+              <th>Samlet pris (DKK)</th>
+              <th>Pris pr kWh</th>
+              <th>Internt (%)</th>
+              <th>Eksternt (%)</th>
+            </tr>
+          </thead>
+          <tbody id="vehicleComparisonTableBody">
+            <tr><td colspan="7" class="text-center">Indlæser data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </section>
 
   <!-- SETTINGS SECTION - Tertiary Tab -->
