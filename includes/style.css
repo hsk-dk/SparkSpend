@@ -461,6 +461,78 @@ tr:last-child td {
   border-bottom: none;
 }
 
+/* Charge Table Filters Section */
+.charge-filters {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 25px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: saturate(120%) blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.charge-filters label {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.charge-filters select,
+.charge-filters input[type="text"] {
+  max-width: 200px;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+/* Pagination Styles */
+.pagination-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.pagination {
+  display: flex;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pagination li {
+  display: inline;
+}
+
+.pagination a, .pagination span {
+  display: inline-block;
+  padding: 6px 10px;
+  border: 1px solid var(--brand-accent);
+  border-radius: 6px;
+  color: var(--brand-accent);
+  text-decoration: none;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.pagination a:hover,
+.pagination span.active {
+  background: var(--brand-accent);
+  color: white;
+}
+
 /* Charts */
 .chart-container {
   position: relative;
