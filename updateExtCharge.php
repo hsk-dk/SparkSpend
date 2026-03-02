@@ -1,39 +1,88 @@
 <?php
+/**
+ * Update external charge
+ *
+ * POST JSON body:
+ * - id: Charge ID
+ * - vehicleId: Vehicle ID
+ * - providerId: Provider ID
+ * - datetime: Date/time in ISO format
+ * - kwh: kWh consumed
+ * - pris: Cost
+ */
+
 require 'includes/configuration.php';
+require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
+
 header('Content-Type: application/json');
 
-$data = json_decode(file_get_contents('php://input'), true);
-
-if (!isset($data['id']) || !isset($data['vehicleId']) || !isset($data['providerId']) || !isset($data['datetime']) || !isset($data['kwh']) || !isset($data['pris'])) {
-    echo json_encode(['success' => false, 'error' => 'Manglende parametre']);
-    exit;
-}
-
 try {
-    $db = new SQLite3($dbPath);
-    $id = intval($data['id']);
-    $vehicleId = intval($data['vehicleId']);
-    $providerId = intval($data['providerId']);
-    $datetime = new DateTime($data['datetime']);
-	$datetime = $datetime->format('Y-m-d\TH:i:00\Z');
-    $kwh = floatval($data['kwh']);
-    $pris = floatval($data['pris']);
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
 
-    $stmt = $db->prepare("UPDATE ext_charges SET vehicleId = :vehicleId, providerId = :providerId, datetime = :datetime, kwh = :kwh, pris = :pris WHERE id = :id");
-    $stmt->bindValue(':vehicleId', $vehicleId, SQLITE3_INTEGER);
-    $stmt->bindValue(':providerId', $providerId, SQLITE3_INTEGER);
-    $stmt->bindValue(':datetime', $datetime);
-    $stmt->bindValue(':kwh', $kwh);
-    $stmt->bindValue(':pris', $pris);
-    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
-    $result = $stmt->execute();
+    if (!$data || !isset($data['id']) || !isset($data['vehicleId']) || !isset($data['providerId']) ||
+        !isset($data['datetime']) || !isset($data['kwh']) || !isset($data['pris'])) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Missing required fields'
+        ]);
+        exit;
+    }
+
+    // Validate and format datetime
+    try {
+        $dateTime = new DateTime($data['datetime']);
+        $dateTime = $dateTime->format('Y-m-d\TH:i:00\Z');
+    } catch (Exception $e) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Invalid date format'
+        ]);
+        exit;
+    }
+
+    $db = DatabaseManager::getChargesDb();
+    $result = QueryBuilder::updateExternalCharge($db, [
+        'id' => $data['id'],
+        'vehicleId' => $data['vehicleId'],
+        'kwh' => $data['kwh'],
+        'cost' => $data['pris'],
+        'chargeDate' => $dateTime,
+        'provider' => $data['provider'] ?? '',
+        'category' => $data['category'] ?? ''
+    ]);
 
     if ($result) {
-        echo json_encode(['success' => true, 'message' => 'Ekstern ladning opdateret']);
+        http_response_code(200);
+        echo json_encode([
+            'success' => true,
+            'message' => 'External charge updated'
+        ]);
     } else {
-        echo json_encode(['success' => false, 'error' => 'Fejl ved opdatering']);
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Error updating charge'
+        ]);
     }
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    error_log("Database error in updateExtCharge.php: " . $e->getMessage());
+    echo json_encode([
+        'success' => false,
+        'error' => 'Database error occurred'
+    ]);
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    http_response_code(400);
+    error_log("Error in updateExtCharge.php: " . $e->getMessage());
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage()
+    ]);
 }
 ?>
+

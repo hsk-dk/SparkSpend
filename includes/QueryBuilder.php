@@ -2,75 +2,26 @@
 /**
  * Query Builder for SparkSpend
  *
- * Provides reusable query methods with prepared statements to:
- * - Reduce code duplication
- * - Enable consistent prepared statement usage
- * - Centralize SQL injection prevention
- * - Standardize query patterns
+ * Provides static methods for common database query patterns.
+ * Uses prepared statements to prevent SQL injection and reduce code duplication.
+ *
+ * Handles both internal charges (charges table) and external charges (ext_charges table)
+ * with proper datetime parsing for ISO 8601 format compatibility.
  */
 
 class QueryBuilder {
 
     /**
-     * Parse date range string (handles both Danish and English formats)
-     *
-     * @param string $dateRange Date range string like "2024-01-01 til 2024-12-31"
-     * @return array Array with 'start' and 'end' keys containing date strings
-     * @throws Exception If date range format is invalid
-     */
-    public static function parseDateRange(string $dateRange): array {
-        $dateRange = trim($dateRange);
-        $dates = null;
-
-        // Handle Danish format "YYYY-MM-DD til YYYY-MM-DD" (no space before 'til')
-        if (strpos($dateRange, 'til ') !== false) {
-            $dates = explode('til ', $dateRange);
-        }
-        // Handle English format "YYYY-MM-DD to YYYY-MM-DD"
-        elseif (strpos($dateRange, ' to ') !== false) {
-            $dates = explode(' to ', $dateRange);
-        }
-
-        if ($dates === null) {
-            throw new Exception("Invalid date range format: {$dateRange}");
-        }
-
-        // Single date case (after split, only 1 element or 2 identical)
-        if (count($dates) == 1) {
-            return [
-                'start' => trim($dates[0]),
-                'end' => trim($dates[0]),
-                'isSingleDate' => true
-            ];
-        }
-        // Date range case
-        elseif (count($dates) == 2) {
-            return [
-                'start' => trim($dates[0]),
-                'end' => trim($dates[1]),
-                'isSingleDate' => false
-            ];
-        }
-        else {
-            throw new Exception("Invalid date range format: {$dateRange}");
-        }
-    }
-
-    /**
-     * Get all vehicles from database
+     * Get all vehicles
      *
      * @param PDO $db Database connection
-     * @return array Array of vehicle records
+     * @return array Array of vehicle records with id and vehicleName
      */
     public static function selectAllVehicles(PDO $db): array {
-        try {
-            $stmt = $db->prepare("SELECT * FROM vehicles ORDER BY vehicleName");
-            $stmt->execute();
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
-        } catch (PDOException $e) {
-            error_log("Error fetching vehicles: " . $e->getMessage());
-            return [];
-        }
+        $query = "SELECT id, vehicleName FROM vehicles ORDER BY vehicleName";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        return $stmt->fetchAll();
     }
 
     /**
@@ -81,618 +32,454 @@ class QueryBuilder {
      * @return array|null Vehicle record or null if not found
      */
     public static function selectVehicleById(PDO $db, int $id): ?array {
-        try {
-            $stmt = $db->prepare("SELECT * FROM vehicles WHERE id = ?");
-            $stmt->execute([$id]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Error fetching vehicle: " . $e->getMessage());
-            return null;
-        }
+        $query = "SELECT id, vehicleName FROM vehicles WHERE id = ?";
+        $stmt = $db->prepare($query);
+        $stmt->execute([$id]);
+        $result = $stmt->fetch();
+        return $result ?: null;
     }
 
     /**
-     * Get all charging providers
+     * Get all providers
      *
      * @param PDO $db Database connection
-     * @return array Array of provider records
+     * @return array Array of provider records with id and providerName
      */
     public static function selectAllProviders(PDO $db): array {
-        try {
-            $stmt = $db->prepare("SELECT * FROM provideres ORDER BY providerName");
-            $stmt->execute();
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
-        } catch (PDOException $e) {
-            error_log("Error fetching providers: " . $e->getMessage());
-            return [];
-        }
+        $query = "SELECT id, providerName FROM provideres ORDER BY providerName";
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        return $stmt->fetchAll();
     }
 
     /**
-     * Get provider by ID
+     * Parse date range string in format "YYYY-MM-DD til YYYY-MM-DD"
+     *
+     * @param string $dateRange Date range string
+     * @return array Array with 'start' and 'end' keys containing dates
+     * @throws Exception If format is invalid
+     */
+    public static function parseDateRange(string $dateRange): array {
+        $dates = [];
+
+        // Try different separators
+        if (strpos($dateRange, ' til ') !== false) {
+            $dates = explode(' til ', $dateRange);
+        } elseif (strpos($dateRange, ' to ') !== false) {
+            $dates = explode(' to ', $dateRange);
+        } else {
+            throw new Exception("Invalid date range format. Use 'YYYY-MM-DD til YYYY-MM-DD'");
+        }
+
+        if (count($dates) !== 2) {
+            throw new Exception("Invalid date range format. Use 'YYYY-MM-DD til YYYY-MM-DD'");
+        }
+
+        $start = trim($dates[0]);
+        $end = trim($dates[1]);
+
+        // Validate date format (basic YYYY-MM-DD check)
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
+            throw new Exception("Invalid date format. Use YYYY-MM-DD");
+        }
+
+        return ['start' => $start, 'end' => $end];
+    }
+
+    /**
+     * Get cost trend data (internal + external charges combined)
+     *
+     * Aggregates charges by time period (day, week, month).
+     * Returns data grouped by internal vs external source.
+     *
+     * Filters:
+     * - vehicleId (optional): Filter by specific vehicle
+     * - dateRange (optional): "YYYY-MM-DD til YYYY-MM-DD"
+     * - groupBy (default: 'week'): 'day', 'week', or 'month'
      *
      * @param PDO $db Database connection
-     * @param int $id Provider ID
-     * @return array|null Provider record or null if not found
+     * @param array $filters Filter parameters
+     * @return array Cost trend records with date, source, total_kwh, total_cost, charge_count
      */
-    public static function selectProviderById(PDO $db, int $id): ?array {
-        try {
-            $stmt = $db->prepare("SELECT * FROM provideres WHERE id = ?");
-            $stmt->execute([$id]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $result ?: null;
-        } catch (PDOException $e) {
-            error_log("Error fetching provider: " . $e->getMessage());
-            return null;
+    public static function getCostTrend(PDO $db, array $filters): array {
+        $vehicleId = $filters['vehicleId'] ?? null;
+        $dateRange = $filters['dateRange'] ?? '';
+        $groupBy = $filters['groupBy'] ?? 'week';
+
+        // Parse date range if provided
+        $startDate = null;
+        $endDate = null;
+        if (!empty($dateRange)) {
+            $dates = self::parseDateRange($dateRange);
+            $startDate = $dates['start'];
+            $endDate = $dates['end'];
         }
-    }
 
-    /**
-     * Get charges with optional filtering
-     *
-     * @param PDO $db Database connection
-     * @param array $filters Filter options: vehicleId, dateRange, showZeroKwh
-     * @return array Array of charge records
-     */
-    public static function selectCharges(PDO $db, array $filters = []): array {
-        try {
-            $query = "SELECT * FROM charges WHERE 1=1";
-            $params = [];
+        // Determine SQL date format based on groupBy
+        $dateFormat = match($groupBy) {
+            'day' => "'%Y-%m-%d'",
+            'month' => "'%Y-%m'",
+            'week' => "'%Y-%W'", // ISO week number
+            default => "'%Y-%W'"
+        };
 
-            // Filter by vehicle
-            if (!empty($filters['vehicleId'])) {
-                $query .= " AND vehicleId = ?";
-                $params[] = intval($filters['vehicleId']);
-            }
+        $trends = [];
 
-            // Filter by date range
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    $query .= " AND date(createdAt) >= ? AND date(createdAt) <= ?";
-                    $params[] = $dates['start'];
-                    $params[] = $dates['end'];
-                } catch (Exception $e) {
-                    // Invalid date range, ignore filter
-                    error_log("Invalid date range in selectCharges: " . $e->getMessage());
-                }
-            }
+        // ===== INTERNAL CHARGES (charges table) =====
+        $queryInternal = "SELECT
+            strftime({$dateFormat}, createdAt) as date,
+            'internal' as source,
+            COUNT(*) as charge_count,
+            COALESCE(SUM(consumedKwh), 0) as total_kwh,
+            COALESCE(SUM(cost), 0) as total_cost
+        FROM charges
+        WHERE 1=1";
 
-            // Filter zero kWh charges
-            if (empty($filters['showZeroKwh'])) {
-                $query .= " AND consumedKwh > 0";
-            }
+        $paramsInternal = [];
 
-            // Order by date
-            $query .= " ORDER BY createdAt DESC";
-
-            $stmt = $db->prepare($query);
-            $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
-        } catch (PDOException $e) {
-            error_log("Error fetching charges: " . $e->getMessage());
-            return [];
+        if ($vehicleId !== null) {
+            $queryInternal .= " AND vehicleId = ?";
+            $paramsInternal[] = $vehicleId;
         }
-    }
 
-    /**
-     * Get vehicle charges with date filtering
-     *
-     * @param PDO $db Database connection
-     * @param array $filters Filter options: vehicleId, dateRange
-     * @return array Array of vehicle charge records
-     */
-    public static function selectVehicleCharges(PDO $db, array $filters = []): array {
-        try {
-            $query = "SELECT * FROM vehicle_charges WHERE 1=1";
-            $params = [];
+        if ($startDate !== null && $endDate !== null) {
+            $queryInternal .= " AND DATE(createdAt) BETWEEN ? AND ?";
+            $paramsInternal[] = $startDate;
+            $paramsInternal[] = $endDate;
+        }
 
-            // Filter by vehicle
-            if (!empty($filters['vehicleId'])) {
-                $query .= " AND vehicleId = ?";
-                $params[] = intval($filters['vehicleId']);
+        $queryInternal .= " GROUP BY strftime({$dateFormat}, createdAt) ORDER BY date ASC";
+
+        $stmtInternal = $db->prepare($queryInternal);
+        $stmtInternal->execute($paramsInternal);
+        $chargesInternal = $stmtInternal->fetchAll();
+
+        // ===== EXTERNAL CHARGES (ext_charges table) =====
+        // Note: We can't use date() function in SQL for ISO 8601 format, so we fetch all and filter in PHP
+        $queryExternal = "SELECT
+            datetime,
+            'external' as source,
+            COUNT(*) as charge_count,
+            COALESCE(SUM(kwh), 0) as total_kwh,
+            COALESCE(SUM(pris), 0) as total_cost
+        FROM ext_charges
+        WHERE 1=1";
+
+        $paramsExternal = [];
+
+        if ($vehicleId !== null) {
+            $queryExternal .= " AND vehicleId = ?";
+            $paramsExternal[] = $vehicleId;
+        }
+
+        // Don't filter by date in SQL - we'll do it in PHP
+        $queryExternal .= " GROUP BY datetime ORDER BY datetime ASC";
+
+        $stmtExternal = $db->prepare($queryExternal);
+        $stmtExternal->execute($paramsExternal);
+        $chargesExternalRaw = $stmtExternal->fetchAll();
+
+        // Filter external charges by date in PHP (since SQLite can't parse ISO 8601 with timezone)
+        $chargesExternal = [];
+        if ($startDate !== null && $endDate !== null) {
+            $startTime = strtotime($startDate);
+            $endTime = strtotime($endDate . ' 23:59:59');
+
+            $chargesExternal = array_filter($chargesExternalRaw, function($charge) use ($startTime, $endTime) {
+                $chargeTime = strtotime($charge['datetime']);
+                return $chargeTime >= $startTime && $chargeTime <= $endTime;
+            });
+        } else {
+            $chargesExternal = $chargesExternalRaw;
+        }
+
+        // Convert external charge dates and group them
+        $externalGrouped = [];
+        foreach ($chargesExternal as $charge) {
+            $chargeDate = $charge['datetime'];
+            $dateObj = DateTime::createFromFormat(DateTime::ISO8601, $chargeDate);
+            if (!$dateObj) {
+                $dateObj = DateTime::createFromFormat('Y-m-d H:i:s', $chargeDate);
             }
 
-            // Filter by date range
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    $query .= " AND date(cablePluggedInAt) >= ? AND date(cablePluggedInAt) <= ?";
-                    $params[] = $dates['start'];
-                    $params[] = $dates['end'];
-                } catch (Exception $e) {
-                    // Invalid date range, ignore filter
-                    error_log("Invalid date range in selectVehicleCharges: " . $e->getMessage());
-                }
-            }
+            if ($dateObj) {
+                $groupedDate = match($groupBy) {
+                    'day' => $dateObj->format('Y-m-d'),
+                    'month' => $dateObj->format('Y-m'),
+                    'week' => $dateObj->format('Y-W'),
+                    default => $dateObj->format('Y-W')
+                };
 
-            // Order by date
-            $query .= " ORDER BY cablePluggedInAt DESC";
-
-            $stmt = $db->prepare($query);
-            $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
-        } catch (PDOException $e) {
-            error_log("Error fetching vehicle charges: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    /**
-     * Get external charges with optional filtering
-     *
-     * @param PDO $db Database connection
-     * @param array $filters Filter options: vehicleId, dateRange
-     * @return array Array of external charge records
-     */
-    public static function selectExternalCharges(PDO $db, array $filters = []): array {
-        try {
-            $query = "SELECT * FROM ext_charges WHERE 1=1";
-            $params = [];
-
-            // Filter by vehicle
-            if (!empty($filters['vehicleId'])) {
-                $query .= " AND vehicleId = ?";
-                $params[] = intval($filters['vehicleId']);
-            }
-
-            // Filter by date range
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    $query .= " AND date(chargeDate) >= ? AND date(chargeDate) <= ?";
-                    $params[] = $dates['start'];
-                    $params[] = $dates['end'];
-                } catch (Exception $e) {
-                    error_log("Invalid date range in selectExternalCharges: " . $e->getMessage());
-                }
-            }
-
-            // Order by date
-            $query .= " ORDER BY chargeDate DESC";
-
-            $stmt = $db->prepare($query);
-            $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
-        } catch (PDOException $e) {
-            error_log("Error fetching external charges: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    /**
-     * Get heat pump power log data
-     *
-     * @param PDO $db Database connection (powerlog database)
-     * @param string $period 'daily', 'monthly', or 'yearly'
-     * @param string|null $dateFilter Optional date filter (YYYY-MM-DD or YYYY-MM or YYYY)
-     * @return array Array of power log records
-     */
-    public static function selectPowerLogs(PDO $db, string $period = 'daily', ?string $dateFilter = null): array {
-        try {
-            $query = "SELECT * FROM powerlogjord WHERE 1=1";
-            $params = [];
-
-            // Apply date filter if provided
-            if (!empty($dateFilter)) {
-                if (strlen($dateFilter) === 4) {
-                    // Year filter
-                    $query .= " AND strftime('%Y', timestamp) = ?";
-                    $params[] = $dateFilter;
-                } elseif (strlen($dateFilter) === 7) {
-                    // Month filter
-                    $query .= " AND strftime('%Y-%m', timestamp) = ?";
-                    $params[] = $dateFilter;
-                } else {
-                    // Day filter
-                    $query .= " AND date(timestamp) = ?";
-                    $params[] = $dateFilter;
-                }
-            }
-
-            // Order by timestamp
-            $query .= " ORDER BY timestamp DESC";
-
-            $stmt = $db->prepare($query);
-            $stmt->execute($params);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
-        } catch (PDOException $e) {
-            error_log("Error fetching power logs: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    /**
-     * Create external charge record
-     *
-     * @param PDO $db Database connection
-     * @param array $data Charge data: vehicleId, kwh, cost, chargeDate, provider, category
-     * @return array Result array with 'success' and optional 'id' or 'error'
-     */
-    public static function insertExternalCharge(PDO $db, array $data): array {
-        try {
-            $stmt = $db->prepare(
-                "INSERT INTO ext_charges (vehicleId, kwh, cost, chargeDate, provider, category)
-                 VALUES (?, ?, ?, ?, ?, ?)"
-            );
-
-            $result = $stmt->execute([
-                intval($data['vehicleId'] ?? 0),
-                floatval($data['kwh'] ?? 0),
-                floatval($data['cost'] ?? 0),
-                $data['chargeDate'] ?? date('Y-m-d H:i:s'),
-                $data['provider'] ?? '',
-                $data['category'] ?? ''
-            ]);
-
-            return [
-                'success' => $result,
-                'id' => $db->lastInsertId()
-            ];
-        } catch (PDOException $e) {
-            error_log("Error inserting external charge: " . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Database error: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Update charge category
-     *
-     * @param PDO $db Database connection
-     * @param int $chargeId Charge ID
-     * @param int $vehicleId Vehicle ID
-     * @return bool True if update successful
-     */
-    public static function updateChargeCategory(PDO $db, int $chargeId, int $vehicleId): bool {
-        try {
-            $stmt = $db->prepare(
-                "UPDATE charges SET vehicleId = ? WHERE id = ?"
-            );
-            return $stmt->execute([$vehicleId, $chargeId]);
-        } catch (PDOException $e) {
-            error_log("Error updating charge category: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Update internal charge
-     *
-     * @param PDO $db Database connection
-     * @param array $data Charge update data: id, vehicleId, consumedKwh, cost
-     * @return bool True if update successful
-     */
-    public static function updateInternalCharge(PDO $db, array $data): bool {
-        try {
-            $stmt = $db->prepare(
-                "UPDATE charges SET vehicleId = ?, consumedKwh = ?, cost = ? WHERE id = ?"
-            );
-            return $stmt->execute([
-                intval($data['vehicleId'] ?? 0),
-                floatval($data['consumedKwh'] ?? 0),
-                floatval($data['cost'] ?? 0),
-                $data['id'] ?? 0
-            ]);
-        } catch (PDOException $e) {
-            error_log("Error updating internal charge: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Update external charge
-     *
-     * @param PDO $db Database connection
-     * @param array $data Charge update data: id, vehicleId, kwh, cost, chargeDate, provider, category
-     * @return bool True if update successful
-     */
-    public static function updateExternalCharge(PDO $db, array $data): bool {
-        try {
-            $stmt = $db->prepare(
-                "UPDATE ext_charges SET vehicleId = ?, kwh = ?, cost = ?, chargeDate = ?, provider = ?, category = ? WHERE id = ?"
-            );
-            return $stmt->execute([
-                intval($data['vehicleId'] ?? 0),
-                floatval($data['kwh'] ?? 0),
-                floatval($data['cost'] ?? 0),
-                $data['chargeDate'] ?? date('Y-m-d H:i:s'),
-                $data['provider'] ?? '',
-                $data['category'] ?? '',
-                intval($data['id'] ?? 0)
-            ]);
-        } catch (PDOException $e) {
-            error_log("Error updating external charge: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Delete external charge
-     *
-     * @param PDO $db Database connection
-     * @param int $chargeId Charge ID
-     * @return bool True if delete successful
-     */
-    public static function deleteExternalCharge(PDO $db, int $chargeId): bool {
-        try {
-            $stmt = $db->prepare("DELETE FROM ext_charges WHERE id = ?");
-            return $stmt->execute([intval($chargeId)]);
-        } catch (PDOException $e) {
-            error_log("Error deleting external charge: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Record vehicle data (odometer, etc.)
-     *
-     * @param PDO $db Database connection
-     * @param array $data Vehicle data: vehicleId, odometer, timestamp
-     * @return bool True if insert successful
-     */
-    public static function insertVehicleData(PDO $db, array $data): bool {
-        try {
-            $stmt = $db->prepare(
-                "INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer)
-                 VALUES (?, ?, ?)"
-            );
-            return $stmt->execute([
-                intval($data['vehicleId'] ?? 0),
-                $data['timestamp'] ?? date('Y-m-d H:i:s'),
-                intval($data['odometer'] ?? 0)
-            ]);
-        } catch (PDOException $e) {
-            error_log("Error inserting vehicle data: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Get cost trend data grouped by time period
-     *
-     * @param PDO $db Database connection
-     * @param array $filters Filter options: vehicleId, dateRange, groupBy (day/week/month)
-     * @return array Array of cost trend records with aggregated data
-     */
-    public static function getCostTrend(PDO $db, array $filters = []): array {
-        try {
-            // Get internal charges - these have proper datetime format
-            $queryInternal = "SELECT date(createdAt) as date, 'internal' as source, consumedKwh as kwh, cost as pris, vehicleId FROM charges WHERE 1=1";
-            $paramsInternal = [];
-
-            if (!empty($filters['vehicleId'])) {
-                $queryInternal .= " AND vehicleId = ?";
-                $paramsInternal[] = intval($filters['vehicleId']);
-            }
-
-            $stmtInternal = $db->prepare($queryInternal);
-            $stmtInternal->execute($paramsInternal);
-            $chargesInternal = $stmtInternal->fetchAll(PDO::FETCH_ASSOC) ?? [];
-
-            // Get external charges - fetch all and filter in PHP due to ISO 8601 date format
-            $queryExternal = "SELECT datetime, 'external' as source, kwh, pris, vehicleId FROM ext_charges WHERE 1=1";
-            $paramsExternal = [];
-
-            if (!empty($filters['vehicleId'])) {
-                $queryExternal .= " AND vehicleId = ?";
-                $paramsExternal[] = intval($filters['vehicleId']);
-            }
-
-            $stmtExternal = $db->prepare($queryExternal);
-            $stmtExternal->execute($paramsExternal);
-            $chargesExternal = $stmtExternal->fetchAll(PDO::FETCH_ASSOC) ?? [];
-
-            // Filter external charges by date in PHP and convert datetime to date
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    $startTime = strtotime($dates['start']);
-                    $endTime = strtotime($dates['end'] . ' 23:59:59');
-
-                    $chargesExternal = array_filter($chargesExternal, function($charge) use ($startTime, $endTime) {
-                        $chargeTime = strtotime($charge['datetime']);
-                        return $chargeTime >= $startTime && $chargeTime <= $endTime;
-                    });
-
-                    // Convert datetime to date string
-                    foreach ($chargesExternal as &$charge) {
-                        $charge['date'] = date('Y-m-d', strtotime($charge['datetime']));
-                    }
-                    unset($charge);
-                } catch (Exception $e) {
-                    error_log("Invalid date range in getCostTrend: " . $e->getMessage());
-                }
-            } else {
-                // Convert datetime to date string
-                foreach ($chargesExternal as &$charge) {
-                    $charge['date'] = date('Y-m-d', strtotime($charge['datetime']));
-                }
-                unset($charge);
-            }
-
-            // Also filter internal charges by date
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    $chargesInternal = array_filter($chargesInternal, function($charge) use ($dates) {
-                        return $charge['date'] >= $dates['start'] && $charge['date'] <= $dates['end'];
-                    });
-                } catch (Exception $e) {
-                    // Already logged
-                }
-            }
-
-            // Combine and aggregate by date and source
-            $allCharges = array_merge($chargesInternal, $chargesExternal);
-            $aggregated = [];
-
-            foreach ($allCharges as $charge) {
-                $key = $charge['date'] . '_' . $charge['source'];
-                if (!isset($aggregated[$key])) {
-                    $aggregated[$key] = [
-                        'date' => $charge['date'],
-                        'source' => $charge['source'],
+                if (!isset($externalGrouped[$groupedDate])) {
+                    $externalGrouped[$groupedDate] = [
+                        'date' => $groupedDate,
+                        'source' => 'external',
+                        'charge_count' => 0,
                         'total_kwh' => 0,
-                        'total_cost' => 0,
-                        'charge_count' => 0
+                        'total_cost' => 0
                     ];
                 }
-                $aggregated[$key]['total_kwh'] += floatval($charge['kwh']);
-                $aggregated[$key]['total_cost'] += floatval($charge['pris']);
-                $aggregated[$key]['charge_count']++;
+
+                $externalGrouped[$groupedDate]['charge_count'] += intval($charge['charge_count']);
+                $externalGrouped[$groupedDate]['total_kwh'] += floatval($charge['total_kwh']);
+                $externalGrouped[$groupedDate]['total_cost'] += floatval($charge['total_cost']);
             }
-
-            // Return as array of records
-            $result = array_values($aggregated);
-
-            // Sort by date descending
-            usort($result, function($a, $b) {
-                return strcmp($b['date'], $a['date']);
-            });
-
-            return $result;
-        } catch (PDOException $e) {
-            error_log("Error fetching cost trend: " . $e->getMessage());
-            return [];
         }
-    }
 
+        // Combine internal and external trends
+        $allTrends = [];
+        foreach ($chargesInternal as $record) {
+            $allTrends[] = [
+                'date' => $record['date'],
+                'source' => 'internal',
+                'charge_count' => intval($record['charge_count']),
+                'total_kwh' => floatval($record['total_kwh']),
+                'total_cost' => floatval($record['total_cost'])
+            ];
+        }
+
+        foreach ($externalGrouped as $record) {
+            $allTrends[] = $record;
+        }
+
+        return $allTrends;
+    }
 
     /**
      * Get cost statistics for selected period
-     * Includes both internal and external charges
+     *
+     * Returns min, max, average cost and cost per kWh metrics.
+     *
+     * Filters:
+     * - vehicleId (optional): Filter by specific vehicle
+     * - dateRange (optional): "YYYY-MM-DD til YYYY-MM-DD"
      *
      * @param PDO $db Database connection
-     * @param array $filters Filter options: vehicleId, dateRange
-     * @return array Array with min/max/avg cost statistics
+     * @param array $filters Filter parameters
+     * @return array Statistics with min, max, avg, total values
      */
-    public static function getCostStatistics(PDO $db, array $filters = []): array {
-        try {
-            // Get internal charges
-            $queryInternal = "SELECT cost as price, consumedKwh as kwh FROM charges WHERE 1=1";
-            $paramsInternal = [];
+    public static function getCostStatistics(PDO $db, array $filters): array {
+        $vehicleId = $filters['vehicleId'] ?? null;
+        $dateRange = $filters['dateRange'] ?? '';
 
-            if (!empty($filters['vehicleId'])) {
-                $queryInternal .= " AND vehicleId = ?";
-                $paramsInternal[] = intval($filters['vehicleId']);
-            }
-
-            $stmtInternal = $db->prepare($queryInternal);
-            $stmtInternal->execute($paramsInternal);
-            $chargesInternal = $stmtInternal->fetchAll(PDO::FETCH_ASSOC) ?? [];
-
-            // Filter internal charges by date
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    $chargesInternal = array_filter($chargesInternal, function($charge) use ($dates, $db) {
-                        // Need to check date from createdAt, so we'll filter after fetching with date info
-                        return true; // Will filter after getting date info
-                    });
-                } catch (Exception $e) {
-                    error_log("Invalid date range in getCostStatistics: " . $e->getMessage());
-                }
-            }
-
-            // Get external charges with datetime for date filtering
-            $queryExternal = "SELECT pris as price, kwh, datetime FROM ext_charges WHERE 1=1";
-            $paramsExternal = [];
-
-            if (!empty($filters['vehicleId'])) {
-                $queryExternal .= " AND vehicleId = ?";
-                $paramsExternal[] = intval($filters['vehicleId']);
-            }
-
-            $stmtExternal = $db->prepare($queryExternal);
-            $stmtExternal->execute($paramsExternal);
-            $chargesExternal = $stmtExternal->fetchAll(PDO::FETCH_ASSOC) ?? [];
-
-            // Filter external charges by date in PHP
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    $startTime = strtotime($dates['start']);
-                    $endTime = strtotime($dates['end'] . ' 23:59:59');
-
-                    $chargesExternal = array_filter($chargesExternal, function($charge) use ($startTime, $endTime) {
-                        $chargeTime = strtotime($charge['datetime']);
-                        return $chargeTime >= $startTime && $chargeTime <= $endTime;
-                    });
-                } catch (Exception $e) {
-                    error_log("Invalid date range in getCostStatistics: " . $e->getMessage());
-                }
-            }
-
-            // Also need to filter internal charges by date properly
-            if (!empty($filters['dateRange'])) {
-                try {
-                    $dates = self::parseDateRange($filters['dateRange']);
-                    // Re-fetch with date info for filtering
-                    $queryInternalWithDate = "SELECT cost as price, consumedKwh as kwh, date(createdAt) as date FROM charges WHERE 1=1";
-                    $stmtInternalWithDate = $db->prepare($queryInternalWithDate);
-
-                    $paramsForDate = [];
-                    if (!empty($filters['vehicleId'])) {
-                        $queryInternalWithDate .= " AND vehicleId = ?";
-                        $paramsForDate[] = intval($filters['vehicleId']);
-                    }
-
-                    $stmtInternalWithDate = $db->prepare($queryInternalWithDate);
-                    $stmtInternalWithDate->execute($paramsForDate);
-                    $chargesInternalWithDate = $stmtInternalWithDate->fetchAll(PDO::FETCH_ASSOC) ?? [];
-
-                    $chargesInternal = array_filter($chargesInternalWithDate, function($charge) use ($dates) {
-                        return $charge['date'] >= $dates['start'] && $charge['date'] <= $dates['end'];
-                    });
-                } catch (Exception $e) {
-                    error_log("Date filtering error in getCostStatistics: " . $e->getMessage());
-                }
-            }
-
-            // Combine all charges
-            $allCharges = array_merge($chargesInternal, $chargesExternal);
-
-            // Calculate statistics
-            if (empty($allCharges)) {
-                return [
-                    'min_cost' => 0,
-                    'max_cost' => 0,
-                    'avg_cost' => 0,
-                    'total_cost' => 0,
-                    'charge_count' => 0,
-                    'total_kwh' => 0,
-                    'avg_cost_per_kwh' => 0
-                ];
-            }
-
-            $prices = array_map(function($c) { return floatval($c['price']); }, $allCharges);
-            $kwhValues = array_map(function($c) { return floatval($c['kwh']); }, $allCharges);
-
-            $minCost = min($prices);
-            $maxCost = max($prices);
-            $avgCost = array_sum($prices) / count($prices);
-            $totalCost = array_sum($prices);
-            $totalKwh = array_sum($kwhValues);
-            $avgCostPerKwh = $totalKwh > 0 ? $totalCost / $totalKwh : 0;
-
-            return [
-                'min_cost' => round($minCost, 2),
-                'max_cost' => round($maxCost, 2),
-                'avg_cost' => round($avgCost, 2),
-                'total_cost' => round($totalCost, 2),
-                'charge_count' => count($allCharges),
-                'total_kwh' => round($totalKwh, 2),
-                'avg_cost_per_kwh' => round($avgCostPerKwh, 3)
-            ];
-        } catch (PDOException $e) {
-            error_log("Error fetching cost statistics: " . $e->getMessage());
-            return [];
+        // Parse date range if provided
+        $startDate = null;
+        $endDate = null;
+        if (!empty($dateRange)) {
+            $dates = self::parseDateRange($dateRange);
+            $startDate = $dates['start'];
+            $endDate = $dates['end'];
         }
+
+        $stats = [
+            'total_charges' => 0,
+            'total_kwh' => 0,
+            'total_cost' => 0,
+            'min_cost' => null,
+            'max_cost' => null,
+            'avg_cost_per_charge' => 0,
+            'avg_cost_per_kwh' => 0,
+            'internal_kwh' => 0,
+            'internal_cost' => 0,
+            'internal_charges' => 0,
+            'external_kwh' => 0,
+            'external_cost' => 0,
+            'external_charges' => 0
+        ];
+
+        // ===== INTERNAL CHARGES =====
+        $queryInternal = "SELECT
+            COUNT(*) as charge_count,
+            COALESCE(SUM(consumedKwh), 0) as total_kwh,
+            COALESCE(SUM(cost), 0) as total_cost,
+            MIN(cost) as min_cost,
+            MAX(cost) as max_cost,
+            AVG(cost) as avg_cost
+        FROM charges
+        WHERE 1=1";
+
+        $paramsInternal = [];
+
+        if ($vehicleId !== null) {
+            $queryInternal .= " AND vehicleId = ?";
+            $paramsInternal[] = $vehicleId;
+        }
+
+        if ($startDate !== null && $endDate !== null) {
+            $queryInternal .= " AND DATE(createdAt) BETWEEN ? AND ?";
+            $paramsInternal[] = $startDate;
+            $paramsInternal[] = $endDate;
+        }
+
+        $stmtInternal = $db->prepare($queryInternal);
+        $stmtInternal->execute($paramsInternal);
+        $internalStats = $stmtInternal->fetch();
+
+        // ===== EXTERNAL CHARGES =====
+        $queryExternal = "SELECT
+            COUNT(*) as charge_count,
+            COALESCE(SUM(kwh), 0) as total_kwh,
+            COALESCE(SUM(pris), 0) as total_cost,
+            MIN(pris) as min_cost,
+            MAX(pris) as max_cost,
+            AVG(pris) as avg_cost
+        FROM ext_charges
+        WHERE 1=1";
+
+        $paramsExternal = [];
+
+        if ($vehicleId !== null) {
+            $queryExternal .= " AND vehicleId = ?";
+            $paramsExternal[] = $vehicleId;
+        }
+
+        $stmtExternal = $db->prepare($queryExternal);
+        $stmtExternal->execute($paramsExternal);
+        $externalChargesRaw = $stmtExternal->fetchAll();
+
+        // Filter external charges by date in PHP
+        $externalStats = [
+            'charge_count' => 0,
+            'total_kwh' => 0,
+            'total_cost' => 0,
+            'min_cost' => null,
+            'max_cost' => null,
+            'avg_cost' => 0
+        ];
+
+        if (!empty($externalChargesRaw)) {
+            $externalCharges = [];
+            $costs = [];
+
+            foreach ($externalChargesRaw as $charge) {
+                $chargeTime = strtotime($charge['datetime']);
+
+                // If date range specified, filter by date
+                if ($startDate !== null && $endDate !== null) {
+                    $startTime = strtotime($startDate);
+                    $endTime = strtotime($endDate . ' 23:59:59');
+                    if ($chargeTime < $startTime || $chargeTime > $endTime) {
+                        continue;
+                    }
+                }
+
+                $externalCharges[] = $charge;
+                $costs[] = $charge['pris'];
+            }
+
+            if (!empty($externalCharges)) {
+                $externalStats['charge_count'] = count($externalCharges);
+                $externalStats['total_kwh'] = array_sum(array_column($externalCharges, 'kwh'));
+                $externalStats['total_cost'] = array_sum(array_column($externalCharges, 'pris'));
+                $externalStats['min_cost'] = min($costs);
+                $externalStats['max_cost'] = max($costs);
+                $externalStats['avg_cost'] = $externalStats['total_cost'] / $externalStats['charge_count'];
+            }
+        }
+
+        // Combine stats from both sources
+        $stats['internal_charges'] = intval($internalStats['charge_count'] ?? 0);
+        $stats['internal_kwh'] = floatval($internalStats['total_kwh'] ?? 0);
+        $stats['internal_cost'] = floatval($internalStats['total_cost'] ?? 0);
+
+        $stats['external_charges'] = intval($externalStats['charge_count']);
+        $stats['external_kwh'] = floatval($externalStats['total_kwh']);
+        $stats['external_cost'] = floatval($externalStats['total_cost']);
+
+        $stats['total_charges'] = $stats['internal_charges'] + $stats['external_charges'];
+        $stats['total_kwh'] = $stats['internal_kwh'] + $stats['external_kwh'];
+        $stats['total_cost'] = $stats['internal_cost'] + $stats['external_cost'];
+
+        // Calculate min/max/avg across both sources
+        $allCosts = [];
+        if ($internalStats['min_cost'] !== null) {
+            $allCosts[] = $internalStats['min_cost'];
+            $allCosts[] = $internalStats['max_cost'];
+        }
+        if ($externalStats['min_cost'] !== null) {
+            $allCosts[] = $externalStats['min_cost'];
+            $allCosts[] = $externalStats['max_cost'];
+        }
+
+        if (!empty($allCosts)) {
+            $stats['min_cost'] = round(min($allCosts), 2);
+            $stats['max_cost'] = round(max($allCosts), 2);
+        }
+
+        if ($stats['total_charges'] > 0) {
+            $stats['avg_cost_per_charge'] = round($stats['total_cost'] / $stats['total_charges'], 2);
+        }
+
+        if ($stats['total_kwh'] > 0) {
+            $stats['avg_cost_per_kwh'] = round($stats['total_cost'] / $stats['total_kwh'], 3);
+        }
+
+        return $stats;
     }
 
+    /**
+     * Get vehicle cost comparison data
+     *
+     * Aggregates cost metrics for each vehicle across all charges.
+     * Includes internal vs external breakdown.
+     *
+     * Filters:
+     * - dateRange (optional): "YYYY-MM-DD til YYYY-MM-DD"
+     *
+     * @param PDO $db Database connection
+     * @param array $filters Filter parameters
+     * @return array Array of vehicles with aggregated cost data
+     */
+    public static function getVehicleCostComparison(PDO $db, array $filters): array {
+        $dateRange = $filters['dateRange'] ?? '';
+
+        // Parse date range if provided
+        $startDate = null;
+        $endDate = null;
+        if (!empty($dateRange)) {
+            $dates = self::parseDateRange($dateRange);
+            $startDate = $dates['start'];
+            $endDate = $dates['end'];
+        }
+
+        // Get all vehicles
+        $vehicles = self::selectAllVehicles($db);
+        $vehicleComparison = [];
+
+        foreach ($vehicles as $vehicle) {
+            $vehicleId = $vehicle['id'];
+
+            // Use existing statistics method to get cost data per vehicle
+            $vehicleFilters = ['vehicleId' => $vehicleId];
+            if (!empty($dateRange)) {
+                $vehicleFilters['dateRange'] = $dateRange;
+            }
+
+            $stats = self::getCostStatistics($db, $vehicleFilters);
+
+            $vehicleComparison[] = [
+                'vehicleId' => $vehicleId,
+                'vehicleName' => $vehicle['vehicleName'],
+                'charge_count' => $stats['total_charges'],
+                'total_kwh' => round($stats['total_kwh'], 2),
+                'total_cost' => round($stats['total_cost'], 2),
+                'avg_cost_per_kwh' => $stats['avg_cost_per_kwh'],
+                'internal_kwh' => round($stats['internal_kwh'], 2),
+                'internal_cost' => round($stats['internal_cost'], 2),
+                'internal_charges' => $stats['internal_charges'],
+                'external_kwh' => round($stats['external_kwh'], 2),
+                'external_cost' => round($stats['external_cost'], 2),
+                'external_charges' => $stats['external_charges'],
+                'internal_percentage' => $stats['total_kwh'] > 0
+                    ? round(($stats['internal_kwh'] / $stats['total_kwh']) * 100, 1)
+                    : 0,
+                'external_percentage' => $stats['total_kwh'] > 0
+                    ? round(($stats['external_kwh'] / $stats['total_kwh']) * 100, 1)
+                    : 0
+            ];
+        }
+
+        return $vehicleComparison;
+    }
 }
 ?>

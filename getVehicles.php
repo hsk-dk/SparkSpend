@@ -1,17 +1,29 @@
 <?php
+/**
+ * Get all vehicles
+ * Returns a JSON array of all registered vehicles
+ */
+
 require 'includes/configuration.php';
+require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
+
 header('Content-Type: application/json');
 
 try {
-    $db = new PDO('sqlite:'.$dbPath); // Sørg for at dette stemmer med din database
-    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $db = DatabaseManager::getChargesDb();
+    $vehicles = QueryBuilder::selectAllVehicles($db);
 
-    $stmt = $db->prepare("SELECT * FROM vehicles");
-    $stmt->execute();
-    $vehicles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+    http_response_code(200);
     echo json_encode($vehicles);
 } catch (PDOException $e) {
-    echo json_encode(['error' => 'Databasefejl: ' . $e->getMessage()]);
+    http_response_code(500);
+    error_log("Database error in getVehicles.php: " . $e->getMessage());
+    echo json_encode(['error' => 'Database error occurred']);
+} catch (Exception $e) {
+    http_response_code(400);
+    error_log("Error in getVehicles.php: " . $e->getMessage());
+    echo json_encode(['error' => $e->getMessage()]);
 }
 ?>
+

@@ -1,57 +1,102 @@
 <?php
+/**
+ * Receive and store vehicle telemetry data
+ *
+ * POST JSON body:
+ * - vehicleId: Vehicle ID
+ * - odometer: Current odometer reading (km)
+ */
+
 require 'includes/configuration.php';
-date_default_timezone_set('Europe/Copenhagen');
+require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
-$db = new SQLite3($dbPath);
+header('Content-Type: application/json');
 
-// Læs JSON-indhold fra request body
-$raw_input = file_get_contents('php://input');
-if ($raw_input === false) {
-    error_log("Fejl ved læsning af input-data", 3, "/var/log/php_errors.log");
-    echo json_encode(["status" => "error", "message" => "Fejl ved læsning af input-data"]);
-    exit;
-}
-$input = json_decode($raw_input, true);
-if ($input === null) {
-    error_log("Fejl ved JSON-dekodning: " . json_last_error_msg(), 3, "/var/log/php_errors.log");
-    echo json_encode(["status" => "error", "message" => "Ugyldigt JSON-format"]);
-    exit;
-}
+try {
+    // Validate request method
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode([
+            "status" => "error",
+            "message" => "Method not allowed"
+        ]);
+        exit;
+    }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Read and parse JSON input
+    $raw_input = file_get_contents('php://input');
+    if ($raw_input === false) {
+        http_response_code(400);
+        error_log("Error reading input data in receive_vehicle_data.php");
+        echo json_encode([
+            "status" => "error",
+            "message" => "Error reading input data"
+        ]);
+        exit;
+    }
+
+    $input = json_decode($raw_input, true);
+    if ($input === null) {
+        http_response_code(400);
+        error_log("JSON decode error in receive_vehicle_data.php: " . json_last_error_msg());
+        echo json_encode([
+            "status" => "error",
+            "message" => "Invalid JSON format"
+        ]);
+        exit;
+    }
+
+    // Validate required fields
     if (!isset($input['vehicleId']) || !isset($input['odometer'])) {
-        echo json_encode(["status" => "error", "message" => "Manglende data"]);
+        http_response_code(400);
+        echo json_encode([
+            "status" => "error",
+            "message" => "Missing vehicleId or odometer"
+        ]);
         exit;
     }
 
-    // Brug den aktuelle tid som kabeltilslutningstidspunkt (UTC)
-	$dt = new DateTime("now", new DateTimeZone("Europe/Copenhagen"));
-	$cablePluggedInAt = $dt->format("Y-m-d\TH:i:sP"); // Inkluderer tidszoneoffset
+    // Generate current timestamp in Copenhagen timezone
+    $dt = new DateTime("now", new DateTimeZone("Europe/Copenhagen"));
+    $cablePluggedInAt = $dt->format("Y-m-d\TH:i:sP"); // Includes timezone offset
 
-
-    // Forbered SQL-forespørgslen
-    $stmt = $db->prepare("INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (:vehicleId, :cablePluggedInAt, :odometer)");
-    
-    if (!$stmt) {
-        echo json_encode(["status" => "error", "message" => "Databasefejl: Kunne ikke forberede forespørgsel"]);
-        exit;
-    }
-
-    $stmt->bindValue(':vehicleId', $input['vehicleId'], SQLITE3_INTEGER);
-    $stmt->bindValue(':cablePluggedInAt', $cablePluggedInAt, SQLITE3_TEXT);
-    $stmt->bindValue(':odometer', $input['odometer'], SQLITE3_INTEGER);
-
-    // Udfør forespørgslen
-    $result = $stmt->execute();
+    // Store vehicle data
+    $db = DatabaseManager::getChargesDb();
+    $result = QueryBuilder::insertVehicleData($db, [
+        'vehicleId' => $input['vehicleId'],
+        'timestamp' => $cablePluggedInAt,
+        'odometer' => $input['odometer']
+    ]);
 
     if ($result) {
-        echo json_encode(["status" => "success", "message" => "Data gemt"]);
+        http_response_code(201);
+        echo json_encode([
+            "status" => "success",
+            "message" => "Data stored"
+        ]);
     } else {
-        echo json_encode(["status" => "error", "message" => "Fejl ved databaseindsættelse"]);
+        http_response_code(500);
+        echo json_encode([
+            "status" => "error",
+            "message" => "Error storing data"
+        ]);
     }
-} else {
-    echo json_encode(["status" => "error", "message" => "Ugyldig metode"]);
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    error_log("Database error in receive_vehicle_data.php: " . $e->getMessage());
+    echo json_encode([
+        "status" => "error",
+        "message" => "Database error occurred"
+    ]);
+} catch (Exception $e) {
+    http_response_code(400);
+    error_log("Error in receive_vehicle_data.php: " . $e->getMessage());
+    echo json_encode([
+        "status" => "error",
+        "message" => $e->getMessage()
+    ]);
 }
-
-
 ?>
+

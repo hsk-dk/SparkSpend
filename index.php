@@ -132,6 +132,37 @@ require 'includes/QueryBuilder.php';
 </div>
 
 </div>
+
+<!-- Vehicle Comparison Section -->
+<div>
+<h2>Bilsammenligning</h2>
+<div class="mb-3">
+  <label class="form-check-label">Sortering:</label>
+  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_cost')">Samlede omkostninger</button>
+  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('avg_cost_per_kwh')">Pris pr kWh</button>
+  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_kwh')">Samlet forbrug</button>
+  <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('charge_count')">Antal ladninger</button>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Bil</th>
+      <th>Antal ladninger</th>
+      <th>Samlet kWh</th>
+      <th>Samlet pris (DKK)</th>
+      <th>Pris pr kWh</th>
+      <th>Internt (%)</th>
+      <th>Eksternt (%)</th>
+    </tr>
+  </thead>
+  <tbody id="vehicleComparisonTableBody">
+    <tr><td colspan="7" class="text-center">Indlæser data...</td></tr>
+  </tbody>
+</table>
+
+</div>
+
   <h2>Ladninger</h2>
 
   <!-- Filter og datovælger -->
@@ -394,6 +425,7 @@ require 'includes/QueryBuilder.php';
         fetchCharges();
         fetchEfficiencyStats();
         fetchCostAnalytics();
+        fetchVehicleComparison();
       } catch (error) {
         console.error('Fejl ved hentning af biler:', error);
       }
@@ -719,6 +751,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
           fetchCharges();
           fetchEfficiencyStats();
           fetchCostAnalytics();
+          fetchVehicleComparison();
         }
       });
     };
@@ -728,6 +761,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         fetchCharges();
         fetchEfficiencyStats();
         fetchCostAnalytics();
+        fetchVehicleComparison();
       });
       showZeroKwhEl.addEventListener("change", () => {
         fetchCharges();
@@ -754,6 +788,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         fetchCharges();
         fetchEfficiencyStats();
         fetchCostAnalytics();
+        fetchVehicleComparison();
       });
     };
 
@@ -1215,6 +1250,55 @@ function renderCostStatistics(stats) {
       </tr>
     </table>
   `;
+}
+
+// Vehicle Comparison Functions
+function fetchVehicleComparison() {
+  const params = new URLSearchParams({
+    dateRange: dateRangeEl.value
+  });
+
+  fetch('getVehicleComparison.php?' + params.toString())
+    .then(response => response.json())
+    .then(data => {
+      renderVehicleComparison(data.vehicles);
+    })
+    .catch(error => console.error('Fejl ved hentning af bilsammenligningsdata:', error));
+}
+
+function renderVehicleComparison(vehicles) {
+  const tableBody = document.getElementById("vehicleComparisonTableBody");
+
+  if (!vehicles || vehicles.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Ingen data tilgængelig</td></tr>';
+    return;
+  }
+
+  tableBody.innerHTML = vehicles.map(vehicle => `
+    <tr>
+      <td><strong>${vehicle.vehicleName}</strong></td>
+      <td>${vehicle.charge_count}</td>
+      <td>${vehicle.total_kwh.toFixed(2)} kWh</td>
+      <td>${vehicle.total_cost.toFixed(2)} kr</td>
+      <td>${vehicle.avg_cost_per_kwh.toFixed(3)} kr/kWh</td>
+      <td>${vehicle.internal_percentage.toFixed(1)}%</td>
+      <td>${vehicle.external_percentage.toFixed(1)}%</td>
+    </tr>
+  `).join('');
+}
+
+function sortVehicleComparison(sortBy) {
+  const params = new URLSearchParams({
+    dateRange: dateRangeEl.value,
+    sortBy: sortBy
+  });
+
+  fetch('getVehicleComparison.php?' + params.toString())
+    .then(response => response.json())
+    .then(data => {
+      renderVehicleComparison(data.vehicles);
+    })
+    .catch(error => console.error('Fejl ved sortering af bilsammenligningsdata:', error));
 }
 
 

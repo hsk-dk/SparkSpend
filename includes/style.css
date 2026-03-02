@@ -8,7 +8,12 @@
   --white: #ffffff;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  /* Background Image - Replace with your own image URL */
+  /* Example: --background-image: url('https://auth.useful.dk/images/background.jpg'); */
+  --background-image: none;
 }
+
 
 /* Dark Mode */
 @media (prefers-color-scheme: dark) {
@@ -33,12 +38,32 @@ html, body {
 
 body {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background: linear-gradient(135deg, var(--brand-bg) 0%, var(--brand-light) 100%);
+  background: linear-gradient(135deg, var(--brand-bg) 0%, var(--brand-light) 100%),
+              url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><radialGradient id="vignette" cx="50%25" cy="50%25" r="70%25"><stop offset="0%25" stop-color="rgba(255,255,255,0)" /><stop offset="100%25" stop-color="rgba(36,49,64,0.3)" /></radialGradient></defs><rect width="1200" height="800" fill="url(%23vignette)" /></svg>') center/cover,
+              linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(36,49,64,0.05) 100%);
+  background-attachment: fixed;
   color: var(--brand-ink);
   padding: 0;
   min-height: 100vh;
-  background-attachment: fixed;
+  position: relative;
+  overflow-x: hidden;
 }
+
+/* Optional: Add a subtle animated background pattern */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(107, 163, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(107, 163, 255, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
 
 /* Header */
 header {

@@ -1,30 +1,67 @@
 <?php
+/**
+ * Update internal charge vehicle assignment
+ *
+ * POST JSON body:
+ * - id: Charge ID
+ * - vehicleId: New Vehicle ID
+ */
+
 require 'includes/configuration.php';
+require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
+
 header('Content-Type: application/json');
 
-$data = json_decode(file_get_contents('php://input'), true);
-
-if (!isset($data['id']) || !isset($data['vehicleId'])) {
-    echo json_encode(['success' => false, 'error' => 'Manglende parametre']);
-    exit;
-}
-
 try {
-    $db = new SQLite3($dbPath);
-    $id = $data['id'];  // id er tekst
-    $vehicleId = intval($data['vehicleId']);
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
 
-    $stmt = $db->prepare("UPDATE charges SET vehicleId = :vehicleId WHERE id = :id");
-    $stmt->bindValue(':vehicleId', $vehicleId, SQLITE3_INTEGER);
-    $stmt->bindValue(':id', $id, SQLITE3_TEXT);
-    $result = $stmt->execute();
+    if (!$data || !isset($data['id']) || !isset($data['vehicleId'])) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Missing required fields: id, vehicleId'
+        ]);
+        exit;
+    }
+
+    $db = DatabaseManager::getChargesDb();
+    $result = QueryBuilder::updateInternalCharge($db, [
+        'id' => $data['id'],
+        'vehicleId' => $data['vehicleId'],
+        'consumedKwh' => 0,  // Not updated in this endpoint
+        'cost' => 0           // Not updated in this endpoint
+    ]);
 
     if ($result) {
-        echo json_encode(['success' => true, 'message' => 'Intern ladning opdateret']);
+        http_response_code(200);
+        echo json_encode([
+            'success' => true,
+            'message' => 'Internal charge updated'
+        ]);
     } else {
-        echo json_encode(['success' => false, 'error' => 'Fejl ved opdatering']);
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Error updating charge'
+        ]);
     }
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    error_log("Database error in updateInternalCharge.php: " . $e->getMessage());
+    echo json_encode([
+        'success' => false,
+        'error' => 'Database error occurred'
+    ]);
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    http_response_code(400);
+    error_log("Error in updateInternalCharge.php: " . $e->getMessage());
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage()
+    ]);
 }
 ?>
+

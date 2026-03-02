@@ -1,37 +1,10 @@
 <?php
 require __DIR__ . '/../includes/configuration.php';
-// Opret forbindelse til SQLite-database via PDO
- $dbPath = __DIR__ . '/../'.$dbPath;
+require __DIR__ . '/../includes/DatabaseManager.php';
+require __DIR__ . '/../includes/QueryBuilder.php';
+
 try {
-    if (!file_exists($dbPath)) {
-        // Opret databasen, hvis den ikke findes
-        echo "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP";
-		//$db = new PDO('sqlite:' . $dbPath);
-        //$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        /*$db->exec("CREATE TABLE IF NOT EXISTS charges (
-             id INTEGER PRIMARY KEY,
-             chargePointId INTEGER,
-             createdAt TEXT,
-             updatedAt TEXT,
-             cablePluggedInAt TEXT,
-             startedAt TEXT,
-             stoppedAt TEXT,
-             state TEXT,
-             consumedKwh REAL,
-             kwhLimit INTEGER,
-             startMeterKwh REAL,
-             endMeterKwh REAL,
-             cost REAL,
-             stopReason TEXT,
-             socPercentage INTEGER,
-             socLimit INTEGER,
-             vehicleId INTEGER
-        )");*/
-    } else {
-        // Forbind til eksisterende database
-        $db = new PDO('sqlite:' . $dbPath);
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    }
+    $db = DatabaseManager::getChargesDb();
 } catch (PDOException $e) {
     die("Databaseforbindelse fejlede: " . $e->getMessage());
 }
@@ -108,17 +81,15 @@ function getChargingData($accessToken, $dataEndpoint, $fromDate, $toDate) {
 }
 
 function getVehicleForCharge($cablePluggedInAt) {
-	global $dbPath; 
-	$db = new SQLite3($dbPath);
+	$db = DatabaseManager::getChargesDb();
 
-    $stmt = $db->prepare("SELECT vehicleId FROM vehicle_charges 
-                          WHERE ABS(strftime('%s', cablePluggedInAt) - strftime('%s', :cablePluggedInAt)) < 3600
-                          ORDER BY ABS(strftime('%s', cablePluggedInAt) - strftime('%s', :cablePluggedInAt))
+    $stmt = $db->prepare("SELECT vehicleId FROM vehicle_charges
+                          WHERE ABS(strftime('%s', cablePluggedInAt) - strftime('%s', ?)) < 3600
+                          ORDER BY ABS(strftime('%s', cablePluggedInAt) - strftime('%s', ?))
                           LIMIT 1");
 
-    $stmt->bindValue(':cablePluggedInAt', $cablePluggedInAt, SQLITE3_TEXT);
-    $result = $stmt->execute();
-    $row = $result->fetchArray(SQLITE3_ASSOC);
+    $stmt->execute([$cablePluggedInAt, $cablePluggedInAt]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ? $row['vehicleId'] : 1;
 }
 
@@ -136,23 +107,29 @@ function saveChargingData($db, $data) {
         // Find den rigtige bil baseret på kabeltilslutningstidspunktet
         $vehicleId = getVehicleForCharge($charge['cablePluggedInAt']);
 
-        $stmt->bindValue(':id', $charge['id'], SQLITE3_INTEGER);
-        $stmt->bindValue(':chargePointId', $charge['chargePointId'], SQLITE3_INTEGER);
-        $stmt->bindValue(':createdAt', $charge['createdAt'], SQLITE3_TEXT);
-        $stmt->bindValue(':updatedAt', $charge['updatedAt'], SQLITE3_TEXT);
-        $stmt->bindValue(':cablePluggedInAt', $charge['cablePluggedInAt'], SQLITE3_TEXT);
-        $stmt->bindValue(':startedAt', $charge['startedAt'], SQLITE3_TEXT);
-        $stmt->bindValue(':stoppedAt', $charge['stoppedAt'], SQLITE3_TEXT);
-        $stmt->bindValue(':state', $charge['state'], SQLITE3_TEXT);
-        $stmt->bindValue(':consumedKwh', $charge['consumedKwh'], SQLITE3_FLOAT);
-        $stmt->bindValue(':kwhLimit', $charge['kwhLimit'], SQLITE3_INTEGER);
-        $stmt->bindValue(':startMeterKwh', $charge['startMeterKwh'], SQLITE3_FLOAT);
-        $stmt->bindValue(':endMeterKwh', $charge['endMeterKwh'], SQLITE3_FLOAT);
-        $stmt->bindValue(':cost', $charge['cost'], SQLITE3_FLOAT);
-        $stmt->bindValue(':stopReason', $charge['stopReason'], SQLITE3_TEXT);
-        $stmt->bindValue(':socPercentage', $charge['soc']['percentage'], SQLITE3_INTEGER);
-        $stmt->bindValue(':socLimit', $charge['socLimit'], SQLITE3_INTEGER);
-        $stmt->bindValue(':vehicleId', $vehicleId, SQLITE3_INTEGER);
+        // Extract soc percentage with error checking
+        $socPercentage = null;
+        if (isset($charge['soc']) && is_array($charge['soc']) && isset($charge['soc']['percentage'])) {
+            $socPercentage = $charge['soc']['percentage'];
+        }
+
+        $stmt->bindValue(':id', $charge['id']);
+        $stmt->bindValue(':chargePointId', $charge['chargePointId']);
+        $stmt->bindValue(':createdAt', $charge['createdAt']);
+        $stmt->bindValue(':updatedAt', $charge['updatedAt']);
+        $stmt->bindValue(':cablePluggedInAt', $charge['cablePluggedInAt']);
+        $stmt->bindValue(':startedAt', $charge['startedAt']);
+        $stmt->bindValue(':stoppedAt', $charge['stoppedAt']);
+        $stmt->bindValue(':state', $charge['state']);
+        $stmt->bindValue(':consumedKwh', $charge['consumedKwh']);
+        $stmt->bindValue(':kwhLimit', $charge['kwhLimit']);
+        $stmt->bindValue(':startMeterKwh', $charge['startMeterKwh']);
+        $stmt->bindValue(':endMeterKwh', $charge['endMeterKwh']);
+        $stmt->bindValue(':cost', $charge['cost']);
+        $stmt->bindValue(':stopReason', $charge['stopReason']);
+        $stmt->bindValue(':socPercentage', $socPercentage);
+        $stmt->bindValue(':socLimit', $charge['socLimit']);
+        $stmt->bindValue(':vehicleId', $vehicleId);
 
         $stmt->execute();
     }

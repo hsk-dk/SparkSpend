@@ -1,27 +1,58 @@
 <?php
+/**
+ * Delete external charge
+ *
+ * POST JSON body:
+ * - id: Charge ID to delete
+ */
+
 require 'includes/configuration.php';
+require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
+
 header('Content-Type: application/json');
 
-// Forudsætter, at du har oprettet forbindelse til databasen
-$db = new SQLite3($dbPath);
+try {
+    $json = file_get_contents('php://input');
+    $data = json_decode($json, true);
 
-// Hent POST-data
-$data = json_decode(file_get_contents('php://input'), true);
-if (!isset($data['id'])) {
-    echo json_encode(['success' => false, 'error' => 'Ingen id angivet']);
-    exit;
-}
+    if (!$data || !isset($data['id'])) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Missing id parameter'
+        ]);
+        exit;
+    }
 
-$id = intval($data['id']);
+    $db = DatabaseManager::getChargesDb();
+    $result = QueryBuilder::deleteExternalCharge($db, intval($data['id']));
 
-// Udfør sletningen
-$stmt = $db->prepare('DELETE FROM ext_charges WHERE id = :id');
-$stmt->bindValue(':id', $id, SQLITE3_INTEGER);
-$result = $stmt->execute();
+    if ($result) {
+        http_response_code(200);
+        echo json_encode(['success' => true]);
+    } else {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Error deleting charge'
+        ]);
+    }
 
-if ($result) {
-    echo json_encode(['success' => true]);
-} else {
-    echo json_encode(['success' => false, 'error' => 'Kunne ikke slette ladningen']);
+} catch (PDOException $e) {
+    http_response_code(500);
+    error_log("Database error in deleteExtCharge.php: " . $e->getMessage());
+    echo json_encode([
+        'success' => false,
+        'error' => 'Database error occurred'
+    ]);
+} catch (Exception $e) {
+    http_response_code(400);
+    error_log("Error in deleteExtCharge.php: " . $e->getMessage());
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage()
+    ]);
 }
 ?>
+
