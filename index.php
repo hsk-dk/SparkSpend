@@ -246,11 +246,11 @@ require 'includes/QueryBuilder.php';
             </div>
             <div class="mb-3">
               <label for="kwh" class="form-label">Forbrugt kWh:</label>
-              <input type="number" step="0.01" id="kwh" name="kwh" class="form-control" required>
+              <input type="number" step="0.01" id="kwh" name="kwh" class="form-control" required min="0" max="10000">
             </div>
             <div class="mb-3">
               <label for="pris" class="form-label">Pris:</label>
-              <input type="number" step="0.01" id="pris" name="pris" class="form-control" required>
+              <input type="number" step="0.01" id="pris" name="pris" class="form-control" required min="0" max="100000">
             </div>
             <button type="submit" class="btn btn-primary">Opret session</button>
           </form>
@@ -333,11 +333,11 @@ require 'includes/QueryBuilder.php';
             </div>
             <div class="mb-3">
               <label for="externalKwh" class="form-label">Forbrugt kWh:</label>
-              <input type="number" step="0.01" id="externalKwh" name="kwh" class="form-control" required>
+              <input type="number" step="0.01" id="externalKwh" name="kwh" class="form-control" required min="0" max="10000">
             </div>
             <div class="mb-3">
               <label for="externalPris" class="form-label">Pris:</label>
-              <input type="number" step="0.01" id="externalPris" name="pris" class="form-control" required>
+              <input type="number" step="0.01" id="externalPris" name="pris" class="form-control" required min="0" max="100000">
             </div>
             <button type="submit" class="btn btn-primary">Gem ændringer</button>
           </form>
@@ -457,12 +457,14 @@ require 'includes/QueryBuilder.php';
         dateRange: dateRangeEl.value
       });
 
+      appUtils.setLoadingState('chargeTableBody', true);
       try {
         const response = await fetch(`getCharges.php?${params.toString()}`);
         const data = await appUtils.handleFetchResponse(response);
         renderCharges(data);
       } catch (error) {
         console.error('Fejl ved hentning af data:', error);
+        chargeTableBodyEl.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Fejl ved indlæsning: ${error.message}</td></tr>`;
       }
     };
 
@@ -875,6 +877,13 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
     const internalChargeMsgEl = document.getElementById('internalChargeMsg');
     internalChargeForm.addEventListener('submit', async e => {
       e.preventDefault();
+
+      // Validate required fields
+      if (!internalChargeForm.checkValidity()) {
+        appUtils.showFormMessage('internalChargeMsg', 'Venligst udfyld alle påkrævede felter', 'danger');
+        return;
+      }
+
       const id = document.getElementById('internalChargeId').value;
       const vehicleId = document.getElementById('internalVehicleId').value;
       try {
@@ -885,14 +894,15 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         });
         const result = await appUtils.handleFetchResponse(response);
         if (result.success) {
-          internalChargeMsgEl.innerHTML = '<div class="text-success">Intern ladning opdateret!</div>';
+          appUtils.showFormMessage('internalChargeMsg', 'Intern ladning opdateret!', 'success');
           bootstrap.Modal.getInstance(document.getElementById('internalChargeModal')).hide();
           fetchCharges();
         } else {
-          internalChargeMsgEl.innerHTML = `<div class="text-danger">Fejl: ${result.error}</div>`;
+          appUtils.showFormMessage('internalChargeMsg', result.error || 'Fejl ved opdatering', 'danger');
         }
       } catch (error) {
         console.error('Fejl ved opdatering af intern ladning:', error);
+        appUtils.showFormMessage('internalChargeMsg', 'Der opstod en fejl: ' + error.message, 'danger');
       }
     });
 
@@ -901,6 +911,13 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
     const externalChargeMsgEl = document.getElementById('externalChargeMsg');
     externalChargeForm.addEventListener('submit', async e => {
       e.preventDefault();
+
+      // Validate required fields
+      if (!externalChargeForm.checkValidity()) {
+        appUtils.showFormMessage('externalChargeMsg', 'Venligst udfyld alle påkrævede felter', 'danger');
+        return;
+      }
+
       const id = document.getElementById('externalChargeId').value;
       const vehicleId = document.getElementById('externalVehicleId').value;
       const providerId = document.getElementById('externalProviderId').value;
@@ -915,32 +932,60 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         });
         const result = await appUtils.handleFetchResponse(response);
         if (result.success) {
-          externalChargeMsgEl.innerHTML = '<div class="text-success">Ekstern ladning opdateret!</div>';
+          appUtils.showFormMessage('externalChargeMsg', 'Ekstern ladning opdateret!', 'success');
           bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
           fetchCharges();
         } else {
-          externalChargeMsgEl.innerHTML = `<div class="text-danger">Fejl: ${result.error}</div>`;
+          appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl ved opdatering', 'danger');
         }
       } catch (error) {
         console.error('Fejl ved opdatering af ekstern ladning:', error);
+        appUtils.showFormMessage('externalChargeMsg', 'Der opstod en fejl: ' + error.message, 'danger');
       }
     });
 
     // Håndter formular til oprettelse af ekstern ladning
     const exChargeForm = document.getElementById('exChargeForm');
     const exChargeMsgEl = document.getElementById('exChargeMsg');
-  document.getElementById("exChargeForm").addEventListener("submit", function(event) {
-    event.preventDefault();
-    const formData = new FormData(this);
-    //console.log("Formularens data:", Object.fromEntries(formData.entries())); // Tjek at chargeDateTime sendes korrekt
-    fetch("createExCharge.php", {
-        method: "POST",
-        body: formData
-    }).then(response => response.json())
-      .then(data => {
-          console.log("Server respons:", data); // Se om datoen er korrekt på serveren
-      }).catch(error => console.error("Fejl:", error));
-});
+    exChargeForm.addEventListener('submit', async e => {
+      e.preventDefault();
+
+      // Validate required fields
+      if (!exChargeForm.checkValidity()) {
+        appUtils.showFormMessage('exChargeMsg', 'Venligst udfyld alle påkrævede felter', 'danger');
+        return;
+      }
+
+      const formData = new FormData(exChargeForm);
+      try {
+        const response = await fetch('createExCharge.php', {
+          method: 'POST',
+          body: formData
+        });
+
+        // Better error handling
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          appUtils.showFormMessage('exChargeMsg', data.error, 'danger');
+        } else if (data.success) {
+          appUtils.showFormMessage('exChargeMsg', 'Ekstern ladning oprettet!', 'success');
+          exChargeForm.reset();
+          bootstrap.Modal.getInstance(document.getElementById('createExChargeModal')).hide();
+          fetchCharges();
+          fetchVehicleComparison();
+        } else {
+          appUtils.showFormMessage('exChargeMsg', 'Fejl ved oprettelse af ladning', 'danger');
+        }
+      } catch (error) {
+        console.error('Fejl ved oprettelse af extern ladning:', error);
+        appUtils.showFormMessage('exChargeMsg', 'Der opstod en fejl: ' + error.message, 'danger');
+      }
+    });
 
 // Hent slet-knappen
 const deleteExternalChargeButton = document.getElementById('deleteExternalChargeButton');
@@ -948,13 +993,12 @@ const deleteExternalChargeButton = document.getElementById('deleteExternalCharge
 deleteExternalChargeButton.addEventListener('click', async () => {
   // Hent id'et på den eksterne ladning, der skal slettes
   const id = document.getElementById('externalChargeId').value;
-  
+
   // Vis en bekræftelsesdialog
-  const bekræft = confirm("Er du sikker på, at du vil slette denne ladning?");
-  if (!bekræft) {
+  if (!confirm("Er du sikker på, at du vil slette denne ladning?")) {
     return; // Afbryd, hvis brugeren ikke bekræfter
   }
-  
+
   try {
     // Send en POST-anmodning om at slette ladningen
     const response = await fetch('deleteExtCharge.php', {
@@ -964,21 +1008,25 @@ deleteExternalChargeButton.addEventListener('click', async () => {
       },
       body: JSON.stringify({ id })
     });
-    
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
     const result = await response.json();
     if (result.success) {
       // Vis en succesbesked og opdater oversigten
-      document.getElementById('externalChargeMsg').innerHTML = '<div class="text-success">Ladningen er slettet!</div>';
+      appUtils.showFormMessage('externalChargeMsg', 'Ladningen er slettet!', 'success');
       // Luk modal-vinduet
       bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
       // Opdater oversigten med ladninger
       fetchCharges();
     } else {
-      document.getElementById('externalChargeMsg').innerHTML = `<div class="text-danger">Fejl: ${result.error}</div>`;
+      appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl ved sletning', 'danger');
     }
   } catch (error) {
     console.error('Fejl ved sletning af ekstern ladning:', error);
-    document.getElementById('externalChargeMsg').innerHTML = '<div class="text-danger">Der opstod en fejl under sletningen.</div>';
+    appUtils.showFormMessage('externalChargeMsg', 'Der opstod en fejl: ' + error.message, 'danger');
   }
 });
 
@@ -990,20 +1038,25 @@ function fetchEfficiencyStats() {
     showZeroKwh: showZeroKwhEl.checked,
     dateRange: dateRangeEl.value
   });
-  
-  // Debug: Log hvad der sendes til serveren
-  console.log('Sending to getEfficiencyStats.php:', {
-    filter: filterEl.value,
-    showZeroKwh: showZeroKwhEl.checked,
-    dateRange: dateRangeEl.value
-  });
 
   fetch('getEfficiencyStats.php?' + params.toString())
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
     .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
       renderEfficiencyCharts(data);
     })
-    .catch(error => console.error('Fejl ved hentning af effektivitetsstatistik:', error));
+    .catch(error => {
+      console.error('Fejl ved hentning af effektivitetsstatistik:', error);
+      document.getElementById('kmPerKwhChart').innerHTML = `<div class="alert alert-danger">Fejl ved indlæsning: ${error.message}</div>`;
+      document.getElementById('krPerKmChart').innerHTML = `<div class="alert alert-danger">Fejl ved indlæsning</div>`;
+    });
 }
 
 // Globale variabler til ApexCharts-instancer (hvis du skal opdatere dem)
@@ -1153,11 +1206,23 @@ function fetchCostAnalytics() {
   });
 
   fetch('getChargeAnalytics.php?' + params.toString())
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
     .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
       renderCostAnalytics(data);
     })
-    .catch(error => console.error('Fejl ved hentning af omkostningsdata:', error));
+    .catch(error => {
+      console.error('Fejl ved hentning af omkostningsdata:', error);
+      document.getElementById('costTrendChart').innerHTML = `<div class="alert alert-danger">Fejl ved indlæsning: ${error.message}</div>`;
+      document.getElementById('costStatsContent').innerHTML = `<div class="alert alert-danger">Fejl: ${error.message}</div>`;
+    });
 }
 
 function renderCostAnalytics(data) {
@@ -1272,11 +1337,23 @@ function fetchVehicleComparison() {
   });
 
   fetch('getVehicleComparison.php?' + params.toString())
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
     .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
       renderVehicleComparison(data.vehicles);
     })
-    .catch(error => console.error('Fejl ved hentning af bilsammenligningsdata:', error));
+    .catch(error => {
+      console.error('Fejl ved hentning af bilsammenligningsdata:', error);
+      document.getElementById('vehicleComparisonTableBody').innerHTML =
+        `<tr><td colspan="7" class="text-center text-danger">Fejl: ${error.message}</td></tr>`;
+    });
 }
 
 function renderVehicleComparison(vehicles) {
@@ -1307,11 +1384,23 @@ function sortVehicleComparison(sortBy) {
   });
 
   fetch('getVehicleComparison.php?' + params.toString())
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
     .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
       renderVehicleComparison(data.vehicles);
     })
-    .catch(error => console.error('Fejl ved sortering af bilsammenligningsdata:', error));
+    .catch(error => {
+      console.error('Fejl ved sortering af bilsammenligningsdata:', error);
+      document.getElementById('vehicleComparisonTableBody').innerHTML =
+        `<tr><td colspan="7" class="text-center text-danger">Fejl: ${error.message}</td></tr>`;
+    });
 }
 
 
