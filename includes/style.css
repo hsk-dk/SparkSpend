@@ -400,6 +400,11 @@ button {
   transform: translateY(0);
 }
 
+button:focus {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
+
 .btn-outline-light {
   background: rgba(255, 255, 255, 0.2);
   color: var(--white);
