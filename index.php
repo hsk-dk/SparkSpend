@@ -1,5 +1,7 @@
 <?php
 require 'includes/configuration.php';
+require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 ?>
 <!DOCTYPE html>
 <html lang="da">
@@ -95,6 +97,41 @@ require 'includes/configuration.php';
 <div id="krPerKmChart"></div>
 
 </div>
+
+<!-- Cost Analytics Section -->
+<div>
+<h2>Omkostningsanalyse</h2>
+<div class="mb-3">
+  <label class="form-check-label">Gruppering:</label>
+  <div class="form-check form-check-inline">
+    <input class="form-check-input" type="radio" name="costGrouping" id="groupDay" value="day">
+    <label class="form-check-label" for="groupDay">Pr. dag</label>
+  </div>
+  <div class="form-check form-check-inline">
+    <input class="form-check-input" type="radio" name="costGrouping" id="groupWeek" value="week" checked>
+    <label class="form-check-label" for="groupWeek">Pr. uge</label>
+  </div>
+  <div class="form-check form-check-inline">
+    <input class="form-check-input" type="radio" name="costGrouping" id="groupMonth" value="month">
+    <label class="form-check-label" for="groupMonth">Pr. måned</label>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div id="costTrendChart"></div>
+  </div>
+  <div class="col-md-6">
+    <div id="costStatsBox" class="card p-3">
+      <h5>Omkostningsstatistik</h5>
+      <div id="costStatsContent">
+        <p>Indlæser data...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
   <h2>Ladninger</h2>
 
   <!-- Filter og datovælger -->
@@ -149,10 +186,10 @@ require 'includes/configuration.php';
               <select id="vehicleId" name="vehicleId" class="form-select" required>
                 <option value="">Vælg bil</option>
                 <?php
-                  $db = new SQLite3($dbPath);
-                  $vehicles = $db->query('SELECT * FROM vehicles');
-                  while ($row = $vehicles->fetchArray(SQLITE3_ASSOC)) {
-                    echo '<option value="' . $row['id'] . '">' . $row['vehicleName'] . '</option>';
+                  $db = DatabaseManager::getChargesDb();
+                  $vehicles = QueryBuilder::selectAllVehicles($db);
+                  foreach ($vehicles as $row) {
+                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['vehicleName']) . '</option>';
                   }
                 ?>
               </select>
@@ -162,9 +199,9 @@ require 'includes/configuration.php';
               <select id="providerId" name="providerId" class="form-select" required>
                 <option value="">Vælg udbyder</option>
                 <?php
-                  $providers = $db->query('SELECT id, providerName FROM provideres;');
-                  while ($row = $providers->fetchArray(SQLITE3_ASSOC)) {
-                    echo '<option value="' . $row['id'] . '">' . $row['providerName'] . '</option>';
+                  $providers = QueryBuilder::selectAllProviders($db);
+                  foreach ($providers as $row) {
+                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['providerName']) . '</option>';
                   }
                 ?>
               </select>
@@ -206,9 +243,9 @@ require 'includes/configuration.php';
               <select id="internalVehicleId" name="vehicleId" class="form-select" required>
                 <option value="">Vælg bil</option>
                 <?php
-                  $vehicles = $db->query('SELECT * FROM vehicles');
-                  while ($row = $vehicles->fetchArray(SQLITE3_ASSOC)) {
-                    echo '<option value="' . $row['id'] . '">' . $row['vehicleName'] . '</option>';
+                  $vehicles = QueryBuilder::selectAllVehicles($db);
+                  foreach ($vehicles as $row) {
+                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['vehicleName']) . '</option>';
                   }
                 ?>
               </select>
@@ -237,9 +274,9 @@ require 'includes/configuration.php';
               <select id="externalVehicleId" name="vehicleId" class="form-select" required>
                 <option value="">Vælg bil</option>
                 <?php
-                  $vehicles = $db->query('SELECT * FROM vehicles');
-                  while ($row = $vehicles->fetchArray(SQLITE3_ASSOC)) {
-                    echo '<option value="' . $row['id'] . '">' . $row['vehicleName'] . '</option>';
+                  $vehicles = QueryBuilder::selectAllVehicles($db);
+                  foreach ($vehicles as $row) {
+                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['vehicleName']) . '</option>';
                   }
                 ?>
               </select>
@@ -249,9 +286,9 @@ require 'includes/configuration.php';
               <select id="externalProviderId" name="providerId" class="form-select" required>
                 <option value="">Vælg udbyder</option>
                 <?php
-                  $providers = $db->query('SELECT id, providerName FROM provideres;');
-                  while ($row = $providers->fetchArray(SQLITE3_ASSOC)) {
-                    echo '<option value="' . $row['id'] . '">' . $row['providerName'] . '</option>';
+                  $providers = QueryBuilder::selectAllProviders($db);
+                  foreach ($providers as $row) {
+                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['providerName']) . '</option>';
                   }
                 ?>
               </select>
@@ -306,6 +343,13 @@ require 'includes/configuration.php';
 		Chart.register(ChartDataLabels);
 		setupFlatpickr();
 		setupEventListeners();
+
+		// Apply default filter (this month)
+		const today = new Date();
+		const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+		const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+		dateRangeEl._flatpickr.setDate([startDate, endDate]);
+
 		fetchVehicles();
 		fetchProviders();
 
@@ -348,6 +392,8 @@ require 'includes/configuration.php';
         vehicles = data;
         populateFilter();
         fetchCharges();
+        fetchEfficiencyStats();
+        fetchCostAnalytics();
       } catch (error) {
         console.error('Fejl ved hentning af biler:', error);
       }
@@ -672,6 +718,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         onClose: () => {
           fetchCharges();
           fetchEfficiencyStats();
+          fetchCostAnalytics();
         }
       });
     };
@@ -680,18 +727,33 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
       filterEl.addEventListener("change", () => {
         fetchCharges();
         fetchEfficiencyStats();
+        fetchCostAnalytics();
       });
       showZeroKwhEl.addEventListener("change", () => {
         fetchCharges();
         fetchEfficiencyStats();
       });
       quickFilterEl.addEventListener("change", applyQuickFilter);
-      
+
       // Event listener for efficiency type radio buttons
       document.querySelectorAll('input[name="efficiencyType"]').forEach(radio => {
         radio.addEventListener("change", () => {
           fetchEfficiencyStats(); // Re-render grafer med ny beregning
         });
+      });
+
+      // Event listener for cost grouping radio buttons
+      document.querySelectorAll('input[name="costGrouping"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+          fetchCostAnalytics(); // Re-render omkostningsdiagram med ny gruppering
+        });
+      });
+
+      // Add date range change listener for cost analytics
+      dateRangeEl.addEventListener("change", () => {
+        fetchCharges();
+        fetchEfficiencyStats();
+        fetchCostAnalytics();
       });
     };
 
@@ -733,6 +795,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
       }
       fetchCharges();
       fetchEfficiencyStats();
+      fetchCostAnalytics();
     };
 
     // Funktion, der kaldes når "Rediger" klikkes.
@@ -1030,20 +1093,131 @@ function randomColor() {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+// Cost Analytics Functions
+let costTrendChartInstance;
+
+function fetchCostAnalytics() {
+  const groupBy = document.querySelector('input[name="costGrouping"]:checked')?.value || 'week';
+  const params = new URLSearchParams({
+    filter: filterEl.value,
+    dateRange: dateRangeEl.value,
+    groupBy: groupBy
+  });
+
+  fetch('getChargeAnalytics.php?' + params.toString())
+    .then(response => response.json())
+    .then(data => {
+      renderCostAnalytics(data);
+    })
+    .catch(error => console.error('Fejl ved hentning af omkostningsdata:', error));
+}
+
+function renderCostAnalytics(data) {
+  // Render cost trend chart
+  renderCostTrendChart(data.trend.daily_totals);
+
+  // Render cost statistics
+  renderCostStatistics(data.statistics);
+}
+
+function renderCostTrendChart(dailyData) {
+  // Prepare data for ApexCharts
+  const dates = dailyData.map(d => d.date);
+  const internalCosts = dailyData.map(d => parseFloat(d.internal_cost) || 0);
+  const externalCosts = dailyData.map(d => parseFloat(d.external_cost) || 0);
+  const avgCostPerKwh = dailyData.map(d => parseFloat(d.avg_cost_per_kwh) || 0);
+
+  const options = {
+    chart: {
+      type: 'area',
+      height: 400,
+      stacked: true
+    },
+    series: [
+      {
+        name: 'Indre ladning (kr)',
+        data: internalCosts
+      },
+      {
+        name: 'Ekstern ladning (kr)',
+        data: externalCosts
+      }
+    ],
+    xaxis: {
+      categories: dates,
+      type: 'datetime'
+    },
+    yaxis: {
+      title: {
+        text: 'Omkostning (kr)'
+      }
+    },
+    title: {
+      text: 'Omkostningstendenser'
+    },
+    stroke: {
+      curve: 'smooth'
+    }
+  };
+
+  if (costTrendChartInstance) {
+    costTrendChartInstance.destroy();
+  }
+  costTrendChartInstance = new ApexCharts(document.querySelector("#costTrendChart"), options);
+  costTrendChartInstance.render();
+}
+
+function renderCostStatistics(stats) {
+  const statsBox = document.getElementById("costStatsContent");
+
+  if (!stats || Object.keys(stats).length === 0) {
+    statsBox.innerHTML = '<p>Ingen data tilgængelig</p>';
+    return;
+  }
+
+  const minCost = parseFloat(stats.min_cost) || 0;
+  const maxCost = parseFloat(stats.max_cost) || 0;
+  const avgCost = parseFloat(stats.avg_cost) || 0;
+  const totalCost = parseFloat(stats.total_cost) || 0;
+  const chargeCount = parseInt(stats.charge_count) || 0;
+  const totalKwh = parseFloat(stats.total_kwh) || 0;
+  const avgCostPerKwh = parseFloat(stats.avg_cost_per_kwh) || 0;
+
+  statsBox.innerHTML = `
+    <table class="table table-sm">
+      <tr>
+        <td><strong>Ladninger:</strong></td>
+        <td>${chargeCount}</td>
+      </tr>
+      <tr>
+        <td><strong>I alt kWh:</strong></td>
+        <td>${totalKwh.toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td><strong>I alt kr:</strong></td>
+        <td>${totalCost.toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td><strong>Gennemsnit pr. ladning:</strong></td>
+        <td>${avgCost.toFixed(2)} kr</td>
+      </tr>
+      <tr>
+        <td><strong>Gennemsnit pr. kWh:</strong></td>
+        <td>${avgCostPerKwh.toFixed(3)} kr/kWh</td>
+      </tr>
+      <tr>
+        <td><strong>Min pr. ladning:</strong></td>
+        <td>${minCost.toFixed(2)} kr</td>
+      </tr>
+      <tr>
+        <td><strong>Max pr. ladning:</strong></td>
+        <td>${maxCost.toFixed(2)} kr</td>
+      </tr>
+    </table>
+  `;
+}
+
 
   </script>
-  <script>
-document.addEventListener("DOMContentLoaded", function() {
-    const quickFilterEl = document.getElementById("quickFilter");
-    quickFilterEl.value = "month"; // Sæt standardværdien til "denne måned"
-    
-    // Simuler en ændring, så filtreringen opdateres automatisk
-    const event = new Event("change");
-    quickFilterEl.dispatchEvent(event);
-    
-    // Indlæs effektivitetsgrafer
-    fetchEfficiencyStats();
-});
-</script>
 </body>
 </html>
