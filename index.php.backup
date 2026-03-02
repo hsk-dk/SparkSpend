@@ -35,40 +35,25 @@ require 'includes/QueryBuilder.php';
 
 </head>
 <body>
-  <!-- Modern Tab-Based Navigation Header -->
   <header>
-    <div class="header-left">
-      <div class="d-flex align-items-center gap-2">
-        <div style="width: 48px; height: 48px;">
-          <img src="images/logo.svg" width="48" height="48" alt="SparkSpend Logo">
-        </div>
-        <h1>SparkSpend</h1>
+    <div class="d-flex align-items-center">
+      <!-- Embedded SVG logo -->
+      <div style="width: 64px; height: 64px;">
+		<img src="images/logo.svg" width="64" height="64" alt="SparkSpend Logo">
       </div>
+      <h1>SparkSpend</h1>
     </div>
-    
-    <!-- Main Navigation Tabs -->
-    <nav class="header-nav">
-      <button class="header-tab-button active" data-target="charges-section">
-        <i class="fas fa-battery-three-quarters"></i> Ladninger
-      </button>
-      <button class="header-tab-button" data-target="analytics-section">
-        <i class="fas fa-chart-line"></i> Analyse
-      </button>
-      <button class="header-tab-button" data-target="settings-section">
-        <i class="fas fa-cog"></i> Indstillinger
-      </button>
-    </nav>
-    
-    <!-- Create Charge Button -->
-    <div class="header-right">
-      <button type="button" class="btn btn-primary button-create-charge" data-bs-toggle="modal" data-bs-target="#createExChargeModal">
-        <i class="fas fa-plus"></i> <span>Ny Ladning</span>
-      </button>
-    </div>
+    <!-- Knap til oprettelse af ekstern ladning -->
+    <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#createExChargeModal">
+      <span class="navbar-toggler-icon"></span>
+    </button>
   </header>
+<div class="tabs">
+    <button class="tab-button active" data-target="charging-container">Bilopladning</button>
+    <button class="tab-button" data-target="heatpump-container">Jordvarme</button>
+</div>
 
-
-<section id="charges-section" class="tab-section active">
+<div id="charging-container" class="tab-content">
 <div id="summaryBox" class="row">
   <!-- Venstre kolonne: Opsummeringstabel -->
   <div class="col-md-6" id="summaryText">
@@ -363,18 +348,9 @@ require 'includes/QueryBuilder.php';
     </div>
   </div>
   <!-- Slut på modaler -->
-</section>
+</div>
 
-  <!-- ANALYTICS SECTION - Secondary Tab -->
-  <section id="analytics-section" class="tab-section">
-    <h2>Analyse og Statistik</h2>
-    <p>Kommende analytics content goes here</p>
-  </section>
-
-  <!-- SETTINGS SECTION - Tertiary Tab -->
-  <section id="settings-section" class="tab-section">
-    <h2>Indstillinger</h2>
-    <div id="heatpump-container" class="tab-content">
+<div id="heatpump-container" class="tab-content">
     <h2>Jordvarmeforbrug</h2>
     <select id="heatpumpFilter">
         <option value="daily">Daglig oversigt</option>
@@ -383,7 +359,6 @@ require 'includes/QueryBuilder.php';
     </select>
     <canvas id="heatpumpChart"></canvas>
 </div>
-  </section>
   <script>
     // Cache DOM-elementer
     const filterEl = document.getElementById("filter");
@@ -398,45 +373,6 @@ require 'includes/QueryBuilder.php';
 	let pieChart = null;  // Referencen til vores Chart.js instans
 	let pieChartCount, pieChartKwh, pieChartPrice;
 	
-
-    // ============================================================================
-    // Tab Navigation System
-    // ============================================================================
-    
-    // Handle tab switching
-    function switchTab(tabName) {
-      // Hide all sections
-      document.querySelectorAll('.tab-section').forEach(section => {
-        section.classList.remove('active');
-      });
-      
-      // Remove active class from all tab buttons
-      document.querySelectorAll('.header-tab-button').forEach(btn => {
-        btn.classList.remove('active');
-      });
-      
-      // Show selected section
-      const section = document.getElementById(tabName);
-      if (section) {
-        section.classList.add('active');
-      }
-      
-      // Activate corresponding tab button
-      const activeBtn = document.querySelector(`[data-target="${tabName}"]`);
-      if (activeBtn) {
-        activeBtn.classList.add('active');
-      }
-    }
-    
-    // Setup tab button listeners
-    document.querySelectorAll('.header-tab-button').forEach(button => {
-      button.addEventListener('click', (e) => {
-        e.preventDefault();
-        const tabName = button.getAttribute('data-target');
-        switchTab(tabName);
-      });
-    });
-
 	document.addEventListener("DOMContentLoaded", () => {
 		Chart.register(ChartDataLabels);
 		setupFlatpickr();
