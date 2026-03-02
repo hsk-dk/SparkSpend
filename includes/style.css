@@ -329,6 +329,13 @@ table {
   box-shadow: var(--shadow-sm);
 }
 
+/* Modern table responsiveness wrapper */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 20px;
+}
+
 th {
   background: linear-gradient(135deg, var(--brand-accent) 0%, #5a8ee0 100%);
   color: var(--white);
@@ -572,6 +579,12 @@ tr:last-child td {
   select {
     width: 100%;
   }
+
+  /* Stack pie charts vertically on mobile */
+  .col-4 {
+    flex: 0 0 calc(100% - 14px);
+    min-width: 100%;
+  }
 }
 
 /* Utility Classes */
@@ -649,4 +662,13 @@ tr:last-child td {
 
 .loading {
   animation: shimmer 1.5s infinite;
+}
+
+/* Price comparison arrow icons */
+.fa-arrow-up {
+  color: #ff6b6b;  /* Match danger color for higher price */
+}
+
+.fa-arrow-down {
+  color: #4CAF50;  /* Green for lower price */
 }

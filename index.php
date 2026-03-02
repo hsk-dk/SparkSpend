@@ -185,7 +185,8 @@ require 'includes/QueryBuilder.php';
   </select>
 
 
-  <table>
+  <div class="table-responsive">
+    <table>
     <thead>
       <tr>
         <th>Dato</th>
@@ -201,6 +202,7 @@ require 'includes/QueryBuilder.php';
       <tr><td colspan="7">Indlæser data...</td></tr>
     </tbody>
   </table>
+  </div>
 
   <!-- Modal til oprettelse af ekstern ladning -->
   <div class="modal fade" id="createExChargeModal" tabindex="-1" aria-labelledby="createExChargeModalLabel" aria-hidden="true">
@@ -411,6 +413,24 @@ require 'includes/QueryBuilder.php';
       return await response.json();
     };
 
+    // Initialiser tooltips for elementer med data-bs-toggle="tooltip"
+    // Moderne approach: initialiserer kun én gang per element, undgår memory leaks
+    const initializeTooltips = () => {
+      document.querySelectorAll('[data-bs-toggle="tooltip"]:not(.tooltip-initialized)').forEach(el => {
+        new bootstrap.Tooltip(el);
+        el.classList.add('tooltip-initialized');
+      });
+    };
+
+    // Debounce utility for performance optimization
+    const debounce = (fn, delayMs) => {
+      let timeoutId = null;
+      return function(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delayMs);
+      };
+    };
+
     // Hent biler
     const fetchVehicles = async () => {
       try {
@@ -537,12 +557,15 @@ require 'includes/QueryBuilder.php';
       ? '<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="ID: ' + charge.id + '">electrical_services</span>' 
       : '<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="' + providerName + '">ev_station</span>';
 
-    // Bestem ikon for pris pr. kWh
+    // Bestem ikon for pris pr. kWh (med tekst, ikke kun farve)
 	let priceIcon = "";
+	let priceComparisonText = "";
 	if (pricePerKwh > avgPricePerKwh) {
-		priceIcon = '<i class="fas fa-arrow-up" style="color: red;"></i>'; // Rød pil op
+		priceIcon = '<i class="fas fa-arrow-up"></i>';
+		priceComparisonText = "højere end gennemsnit";
 	} else if (pricePerKwh < avgPricePerKwh) {
-		priceIcon = '<i class="fas fa-arrow-down" style="color: green;"></i>'; // Grøn pil ned
+		priceIcon = '<i class="fas fa-arrow-down"></i>';
+		priceComparisonText = "lavere end gennemsnit";
 	}
 
     // Formater datoen pænere
@@ -551,18 +574,28 @@ require 'includes/QueryBuilder.php';
       hour: "2-digit", minute: "2-digit"
     });
 
-    // Opret række
+    // Opret række (moderne data-attributes, ingen inline onclick)
     const row = document.createElement('tr');
+    row.setAttribute('data-charge-id', String(charge.id));
+    row.setAttribute('data-source', source);
+    row.setAttribute('data-datetime', charge.datetime);
+    row.setAttribute('data-kwh', String(kwh));
+    row.setAttribute('data-pris', String(pris));
+    row.setAttribute('data-vehicle-id', String(charge.vehicleId));
+    if (charge.providerId) {
+      row.setAttribute('data-provider-id', String(charge.providerId));
+    }
+
     row.innerHTML = `
       <td>${formattedDate}</td>
       <td>${kwh.toFixed(2)} kWh</td>
       <td>${pris.toFixed(2)} kr</td>
-      <td>${(pricePerKwh).toFixed(2)} kr/kWh ${priceIcon}</td>
+      <td aria-label="Pris pr. kWh: ${pricePerKwh.toFixed(3)} kr/kWh, ${priceComparisonText}">${priceIcon} ${(pricePerKwh).toFixed(2)} kr/kWh <small>${priceComparisonText}</small></td>
       <td>${vehicleName}</td>
       <td>${icon}</td>
-      <td><button class="btn btn-sm btn-secondary" onclick="editCharge('${charge.id}', '${source}', '${charge.datetime}', ${kwh}, ${pris}, ${charge.vehicleId}${charge.providerId ? (", " + charge.providerId) : ''})">
-              Rediger
-          </button></td>
+      <td>
+        <button class="btn btn-sm btn-secondary" data-action="edit">Rediger</button>
+      </td>
     `;
     chargeTableBodyEl.appendChild(row);
   });
@@ -570,10 +603,8 @@ require 'includes/QueryBuilder.php';
  // Opdater summary med tabel og opdater piechartet med de akkumulerede værdier
   updateSummary(totals, overallKwh, overallPris, internalCount, externalCount, internalKwh, externalKwh, internalPrice, externalPrice);
 
-  // Aktiver tooltips
-  new bootstrap.Tooltip(document.body, {
-    selector: '[data-bs-toggle="tooltip"]'
-  });
+  // Initialiser tooltips for nye elementer (non-destructive approach)
+  initializeTooltips();
 };
 
 
@@ -650,16 +681,13 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
   };
 
   if (pieChartCount) {
-    pieChartCount.data = dataCount;
-    pieChartCount.options = optionsCount;
-    pieChartCount.update();
-  } else {
-    pieChartCount = new Chart(ctxCount, {
-      type: 'pie',
-      data: dataCount,
-      options: optionsCount
-    });
+    pieChartCount.destroy();  // Fix: Always destroy before recreating
   }
+  pieChartCount = new Chart(ctxCount, {
+    type: 'pie',
+    data: dataCount,
+    options: optionsCount
+  });
 
   // Diagram 2: Fordeling af ladet KWH
   const ctxKwh = document.getElementById('pieChartKwh').getContext('2d');
@@ -690,16 +718,13 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
   };
 
   if (pieChartKwh) {
-    pieChartKwh.data = dataKwh;
-    pieChartKwh.options = optionsKwh;
-    pieChartKwh.update();
-  } else {
-    pieChartKwh = new Chart(ctxKwh, {
-      type: 'pie',
-      data: dataKwh,
-      options: optionsKwh
-    });
+    pieChartKwh.destroy();  // Fix: Always destroy before recreating
   }
+  pieChartKwh = new Chart(ctxKwh, {
+    type: 'pie',
+    data: dataKwh,
+    options: optionsKwh
+  });
 
   // Diagram 3: Fordeling af brugte kr
   const ctxPrice = document.getElementById('pieChartPrice').getContext('2d');
@@ -730,16 +755,13 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
   };
 
   if (pieChartPrice) {
-    pieChartPrice.data = dataPrice;
-    pieChartPrice.options = optionsPrice;
-    pieChartPrice.update();
-  } else {
-    pieChartPrice = new Chart(ctxPrice, {
-      type: 'pie',
-      data: dataPrice,
-      options: optionsPrice
-    });
+    pieChartPrice.destroy();  // Fix: Always destroy before recreating
   }
+  pieChartPrice = new Chart(ctxPrice, {
+    type: 'pie',
+    data: dataPrice,
+    options: optionsPrice
+  });
 }
     
     const setupFlatpickr = () => {
@@ -757,6 +779,23 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
     };
 
     const setupEventListeners = () => {
+      // Event delegation for charge table edit buttons (modern approach)
+      chargeTableBodyEl.addEventListener('click', (event) => {
+        const editBtn = event.target.closest('[data-action="edit"]');
+        if (!editBtn) return;
+
+        const row = editBtn.closest('tr');
+        const id = row.dataset.chargeId;
+        const source = row.dataset.source;
+        const datetime = row.dataset.datetime;
+        const kwh = parseFloat(row.dataset.kwh);
+        const pris = parseFloat(row.dataset.pris);
+        const vehicleId = parseInt(row.dataset.vehicleId);
+        const providerId = row.dataset.providerId ? parseInt(row.dataset.providerId) : null;
+
+        editCharge(id, source, datetime, kwh, pris, vehicleId, providerId);
+      });
+
       filterEl.addEventListener("change", () => {
         fetchCharges();
         fetchEfficiencyStats();
