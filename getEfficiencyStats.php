@@ -102,11 +102,10 @@ try {
     $charges = $stmt2->fetchAll(PDO::FETCH_ASSOC) ?? [];
 
     // Fetch external charges (ext_charges table)
+    // Note: Don't filter by date in SQL because ext_charges.datetime uses ISO 8601 format
+    // with timezone (e.g., 2024-12-07T15:37:00Z) which SQLite's date() function doesn't parse
+    // correctly. We'll filter in PHP after converting timestamps.
     $whereConditions3 = [];
-    if ($dateFilters) {
-        $whereConditions3[] = "date(datetime) >= ?";
-        $whereConditions3[] = "date(datetime) <= ?";
-    }
     if ($filter !== 'all') {
         $whereConditions3[] = "vehicleId = ?";
     }
@@ -118,15 +117,27 @@ try {
 
     $stmt3 = $db->prepare($query3);
     $params3 = [];
-    if ($dateFilters) {
-        $params3[] = $dateFilters['start'];
-        $params3[] = $dateFilters['end'];
-    }
     if ($filter !== 'all') {
         $params3[] = intval($filter);
     }
     $stmt3->execute($params3);
-    $extCharges = $stmt3->fetchAll(PDO::FETCH_ASSOC) ?? [];
+    $extChargesRaw = $stmt3->fetchAll(PDO::FETCH_ASSOC) ?? [];
+
+    // Filter external charges by date in PHP
+    $extCharges = [];
+    if ($dateFilters) {
+        $startTime = strtotime($dateFilters['start']);
+        $endTime = strtotime($dateFilters['end'] . ' 23:59:59');
+
+        foreach ($extChargesRaw as $charge) {
+            $chargeTime = strtotime($charge['datetime']);
+            if ($chargeTime >= $startTime && $chargeTime <= $endTime) {
+                $extCharges[] = $charge;
+            }
+        }
+    } else {
+        $extCharges = $extChargesRaw;
+    }
 
     // Combine all charges
     $allCharges = [];
@@ -219,6 +230,12 @@ try {
                     continue;
                 }
 
+                // Skip very short trips (< 20 km) - these are likely charging session artifacts
+                // not real driving trips
+                if ($kmDriven < 20) {
+                    continue;
+                }
+
                 // Initialize running totals for this vehicle if needed
                 if (!isset($runningKm[$vehicleId])) {
                     $runningKm[$vehicleId] = 0;
@@ -230,13 +247,6 @@ try {
                 $kmPerKwh = round($kmDriven / $kwh, 2);
                 $krPerKm = round($pris / $kmDriven, 2);
 
-                // Log genuinely suspicious values (anomalies only, not normal EV performance)
-                // Skoda Enyaq real-world range: 3.5-6.5 km/kWh
-                // Only log if outside realistic range
-                if ($kmPerKwh > 8 || $kmPerKwh < 2) {
-                    error_log("ANOMALY: Vehicle $vehicleId: $kmDriven km, $kwh kWh = $kmPerKwh km/kWh (odometer readings at " . date('Y-m-d H:i', $prevOdometerTime) . " and " . date('Y-m-d H:i', $currentOdometerTime) . ")");
-                }
-
                 // Update running totals for cumulative efficiency
                 $runningKm[$vehicleId] += $kmDriven;
                 $runningKwh[$vehicleId] += $kwh;
@@ -246,18 +256,15 @@ try {
                 $totalKmPerKwh = $runningKwh[$vehicleId] > 0 ? round($runningKm[$vehicleId] / $runningKwh[$vehicleId], 2) : null;
                 $totalKrPerKm = $runningKm[$vehicleId] > 0 ? round($runningPris[$vehicleId] / $runningKm[$vehicleId], 2) : null;
 
-                // Store results with both trip-specific and cumulative efficiency
+                // Store results with cumulative efficiency only (per-trip values are unreliable)
                 $results[] = [
                     'vehicleId' => $vehicleId,
                     'timestamp' => $timestamp,
                     'date' => date('Y-m-d H:i', $timestamp),
-                    'kmDriven' => $kmDriven,
                     'totalKm' => $runningKm[$vehicleId],
-                    'kwh' => $kwh,
-                    'kmPerKwh' => $kmPerKwh,           // Trip-specific efficiency
-                    'krPerKm' => $krPerKm,              // Trip-specific cost efficiency
-                    'totalKmPerKwh' => $totalKmPerKwh,  // Cumulative average
-                    'totalKrPerKm' => $totalKrPerKm     // Cumulative average
+                    'totalKwh' => $runningKwh[$vehicleId],
+                    'totalKmPerKwh' => $totalKmPerKwh,  // Cumulative average - reliable
+                    'totalKrPerKm' => $totalKrPerKm     // Cumulative average - reliable
                 ];
             }
         }
