@@ -514,6 +514,14 @@ require 'includes/QueryBuilder.php';
         option.textContent = vehicle.vehicleName;
         filterEl.appendChild(option);
       });
+      // Add "Ukendt" option for unassigned charges (vehicleId = 0)
+      const unknownOption = document.createElement("option");
+      unknownOption.value = "0";
+      unknownOption.textContent = "Ukendt (uden bil)";
+      filterEl.appendChild(unknownOption);
+
+      // Ensure default value is "all"
+      filterEl.value = "all";
     };
 
     // Hent ladninger (samler data fra både charges og ext_charges)
