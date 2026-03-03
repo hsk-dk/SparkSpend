@@ -98,23 +98,35 @@ try {
     $stmt = $db->prepare($query);
 
     // Build parameter array for prepared statement
+    // IMPORTANT: Parameters must match the placeholder order in the UNION query
+    // Order: internal filters, then external filters (in same order)
     $stmtParams = [];
 
+    // First: internal query parameters (vehicleId, then dates)
     if ($filter !== 'all') {
         $vehicleId = intval($filter);
-        $stmtParams[] = $vehicleId;
         $stmtParams[] = $vehicleId;
     }
 
     if ($dateFilters) {
         if ($dateFilters['isSingleDate']) {
-            // Single date: add 1 parameter per query (internal + external)
-            $stmtParams[] = $dateFilters['start'];
             $stmtParams[] = $dateFilters['start'];
         } else {
-            // Date range: add 2 parameters per query (internal + external)
             $stmtParams[] = $dateFilters['start'];
             $stmtParams[] = $dateFilters['end'];
+        }
+    }
+
+    // Second: external query parameters (vehicleId, then dates) - same as internal
+    if ($filter !== 'all') {
+        $vehicleId = intval($filter);
+        $stmtParams[] = $vehicleId;
+    }
+
+    if ($dateFilters) {
+        if ($dateFilters['isSingleDate']) {
+            $stmtParams[] = $dateFilters['start'];
+        } else {
             $stmtParams[] = $dateFilters['start'];
             $stmtParams[] = $dateFilters['end'];
         }
