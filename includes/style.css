@@ -272,46 +272,55 @@ header button:hover {
 }
 
 h2 {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 800;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.5px;
   color: var(--brand-ink);
-  margin-top: 30px;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid var(--brand-accent);
+  margin-top: 25px;
+  margin-bottom: 28px;
+  padding-bottom: 12px;
+  border-bottom: 3px solid var(--brand-accent);
+}
+
+h3 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--brand-ink);
+  margin-bottom: 16px;
 }
 
 /* Summary Box */
 #summaryBox {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: saturate(120%) blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: saturate(150%) blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 16px;
-  padding: 25px;
-  margin-bottom: 30px;
-  box-shadow: var(--shadow-sm);
+  padding: 30px;
+  margin-bottom: 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
 }
 
 #summaryBox:hover {
-  box-shadow: var(--shadow);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
   transform: translateY(-2px);
 }
 
 /* Cards */
 .card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: saturate(120%) blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 24px;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 .card:hover {
-  box-shadow: var(--shadow);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
 }
 
@@ -632,78 +641,93 @@ tr:last-child td {
   position: relative;
   width: 100%;
   padding-bottom: 20%;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: saturate(120%) blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 16px;
-  padding: 20px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  padding: 24px;
   margin: 20px 0;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;
 }
 
 .chart-container:hover {
-  box-shadow: var(--shadow);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
 }
 
 /* Pie Charts Wrapper - Side-by-side layout with shared legend */
 .pie-charts-wrapper {
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
   width: 100%;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .pie-chart-compact {
-  flex: 1;
-  min-width: 0;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: saturate(120%) blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 12px;
-  padding: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: saturate(120%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 14px;
+  padding: 16px;
   position: relative;
-  height: 220px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  height: 240px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .pie-chart-compact:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .pie-chart-compact canvas {
   max-height: 180px;
+  width: 100% !important;
 }
 
 /* Shared Legend for Pie Charts */
 .pie-charts-legend {
   display: flex;
-  gap: 20px;
+  gap: 40px;
   justify-content: center;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 10px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
   flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 10px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--brand-ink);
 }
 
 .legend-color {
   display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-color.internal {
+  background-color: #4e73df;
+}
+
+.legend-color.external {
+  background-color: #e74a3b;
 }
 
 #kmPerKwhChart,
@@ -1223,11 +1247,36 @@ header {
 
   /* Pie charts stack vertically on tablet */
   .pie-charts-wrapper {
-    flex-direction: column;
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .pie-chart-compact {
     height: 200px;
   }
 }
+
+/* Small mobile adjustments */
+@media (max-width: 480px) {
+  /* Pie charts full width on small mobile */
+  .pie-charts-wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .pie-chart-compact {
+    height: 180px;
+  }
+
+  .pie-charts-legend {
+    gap: 20px;
+  }
+
+  #summaryBox {
+    padding: 20px;
+    margin-bottom: 30px;
+  }
+
+  .card {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
 

@@ -141,11 +141,11 @@ require 'includes/QueryBuilder.php';
     <!-- Shared legend for all pie charts -->
     <div class="pie-charts-legend" id="pieChartsSharedLegend">
       <div class="legend-item">
-        <span class="legend-color" style="background-color: #4e73df;"></span>
+        <span class="legend-color internal"></span>
         <span class="legend-label">Interne</span>
       </div>
       <div class="legend-item">
-        <span class="legend-color" style="background-color: #e74a3b;"></span>
+        <span class="legend-color external"></span>
         <span class="legend-label">Eksterne</span>
       </div>
     </div>
