@@ -510,6 +510,66 @@ tr:last-child td {
   font-size: 13px;
 }
 
+/* Filter Controls - Positioned at top of charges section */
+.filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  padding: 20px;
+  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: saturate(120%) blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  align-items: center;
+}
+
+.filter-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.filter-controls select,
+.filter-controls input[type="text"],
+.filter-controls input[type="checkbox"] {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--brand-ink);
+}
+
+.filter-controls select:focus,
+.filter-controls input[type="text"]:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(107, 163, 255, 0.1);
+}
+
+/* Mobile responsiveness for filters */
+@media (max-width: 768px) {
+  .filter-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .filter-controls label {
+    flex-direction: column;
+  }
+
+  .filter-controls select,
+  .filter-controls input[type="text"] {
+    width: 100%;
+  }
+}
+
 /* Pagination Styles */
 .pagination-section {
   display: flex;
