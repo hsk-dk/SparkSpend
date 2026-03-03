@@ -481,5 +481,41 @@ class QueryBuilder {
 
         return $vehicleComparison;
     }
+
+    /**
+     * Update internal charge vehicle assignment
+     *
+     * @param PDO $db Database connection
+     * @param array $data Array with keys: id, vehicleId
+     * @return bool True if update successful
+     */
+    public static function updateInternalCharge(PDO $db, array $data): bool {
+        $query = "UPDATE charges SET vehicleId = ? WHERE id = ?";
+        $stmt = $db->prepare($query);
+        return $stmt->execute([
+            $data['vehicleId'],
+            $data['id']
+        ]);
+    }
+
+    /**
+     * Update external charge details
+     *
+     * @param PDO $db Database connection
+     * @param array $data Array with keys: id, vehicleId, kwh, cost, chargeDate, providerId
+     * @return bool True if update successful
+     */
+    public static function updateExternalCharge(PDO $db, array $data): bool {
+        $query = "UPDATE ext_charges SET vehicleId = ?, providerId = ?, kwh = ?, pris = ?, datetime = ? WHERE id = ?";
+        $stmt = $db->prepare($query);
+        return $stmt->execute([
+            $data['vehicleId'],
+            $data['providerId'] ?? 0,
+            $data['kwh'] ?? 0,
+            $data['cost'] ?? 0,
+            $data['chargeDate'] ?? null,
+            $data['id']
+        ]);
+    }
 }
 ?>
