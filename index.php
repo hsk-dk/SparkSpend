@@ -445,14 +445,16 @@ require 'includes/QueryBuilder.php';
 		setupFlatpickr();
 		setupEventListeners();
 
-		// Apply default filter (this month)
-		const today = new Date();
-		const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-		const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-		dateRangeEl._flatpickr.setDate([startDate, endDate]);
-
-		fetchVehicles();
-		fetchProviders();
+		// Apply default filter (this month) - set date AFTER Flatpickr initialization
+		setTimeout(() => {
+			const today = new Date();
+			const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+			const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+			dateRangeEl._flatpickr.setDate([startDate, endDate]);
+			// Trigger fetch after date is set
+			fetchVehicles();
+			fetchProviders();
+		}, 50);
 
   // Initier Flatpickr for dato og klokkeslæt i oprettelsesmodal
 		flatpickr(document.getElementById("chargeDateTime"), {
@@ -514,11 +516,6 @@ require 'includes/QueryBuilder.php';
         option.textContent = vehicle.vehicleName;
         filterEl.appendChild(option);
       });
-      // Add "Ukendt" option for unassigned charges (vehicleId = 0)
-      const unknownOption = document.createElement("option");
-      unknownOption.value = "0";
-      unknownOption.textContent = "Ukendt (uden bil)";
-      filterEl.appendChild(unknownOption);
 
       // Ensure default value is "all"
       filterEl.value = "all";
