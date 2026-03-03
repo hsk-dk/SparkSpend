@@ -1535,5 +1535,12 @@ function sortVehicleComparison(sortBy) {
 
 
   </script>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-content">
+      <p>SparkSpend • <a href="https://useful.dk" target="_blank" rel="noopener noreferrer">Powered by Useful</a></p>
+    </div>
+  </footer>
 </body>
 </html>

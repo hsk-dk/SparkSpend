@@ -51,8 +51,11 @@ html {
 
 body {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background: var(--background-image) center/cover,
-              linear-gradient(135deg, var(--brand-bg) 0%, var(--brand-light) 100%);
+  background-color: var(--brand-bg);
+  background-image: var(--background-image);
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
   background-attachment: fixed;
   color: var(--brand-ink);
   padding: 0;
@@ -1288,4 +1291,33 @@ header {
     padding: 16px;
     margin-bottom: 16px;
   }
+}
 
+/* Footer */
+.site-footer {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: saturate(150%) blur(12px);
+  border-top: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 20px 30px;
+  text-align: center;
+  margin-top: 60px;
+  color: var(--brand-ink);
+  font-size: 13px;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.site-footer a {
+  color: var(--brand-accent);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.site-footer a:hover {
+  color: var(--brand-dark);
+  text-decoration: underline;
+}
