@@ -28,7 +28,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link rel="stylesheet" href="includes/style.css">
+  <link rel="stylesheet" href="includes/style.css?v=20260303">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <script src="includes/app.js"></script>
