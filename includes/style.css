@@ -55,13 +55,16 @@ body {
   background-image: var(--background-image);
   background-size: cover;
   background-repeat: no-repeat;
-  background-position: center center;
+  background-position: center top;
   background-attachment: fixed;
   color: var(--brand-ink);
   padding: 0;
+  margin: 0;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Optional: Add a subtle animated background pattern */
@@ -76,7 +79,7 @@ body::before {
     radial-gradient(circle at 20% 80%, rgba(107, 163, 255, 0.05) 0%, transparent 50%),
     radial-gradient(circle at 80% 20%, rgba(107, 163, 255, 0.03) 0%, transparent 50%);
   pointer-events: none;
-  z-index: -1;
+  z-index: 1;
 }
 
 
@@ -199,6 +202,13 @@ header button:hover {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.25) 100%);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Main Content - Flexes to fill available space */
+section {
+  flex: 1;
+  position: relative;
+  z-index: 2;
 }
 
 /* Tab Content Sections */
@@ -1295,14 +1305,16 @@ header {
 
 /* Footer */
 .site-footer {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: saturate(150%) blur(12px);
   border-top: 1px solid rgba(255, 255, 255, 0.5);
-  padding: 20px 30px;
+  padding: 25px 30px;
   text-align: center;
-  margin-top: 60px;
   color: var(--brand-ink);
   font-size: 13px;
+  position: relative;
+  z-index: 10;
+  margin-top: auto;
 }
 
 .footer-content {
