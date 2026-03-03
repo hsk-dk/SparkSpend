@@ -95,14 +95,6 @@ function getVehicleForCharge($cablePluggedInAt) {
 
 // Funktion til at gemme data i databasen
 function saveChargingData($db, $data) {
-
-    $stmt = $db->prepare("INSERT OR REPLACE INTO charges
-        (id, chargePointId, createdAt, updatedAt, cablePluggedInAt, startedAt, stoppedAt, state,
-        consumedKwh, kwhLimit, startMeterKwh, endMeterKwh, cost, stopReason, socPercentage, socLimit, vehicleId)
-        VALUES
-        (:id, :chargePointId, :createdAt, :updatedAt, :cablePluggedInAt, :startedAt, :stoppedAt, :state,
-        :consumedKwh, :kwhLimit, :startMeterKwh, :endMeterKwh, :cost, :stopReason, :socPercentage, :socLimit, :vehicleId)");
-
     foreach ($data['data'] as $charge) {
         // Find den rigtige bil baseret på kabeltilslutningstidspunktet
         $vehicleId = getVehicleForCharge($charge['cablePluggedInAt']);
@@ -113,28 +105,80 @@ function saveChargingData($db, $data) {
             $socPercentage = $charge['soc']['percentage'];
         }
 
-        $stmt->bindValue(':id', $charge['id']);
-        $stmt->bindValue(':chargePointId', $charge['chargePointId']);
-        $stmt->bindValue(':createdAt', $charge['createdAt']);
-        $stmt->bindValue(':updatedAt', $charge['updatedAt']);
-        $stmt->bindValue(':cablePluggedInAt', $charge['cablePluggedInAt']);
-        $stmt->bindValue(':startedAt', $charge['startedAt']);
-        $stmt->bindValue(':stoppedAt', $charge['stoppedAt']);
-        $stmt->bindValue(':state', $charge['state']);
-        $stmt->bindValue(':consumedKwh', $charge['consumedKwh']);
-        $stmt->bindValue(':kwhLimit', $charge['kwhLimit']);
-        $stmt->bindValue(':startMeterKwh', $charge['startMeterKwh']);
-        $stmt->bindValue(':endMeterKwh', $charge['endMeterKwh']);
-        $stmt->bindValue(':cost', $charge['cost']);
-        $stmt->bindValue(':stopReason', $charge['stopReason']);
-        $stmt->bindValue(':socPercentage', $socPercentage);
-        $stmt->bindValue(':socLimit', $charge['socLimit']);
-        $stmt->bindValue(':vehicleId', $vehicleId);
+        // Check if record already exists
+        $checkStmt = $db->prepare("SELECT vehicleId FROM charges WHERE id = ?");
+        $checkStmt->execute([$charge['id']]);
+        $existingCharge = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
-        $stmt->execute();
+        if ($existingCharge) {
+            // Record exists: UPDATE only API fields, preserve vehicleId if user manually changed it
+            // Only update vehicleId if it's still the default (0 or not set)
+            $existingVehicleId = $existingCharge['vehicleId'];
+            $vehicleIdToUse = ($existingVehicleId == 0 || $existingVehicleId == null) ? $vehicleId : $existingVehicleId;
+
+            $updateStmt = $db->prepare("UPDATE charges SET
+                chargePointId = ?,
+                updatedAt = ?,
+                startedAt = ?,
+                stoppedAt = ?,
+                state = ?,
+                consumedKwh = ?,
+                kwhLimit = ?,
+                startMeterKwh = ?,
+                endMeterKwh = ?,
+                cost = ?,
+                stopReason = ?,
+                socPercentage = ?,
+                socLimit = ?,
+                vehicleId = ?
+                WHERE id = ?");
+
+            $updateStmt->execute([
+                $charge['chargePointId'],
+                $charge['updatedAt'],
+                $charge['startedAt'],
+                $charge['stoppedAt'],
+                $charge['state'],
+                $charge['consumedKwh'],
+                $charge['kwhLimit'],
+                $charge['startMeterKwh'],
+                $charge['endMeterKwh'],
+                $charge['cost'],
+                $charge['stopReason'],
+                $socPercentage,
+                $charge['socLimit'],
+                $vehicleIdToUse,
+                $charge['id']
+            ]);
+        } else {
+            // Record doesn't exist: INSERT new record with auto-detected vehicleId
+            $insertStmt = $db->prepare("INSERT INTO charges
+                (id, chargePointId, createdAt, updatedAt, cablePluggedInAt, startedAt, stoppedAt, state,
+                consumedKwh, kwhLimit, startMeterKwh, endMeterKwh, cost, stopReason, socPercentage, socLimit, vehicleId)
+                VALUES
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+            $insertStmt->execute([
+                $charge['id'],
+                $charge['chargePointId'],
+                $charge['createdAt'],
+                $charge['updatedAt'],
+                $charge['cablePluggedInAt'],
+                $charge['startedAt'],
+                $charge['stoppedAt'],
+                $charge['state'],
+                $charge['consumedKwh'],
+                $charge['kwhLimit'],
+                $charge['startMeterKwh'],
+                $charge['endMeterKwh'],
+                $charge['cost'],
+                $charge['stopReason'],
+                $socPercentage,
+                $charge['socLimit'],
+                $vehicleId
+            ]);
+        }
     }
-
-//    echo "Data gemt i databasen med bilkategorisering!\n";
 }
 
 // Hent adgangstoken
