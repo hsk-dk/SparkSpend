@@ -451,6 +451,8 @@ require 'includes/QueryBuilder.php';
 			const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
 			const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 			dateRangeEl._flatpickr.setDate([startDate, endDate]);
+			// Set quickFilter to "month" to match the displayed date range
+			quickFilterEl.value = "month";
 			// Trigger fetch after date is set
 			fetchVehicles();
 			fetchProviders();
