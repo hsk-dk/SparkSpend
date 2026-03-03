@@ -45,7 +45,7 @@ require 'includes/QueryBuilder.php';
         <h1>SparkSpend</h1>
       </div>
     </div>
-    
+
     <!-- Main Navigation Tabs -->
     <nav class="header-nav">
       <button class="header-tab-button active" data-target="charges-section">
@@ -58,35 +58,62 @@ require 'includes/QueryBuilder.php';
         <i class="fas fa-cog"></i> Indstillinger
       </button>
     </nav>
-    
-    <!-- Create Charge Button -->
+
+    <!-- Header Right: Filter Button + Create Charge Button -->
     <div class="header-right">
+      <button type="button" class="btn btn-secondary" id="filterToggleBtn" title="Åbn filtre">
+        <i class="fas fa-sliders-h"></i>
+      </button>
       <button type="button" class="btn btn-primary button-create-charge" data-bs-toggle="modal" data-bs-target="#createExChargeModal">
         <i class="fas fa-plus"></i> <span>Ny Ladning</span>
       </button>
     </div>
   </header>
 
-<!-- Global Filters - Visible on all tabs -->
-<div class="filter-controls">
-  <label for="filter">Filtrer efter bil:</label>
-  <select id="filter">
-    <option value="all">Alle</option>
-  </select>
-  <label>
-    <input type="checkbox" id="showZeroKwh"> Vis ladninger med 0 kWh
-  </label>
-  <label for="dateRange">Vælg dato interval:</label>
-  <input type="text" id="dateRange">
-  <select id="quickFilter">
-    <option value="all">Alle</option>
-    <option value="today">I dag</option>
-    <option value="week">Denne uge</option>
-    <option value="lmonth">Sidste måned</option>
-    <option value="month">Denne måned</option>
-    <option value="year">Dette år</option>
-  </select>
-</div>
+  <!-- Filter Drawer (Sidebar) -->
+  <div id="filterDrawer" class="filter-drawer">
+    <div class="filter-drawer-header">
+      <h3>Filtre</h3>
+      <button type="button" class="btn-close-drawer" id="filterCloseBtn" title="Luk filtre">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="filter-drawer-content">
+      <div class="filter-group">
+        <label for="filter">Filtrer efter bil:</label>
+        <select id="filter">
+          <option value="all">Alle</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>
+          <input type="checkbox" id="showZeroKwh"> Vis ladninger med 0 kWh
+        </label>
+      </div>
+
+      <div class="filter-group">
+        <label for="dateRange">Vælg dato interval:</label>
+        <input type="text" id="dateRange">
+      </div>
+
+      <div class="filter-group">
+        <label for="quickFilter">Hurtigt filter:</label>
+        <select id="quickFilter">
+          <option value="all">Alle</option>
+          <option value="today">I dag</option>
+          <option value="week">Denne uge</option>
+          <option value="lmonth">Sidste måned</option>
+          <option value="month">Denne måned</option>
+          <option value="year">Dette år</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Drawer Backdrop -->
+  <div id="filterBackdrop" class="filter-backdrop"></div>
 
 <section id="charges-section" class="tab-section active">
   <h2>Ladninger</h2>
@@ -883,6 +910,27 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         fetchEfficiencyStats();
         fetchCostAnalytics();
         fetchVehicleComparison();
+      });
+
+      // Filter Drawer Toggle
+      const filterDrawer = document.getElementById('filterDrawer');
+      const filterBackdrop = document.getElementById('filterBackdrop');
+      const filterToggleBtn = document.getElementById('filterToggleBtn');
+      const filterCloseBtn = document.getElementById('filterCloseBtn');
+
+      filterToggleBtn.addEventListener('click', () => {
+        filterDrawer.classList.toggle('open');
+        filterBackdrop.classList.toggle('visible');
+      });
+
+      filterCloseBtn.addEventListener('click', () => {
+        filterDrawer.classList.remove('open');
+        filterBackdrop.classList.remove('visible');
+      });
+
+      filterBackdrop.addEventListener('click', () => {
+        filterDrawer.classList.remove('open');
+        filterBackdrop.classList.remove('visible');
       });
     };
 

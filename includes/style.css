@@ -936,3 +936,226 @@ tr:last-child td {
 .fa-arrow-down {
   color: #4CAF50;  /* Green for lower price */
 }
+
+/* ===== FILTER DRAWER STYLES ===== */
+
+/* Filter Drawer Sidebar */
+.filter-drawer {
+  position: fixed;
+  left: -320px;
+  top: 0;
+  width: 300px;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: saturate(120%) blur(8px);
+  border-right: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.1);
+  padding-top: 20px;
+  z-index: 1040;
+  transition: left 0.3s ease;
+  overflow-y: auto;
+}
+
+.filter-drawer.open {
+  left: 0;
+}
+
+/* Filter Drawer Header */
+.filter-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px 15px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 15px;
+}
+
+.filter-drawer-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.btn-close-drawer {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--brand-ink);
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.btn-close-drawer:hover {
+  transform: scale(1.1);
+  color: var(--brand-accent);
+}
+
+/* Filter Drawer Content */
+.filter-drawer-content {
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Filter Groups */
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--brand-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-group select,
+.filter-group input[type="text"],
+.filter-group input[type="checkbox"] {
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--brand-ink);
+}
+
+.filter-group select:focus,
+.filter-group input[type="text"]:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 2px rgba(107, 163, 255, 0.15);
+}
+
+/* Filter Backdrop */
+.filter-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0);
+  z-index: 1030;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.filter-backdrop.visible {
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Header adjustments for drawer button */
+header {
+  gap: 10px;
+}
+
+.header-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#filterToggleBtn {
+  min-width: 44px;
+  padding: 8px 12px;
+}
+
+/* Responsive: Hide filter drawer on desktop, adjust header */
+@media (min-width: 769px) {
+  .filter-drawer {
+    position: static;
+    left: auto;
+    width: auto;
+    height: auto;
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.7);
+    padding: 15px;
+    z-index: auto;
+    overflow-y: visible;
+    transition: none;
+  }
+
+  .filter-drawer.open {
+    left: auto;
+  }
+
+  .filter-drawer-header {
+    display: none;
+  }
+
+  .filter-drawer-content {
+    padding: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+  }
+
+  .filter-group {
+    flex: 1;
+    min-width: 140px;
+    gap: 4px;
+  }
+
+  .filter-group label {
+    font-size: 12px;
+  }
+
+  .filter-group select,
+  .filter-group input[type="text"] {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .filter-backdrop {
+    display: none;
+  }
+
+  #filterToggleBtn {
+    display: none;
+  }
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .filter-drawer {
+    top: 100%;
+    /* Drawer slides from left on mobile */
+  }
+
+  .button-create-charge span {
+    display: none;
+  }
+
+  .header-nav {
+    gap: 5px;
+  }
+
+  .header-tab-button {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
+
