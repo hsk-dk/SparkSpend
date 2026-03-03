@@ -133,41 +133,45 @@ header button:hover {
   color: var(--white);
 }
 
-/* Header Navigation Tabs */
+/* Header Navigation Tabs - Premium Minimal Design */
 .header-nav {
   display: flex;
-  gap: 8px;
+  gap: 30px;
   align-items: center;
   flex: 1;
   margin: 0 30px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .header-tab-button {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--white);
-  padding: 10px 20px;
-  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 12px 0;
+  border-radius: 0;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 14px;
   transition: all 0.3s ease;
   white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
+  border-bottom: 3px solid transparent;
 }
 
 .header-tab-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  transform: none;
+  box-shadow: none;
 }
 
 .header-tab-button.active {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  color: var(--white);
+  border-bottom-color: var(--white);
+  background: transparent;
+  box-shadow: none;
 }
 
 .header-right {
@@ -641,6 +645,65 @@ tr:last-child td {
 .chart-container:hover {
   box-shadow: var(--shadow);
   transform: translateY(-2px);
+}
+
+/* Pie Charts Wrapper - Side-by-side layout with shared legend */
+.pie-charts-wrapper {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.pie-chart-compact {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: saturate(120%) blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  padding: 12px;
+  position: relative;
+  height: 220px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.pie-chart-compact:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.pie-chart-compact canvas {
+  max-height: 180px;
+}
+
+/* Shared Legend for Pie Charts */
+.pie-charts-legend {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand-ink);
+}
+
+.legend-color {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
 }
 
 #kmPerKwhChart,
@@ -1156,6 +1219,15 @@ header {
   .header-tab-button {
     padding: 8px 10px;
     font-size: 12px;
+  }
+
+  /* Pie charts stack vertically on tablet */
+  .pie-charts-wrapper {
+    flex-direction: column;
+  }
+
+  .pie-chart-compact {
+    height: 200px;
   }
 }
 

@@ -125,23 +125,28 @@ require 'includes/QueryBuilder.php';
     <!-- Her indsættes opsummeringstabellen -->
   </div>
 
-  <!-- Højre kolonne: Tre små diagrammer side om side -->
+  <!-- Højre kolonne: Tre små diagrammer side om side med særlig shared legend -->
   <div class="col-md-6">
-    <div class="row">
-      <div class="col-4">
-        <div class="chart-container">
-          <canvas id="pieChartCount"></canvas>
-        </div>
+    <div class="pie-charts-wrapper">
+      <div class="pie-chart-compact">
+        <canvas id="pieChartCount"></canvas>
       </div>
-      <div class="col-4">
-        <div class="chart-container">
-          <canvas id="pieChartKwh"></canvas>
-        </div>
+      <div class="pie-chart-compact">
+        <canvas id="pieChartKwh"></canvas>
       </div>
-      <div class="col-4">
-        <div class="chart-container">
-          <canvas id="pieChartPrice"></canvas>
-        </div>
+      <div class="pie-chart-compact">
+        <canvas id="pieChartPrice"></canvas>
+      </div>
+    </div>
+    <!-- Shared legend for all pie charts -->
+    <div class="pie-charts-legend" id="pieChartsSharedLegend">
+      <div class="legend-item">
+        <span class="legend-color" style="background-color: #4e73df;"></span>
+        <span class="legend-label">Interne</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background-color: #e74a3b;"></span>
+        <span class="legend-label">Eksterne</span>
       </div>
     </div>
   </div>
@@ -747,17 +752,17 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'bottom' },
-      title: { display: true, text: "Antal ladninger" },
+      legend: { display: false },  // Hidden - shared legend shown below
+      title: { display: true, text: "Antal", font: { size: 12, weight: 'bold' } },
       datalabels: {
         formatter: (value, context) => {
           const dataArr = context.chart.data.datasets[0].data;
           const sum = dataArr.reduce((a, b) => a + b, 0);
-          const percentage = sum ? ((value / sum) * 100).toFixed(1) + "%" : "0%";
+          const percentage = sum ? ((value / sum) * 100).toFixed(0) + "%" : "0%";
           return percentage;
         },
         color: '#fff',
-        font: { weight: 'bold' }
+        font: { weight: 'bold', size: 11 }
       }
     }
   };
@@ -784,17 +789,17 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'bottom' },
-      title: { display: true, text: "Ladet KWH" },
+      legend: { display: false },  // Hidden - shared legend shown below
+      title: { display: true, text: "kWh", font: { size: 12, weight: 'bold' } },
       datalabels: {
         formatter: (value, context) => {
           const dataArr = context.chart.data.datasets[0].data;
           const sum = dataArr.reduce((a, b) => a + b, 0);
-          const percentage = sum ? ((value / sum) * 100).toFixed(1) + "%" : "0%";
+          const percentage = sum ? ((value / sum) * 100).toFixed(0) + "%" : "0%";
           return percentage;
         },
         color: '#fff',
-        font: { weight: 'bold' }
+        font: { weight: 'bold', size: 11 }
       }
     }
   };
@@ -821,17 +826,17 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'bottom' },
-      title: { display: true, text: "Brugte kr" },
+      legend: { display: false },  // Hidden - shared legend shown below
+      title: { display: true, text: "Pris", font: { size: 12, weight: 'bold' } },
       datalabels: {
         formatter: (value, context) => {
           const dataArr = context.chart.data.datasets[0].data;
           const sum = dataArr.reduce((a, b) => a + b, 0);
-          const percentage = sum ? ((value / sum) * 100).toFixed(1) + "%" : "0%";
+          const percentage = sum ? ((value / sum) * 100).toFixed(0) + "%" : "0%";
           return percentage;
         },
         color: '#fff',
-        font: { weight: 'bold' }
+        font: { weight: 'bold', size: 11 }
       }
     }
   };
