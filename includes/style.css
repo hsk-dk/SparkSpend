@@ -51,8 +51,8 @@ html {
 
 body {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background-color: var(--brand-bg);
-  background-image: var(--background-image);
+  background-color: #C9CFD8;
+  background-image: url('https://auth.useful.dk/media/public/background.jpg');
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center top;
