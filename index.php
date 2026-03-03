@@ -67,30 +67,29 @@ require 'includes/QueryBuilder.php';
     </div>
   </header>
 
+<!-- Global Filters - Visible on all tabs -->
+<div class="filter-controls">
+  <label for="filter">Filtrer efter bil:</label>
+  <select id="filter">
+    <option value="all">Alle</option>
+  </select>
+  <label>
+    <input type="checkbox" id="showZeroKwh"> Vis ladninger med 0 kWh
+  </label>
+  <label for="dateRange">Vælg dato interval:</label>
+  <input type="text" id="dateRange">
+  <select id="quickFilter">
+    <option value="all">Alle</option>
+    <option value="today">I dag</option>
+    <option value="week">Denne uge</option>
+    <option value="lmonth">Sidste måned</option>
+    <option value="month">Denne måned</option>
+    <option value="year">Dette år</option>
+  </select>
+</div>
 
 <section id="charges-section" class="tab-section active">
   <h2>Ladninger</h2>
-
-  <!-- Filter og datovælger - MOVED TO TOP TO FILTER ALL VIEWS -->
-  <div class="filter-controls">
-    <label for="filter">Filtrer efter bil:</label>
-    <select id="filter">
-      <option value="all">Alle</option>
-    </select>
-    <label>
-      <input type="checkbox" id="showZeroKwh"> Vis ladninger med 0 kWh
-    </label>
-    <label for="dateRange">Vælg dato interval:</label>
-    <input type="text" id="dateRange">
-    <select id="quickFilter">
-      <option value="all">Alle</option>
-      <option value="today">I dag</option>
-      <option value="week">Denne uge</option>
-      <option value="lmonth">Sidste måned</option>
-      <option value="month">Denne måned</option>
-      <option value="year">Dette år</option>
-    </select>
-  </div>
 
   <!-- Opsummering og statistikker (respekterer filtrer øverst) -->
 <div id="summaryBox" class="row">
@@ -1337,8 +1336,8 @@ function renderCostTrendChart(dailyData) {
       }
     ],
     xaxis: {
-      categories: dates,
-      type: 'datetime'
+      categories: dates
+      // Removed type: 'datetime' - use categories instead for string date labels
     },
     yaxis: {
       title: {
