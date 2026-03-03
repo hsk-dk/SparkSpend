@@ -509,15 +509,21 @@ require 'includes/QueryBuilder.php';
       }
     };
     const populateFilter = () => {
-      filterEl.innerHTML = '<option value="all">Alle</option>';
+      // Keep the "Alle" option that's already in HTML
+      // Remove any vehicle options that might already exist (from previous loads)
+      const existingOptions = filterEl.querySelectorAll('option[data-vehicle="true"]');
+      existingOptions.forEach(option => option.remove());
+
+      // Add vehicle options
       vehicles.forEach(vehicle => {
         const option = document.createElement("option");
         option.value = vehicle.id;
         option.textContent = vehicle.vehicleName;
+        option.setAttribute('data-vehicle', 'true');
         filterEl.appendChild(option);
       });
 
-      // Ensure default value is "all"
+      // Ensure "Alle" is selected by default
       filterEl.value = "all";
     };
 
