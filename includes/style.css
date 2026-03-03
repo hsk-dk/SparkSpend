@@ -9,9 +9,8 @@
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.08);
 
-  /* Background Image - Replace with your own image URL */
-  /* Example: --background-image: url('https://auth.useful.dk/images/background.jpg'); */
-  --background-image: none;
+  /* Background Image - Using shared auth.useful.dk background */
+  --background-image: url('https://auth.useful.dk/media/public/background.jpg');
 }
 
 
@@ -52,9 +51,8 @@ html {
 
 body {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background: linear-gradient(135deg, var(--brand-bg) 0%, var(--brand-light) 100%),
-              url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><radialGradient id="vignette" cx="50%25" cy="50%25" r="70%25"><stop offset="0%25" stop-color="rgba(255,255,255,0)" /><stop offset="100%25" stop-color="rgba(36,49,64,0.3)" /></radialGradient></defs><rect width="1200" height="800" fill="url(%23vignette)" /></svg>') center/cover,
-              linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(36,49,64,0.05) 100%);
+  background: var(--background-image) center/cover,
+              linear-gradient(135deg, var(--brand-bg) 0%, var(--brand-light) 100%);
   background-attachment: fixed;
   color: var(--brand-ink);
   padding: 0;
