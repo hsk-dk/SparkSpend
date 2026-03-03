@@ -119,35 +119,33 @@ require 'includes/QueryBuilder.php';
   <h2>Ladninger</h2>
 
   <!-- Opsummering og statistikker (respekterer filtrer øverst) -->
-<div id="summaryBox" class="row">
-  <!-- Venstre kolonne: Opsummeringstabel -->
-  <div class="col-md-6" id="summaryText">
+<div id="summaryBox">
+  <!-- Opsummeringstabel -->
+  <div id="summaryText" style="margin-bottom: 24px;">
     <!-- Her indsættes opsummeringstabellen -->
   </div>
 
-  <!-- Højre kolonne: Tre små diagrammer side om side med særlig shared legend -->
-  <div class="col-md-6">
-    <div class="pie-charts-wrapper">
-      <div class="pie-chart-compact">
-        <canvas id="pieChartCount"></canvas>
-      </div>
-      <div class="pie-chart-compact">
-        <canvas id="pieChartKwh"></canvas>
-      </div>
-      <div class="pie-chart-compact">
-        <canvas id="pieChartPrice"></canvas>
-      </div>
+  <!-- Tre diagrammer side om side med shared legend -->
+  <div class="pie-charts-wrapper">
+    <div class="pie-chart-compact">
+      <canvas id="pieChartCount"></canvas>
     </div>
-    <!-- Shared legend for all pie charts -->
-    <div class="pie-charts-legend" id="pieChartsSharedLegend">
-      <div class="legend-item">
-        <span class="legend-color internal"></span>
-        <span class="legend-label">Interne</span>
-      </div>
-      <div class="legend-item">
-        <span class="legend-color external"></span>
-        <span class="legend-label">Eksterne</span>
-      </div>
+    <div class="pie-chart-compact">
+      <canvas id="pieChartKwh"></canvas>
+    </div>
+    <div class="pie-chart-compact">
+      <canvas id="pieChartPrice"></canvas>
+    </div>
+  </div>
+  <!-- Shared legend for all pie charts -->
+  <div class="pie-charts-legend" id="pieChartsSharedLegend">
+    <div class="legend-item">
+      <span class="legend-color internal"></span>
+      <span class="legend-label">Interne</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-color external"></span>
+      <span class="legend-label">Eksterne</span>
     </div>
   </div>
 </div>

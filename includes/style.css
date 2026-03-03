@@ -659,21 +659,21 @@ tr:last-child td {
 /* Pie Charts Wrapper - Side-by-side layout with shared legend */
 .pie-charts-wrapper {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 20px;
   width: 100%;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .pie-chart-compact {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: saturate(120%) blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(150%) blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 14px;
-  padding: 16px;
+  padding: 20px;
   position: relative;
-  height: 240px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  min-height: 280px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -682,44 +682,47 @@ tr:last-child td {
 }
 
 .pie-chart-compact:hover {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-  transform: translateY(-3px);
-  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .pie-chart-compact canvas {
-  max-height: 180px;
-  width: 100% !important;
+  max-height: 220px;
+  max-width: 220px;
+  width: auto !important;
+  height: auto !important;
 }
 
 /* Shared Legend for Pie Charts */
 .pie-charts-legend {
   display: flex;
-  gap: 40px;
+  gap: 50px;
   justify-content: center;
-  padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  align-items: center;
+  padding: 18px 24px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 12px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
+  gap: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--brand-ink);
 }
 
 .legend-color {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 3px;
   flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .legend-color.internal {
