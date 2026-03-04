@@ -28,7 +28,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260304">
+  <link rel="stylesheet" href="includes/style.css?v=20260305">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <script src="includes/app.js"></script>
@@ -1540,6 +1540,9 @@ function sortVehicleComparison(sortBy) {
   <footer class="site-footer">
     <div class="footer-content">
       <p>SparkSpend • <a href="https://useful.dk" target="_blank" rel="noopener noreferrer">Powered by Useful</a></p>
+      <div class="logo">
+        <img src="https://auth.useful.dk/media/public/logo_2.svg" alt="Useful Logo" />
+      </div>
     </div>
   </footer>
 </body>
