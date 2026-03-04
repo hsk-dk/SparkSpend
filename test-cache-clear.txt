@@ -1,0 +1,27 @@
+INSTRUCTIONS FOR CLEARING BROWSER CACHE AND RELOADING:
+
+1. **Chrome/Edge/Brave**:
+   - Press Ctrl+Shift+Delete (on Windows) or Cmd+Shift+Delete (on Mac)
+   - Select "Cookies and other site data" and "Cached images and files"
+   - Set time range to "All time"
+   - Click "Clear data"
+   - Then open http://yoursite and press Ctrl+Shift+R (hard reload)
+
+2. **Firefox**:
+   - Press Ctrl+Shift+Delete
+   - Select all checkboxes
+   - Click "Clear Now"
+   - Then press Ctrl+Shift+R
+
+3. **Safari**:
+   - Develop menu → Empty Caches (or Cmd+Option+E)
+   - Then Cmd+Shift+R
+
+4. **If still not working**:
+   - Close the browser completely (not just the tab)
+   - Wait 10 seconds
+   - Open browser again
+   - Navigate to site fresh
+
+The cache-busting parameter "?v=20260303" has been added to style.css
+to force browsers to fetch the latest version of the CSS file.
