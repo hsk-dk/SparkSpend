@@ -999,7 +999,10 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
       if (source === 'internal') {
         document.getElementById('internalChargeId').value = id;
         document.getElementById('internalVehicleId').value = vehicleId;
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('internalChargeModal')).show();
+        const internalEl = document.getElementById('internalChargeModal');
+        const existingInternal = bootstrap.Modal.getInstance(internalEl);
+        if (existingInternal) existingInternal.dispose();
+        new bootstrap.Modal(internalEl).show();
       } else if (source === 'external') {
         document.getElementById('externalChargeId').value = id;
         document.getElementById('externalVehicleId').value = vehicleId;
@@ -1013,7 +1016,10 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         }
         document.getElementById('externalKwh').value = kwh;
         document.getElementById('externalPris').value = pris;
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('externalChargeModal')).show();
+        const externalEl = document.getElementById('externalChargeModal');
+        const existingExternal = bootstrap.Modal.getInstance(externalEl);
+        if (existingExternal) existingExternal.dispose();
+        new bootstrap.Modal(externalEl).show();
       }
     }
 
