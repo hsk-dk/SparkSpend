@@ -225,6 +225,9 @@ const initializeAppUtilities = () => {
   console.log('SparkSpend app utilities initialized');
 };
 
+// Global event bus for cross-module communication
+window.SparkEvents = new EventTarget();
+
 // Export for use in index.php inline scripts
 window.appUtils = {
   debounce,

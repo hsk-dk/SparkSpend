@@ -480,6 +480,7 @@ const elbilApp = (() => {
                 appUtils.showFormMessage('internalChargeMsg', 'Intern ladning opdateret!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('internalChargeModal')).hide();
                 fetchCharges();
+                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('internalChargeMsg', result.error || 'Fejl', 'danger');
             }
@@ -505,6 +506,7 @@ const elbilApp = (() => {
                 appUtils.showFormMessage('externalChargeMsg', 'Ekstern ladning opdateret!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
                 fetchCharges();
+                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
             }
@@ -525,6 +527,7 @@ const elbilApp = (() => {
                 bootstrap.Modal.getInstance(document.getElementById('createExChargeModal')).hide();
                 fetchCharges();
                 fetchVehicleComparison();
+                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('exChargeMsg', data.error || 'Fejl', 'danger');
             }
@@ -542,6 +545,7 @@ const elbilApp = (() => {
                 appUtils.showFormMessage('externalChargeMsg', 'Ladningen er slettet!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
                 fetchCharges();
+                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
             }

@@ -114,3 +114,6 @@ function _setText(parent, selector, text) {
 }
 
 document.addEventListener('DOMContentLoaded', loadDashboard);
+document.addEventListener('DOMContentLoaded', () => {
+    window.SparkEvents?.addEventListener('charge:saved', loadDashboard);
+});
