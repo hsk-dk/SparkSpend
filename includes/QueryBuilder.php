@@ -105,6 +105,7 @@ class QueryBuilder {
         $vehicleId = $filters['vehicleId'] ?? null;
         $dateRange = $filters['dateRange'] ?? '';
         $groupBy = $filters['groupBy'] ?? 'week';
+        $showZeroKwh = $filters['showZeroKwh'] ?? true;
 
         // Parse date range if provided
         $startDate = null;
@@ -148,6 +149,10 @@ class QueryBuilder {
             $paramsInternal[] = $endDate;
         }
 
+        if (!$showZeroKwh) {
+            $queryInternal .= " AND consumedKwh > 0";
+        }
+
         $queryInternal .= " GROUP BY strftime({$dateFormat}, createdAt) ORDER BY date ASC";
 
         $stmtInternal = $db->prepare($queryInternal);
@@ -185,12 +190,19 @@ class QueryBuilder {
             $startTime = strtotime($startDate);
             $endTime = strtotime($endDate . ' 23:59:59');
 
-            $chargesExternal = array_filter($chargesExternalRaw, function($charge) use ($startTime, $endTime) {
+            $chargesExternal = array_filter($chargesExternalRaw, function($charge) use ($startTime, $endTime, $showZeroKwh) {
                 $chargeTime = strtotime($charge['datetime']);
-                return $chargeTime >= $startTime && $chargeTime <= $endTime;
+                $inDateRange = $chargeTime >= $startTime && $chargeTime <= $endTime;
+                $passesKwhFilter = $showZeroKwh || floatval($charge['total_kwh']) > 0;
+                return $inDateRange && $passesKwhFilter;
             });
         } else {
-            $chargesExternal = $chargesExternalRaw;
+            // Filter by kWh requirement if date range not specified
+            $chargesExternal = $showZeroKwh
+                ? $chargesExternalRaw
+                : array_filter($chargesExternalRaw, function($charge) {
+                    return floatval($charge['kwh']) > 0;
+                });
         }
 
         // Convert external charge dates and group them
@@ -261,6 +273,7 @@ class QueryBuilder {
     public static function getCostStatistics(PDO $db, array $filters): array {
         $vehicleId = $filters['vehicleId'] ?? null;
         $dateRange = $filters['dateRange'] ?? '';
+        $showZeroKwh = $filters['showZeroKwh'] ?? true;
 
         // Parse date range if provided
         $startDate = null;
@@ -311,18 +324,21 @@ class QueryBuilder {
             $paramsInternal[] = $endDate;
         }
 
+        if (!$showZeroKwh) {
+            $queryInternal .= " AND consumedKwh > 0";
+        }
+
         $stmtInternal = $db->prepare($queryInternal);
         $stmtInternal->execute($paramsInternal);
         $internalStats = $stmtInternal->fetch();
 
         // ===== EXTERNAL CHARGES =====
+        // Fetch raw external charges (not aggregated) so we can filter them properly
         $queryExternal = "SELECT
-            COUNT(*) as charge_count,
-            COALESCE(SUM(kwh), 0) as total_kwh,
-            COALESCE(SUM(pris), 0) as total_cost,
-            MIN(pris) as min_cost,
-            MAX(pris) as max_cost,
-            AVG(pris) as avg_cost
+            id,
+            datetime,
+            kwh,
+            pris
         FROM ext_charges
         WHERE 1=1";
 
@@ -337,7 +353,7 @@ class QueryBuilder {
         $stmtExternal->execute($paramsExternal);
         $externalChargesRaw = $stmtExternal->fetchAll();
 
-        // Filter external charges by date in PHP
+        // Filter external charges by date in PHP and aggregate
         $externalStats = [
             'charge_count' => 0,
             'total_kwh' => 0,
@@ -363,8 +379,13 @@ class QueryBuilder {
                     }
                 }
 
+                // Filter out zero kWh charges if requested
+                if (!$showZeroKwh && floatval($charge['kwh']) == 0) {
+                    continue;
+                }
+
                 $externalCharges[] = $charge;
-                $costs[] = $charge['pris'];
+                $costs[] = floatval($charge['pris']);
             }
 
             if (!empty($externalCharges)) {
@@ -515,6 +536,23 @@ class QueryBuilder {
             $data['cost'] ?? 0,
             $data['chargeDate'] ?? null,
             $data['id']
+        ]);
+    }
+
+    /**
+     * Insert vehicle odometer reading into vehicle_charges table
+     *
+     * @param PDO $db Database connection
+     * @param array $data Array with keys: vehicleId, timestamp, odometer
+     * @return bool True if insert successful
+     */
+    public static function insertVehicleData(PDO $db, array $data): bool {
+        $query = "INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (?, ?, ?)";
+        $stmt = $db->prepare($query);
+        return $stmt->execute([
+            $data['vehicleId'],
+            $data['timestamp'],
+            $data['odometer']
         ]);
     }
 }

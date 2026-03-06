@@ -62,6 +62,16 @@ try {
         ");
         $stmt->execute([]);
         $response = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
+
+    } elseif ($mode === 'sync_status') {
+        // Return last sync timestamp from sync_log
+        $stmt = $db->prepare("SELECT last_sync_timestamp, updated_at FROM sync_log WHERE source = 'powerlogjord' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $response = $row ?: ['last_sync_timestamp' => null, 'updated_at' => null];
+        http_response_code(200);
+        echo json_encode($response);
+        exit;
     }
 
     // Return empty array if no data found

@@ -10,7 +10,7 @@ require 'includes/QueryBuilder.php';
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ladninger</title>
   <link rel="icon" type="image/svg+xml" href="includes/favicon.svg">
-  <script src="includes/jordvarme.js"></script>
+  <script src="includes/jordvarme.js?v=20260305b"></script>
   <!-- Material Symbols -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">  
   <!-- Font Awesome -->
@@ -324,15 +324,7 @@ require 'includes/QueryBuilder.php';
     <div class="card p-4">
       <h3>Effektivitetsmålinger</h3>
       <div class="mb-3">
-        <label class="form-check-label">Vis efficiency:</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="efficiencyType" id="perTrip" value="perTrip" checked>
-          <label class="form-check-label" for="perTrip">Per tur</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="efficiencyType" id="cumulative" value="cumulative">
-          <label class="form-check-label" for="cumulative">Samlet gennemsnit</label>
-        </div>
+        <p class="text-muted small">Viser samlet gennemsnit (per tur beregninger er upålidelige)</p>
       </div>
       <div id="kmPerKwhChart"></div>
       <div id="krPerKmChart"></div>
@@ -401,20 +393,50 @@ require 'includes/QueryBuilder.php';
       </div>
     </div>
 
+    <!-- Jordvarme Card -->
+    <div class="card p-4 mt-4">
+      <h3>Jordvarmeforbrug</h3>
+      <div class="mb-3">
+        <label class="form-check-label me-2">Vis:</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpDaily" value="daily" checked>
+          <label class="form-check-label" for="heatpumpDaily">Daglig</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpMonthly" value="monthly">
+          <label class="form-check-label" for="heatpumpMonthly">Månedlig</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpCompare" value="compare">
+          <label class="form-check-label" for="heatpumpCompare">Sammenligning</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-8">
+          <div class="d-flex align-items-center mb-2" id="heatpumpPeriodNav">
+            <button class="btn btn-sm btn-secondary me-2" id="heatpumpPrev">&laquo; Forrige</button>
+            <span id="heatpumpPeriodLabel" class="fw-bold"></span>
+            <button class="btn btn-sm btn-secondary ms-2" id="heatpumpNext">Næste &raquo;</button>
+          </div>
+          <canvas id="heatpumpChart"></canvas>
+          <div id="heatpumpNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
+          <div id="heatpumpError" class="text-danger text-center py-4" style="display:none">Fejl ved hentning af data.</div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3" id="heatpumpStatsBox">
+            <h5>Statistik</h5>
+            <div id="heatpumpStatsContent"><p>Indlæser data...</p></div>
+          </div>
+          <div class="mt-2 text-muted small" id="heatpumpSyncStatus"></div>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <!-- SETTINGS SECTION - Tertiary Tab -->
   <section id="settings-section" class="tab-section">
     <h2>Indstillinger</h2>
-    <div id="heatpump-container" class="tab-content">
-    <h2>Jordvarmeforbrug</h2>
-    <select id="heatpumpFilter">
-        <option value="daily">Daglig oversigt</option>
-        <option value="monthly">Månedlig oversigt</option>
-        <option value="compare">Sammenligning pr. måned</option>
-    </select>
-    <canvas id="heatpumpChart"></canvas>
-</div>
   </section>
   <script>
     // Cache DOM-elementer
@@ -893,13 +915,6 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
       });
       quickFilterEl.addEventListener("change", applyQuickFilter);
 
-      // Event listener for efficiency type radio buttons
-      document.querySelectorAll('input[name="efficiencyType"]').forEach(radio => {
-        radio.addEventListener("change", () => {
-          fetchEfficiencyStats(); // Re-render grafer med ny beregning
-        });
-      });
-
       // Event listener for cost grouping radio buttons
       document.querySelectorAll('input[name="costGrouping"]').forEach(radio => {
         radio.addEventListener("change", () => {
@@ -1194,9 +1209,6 @@ let kmPerKwhChartInstance;
 let krPerKmChartInstance;
 
 function renderEfficiencyCharts(data) {
-  // Bestem hvilken efficiency type der skal vises
-  const efficiencyType = document.querySelector('input[name="efficiencyType"]:checked').value;
-  
   // Gruppér data pr. bil
   const groupedData = {};
   data.forEach(entry => {
@@ -1215,26 +1227,14 @@ function renderEfficiencyCharts(data) {
     const vehicleEntries = groupedData[vehicleId];
     // Sortér data efter timestamp
     vehicleEntries.sort((a, b) => a.timestamp - b.timestamp);
-    
+
     // Find bilnavn baseret på vehicleId
     const vehicle = vehicles.find(v => v.id == vehicleId);
     const vehicleName = vehicle ? vehicle.vehicleName : `Bil ${vehicleId}`;
-    
-    // Vælg korrekte data baseret på efficiency type
-    let kmData, krData;
-    if (efficiencyType === 'cumulative') {
-      // Brug samlet gennemsnit (totalKmPerKwh, totalKrPerKm)
-      kmData = vehicleEntries.map(entry => [entry.timestamp * 1000, entry.totalKmPerKwh]);
-      krData = vehicleEntries.map(entry => [entry.timestamp * 1000, entry.totalKrPerKm]);
-    } else {
-      // Brug per-tur efficiency (kmPerKwh, krPerKm) - filtrer null værdier
-      kmData = vehicleEntries
-        .filter(entry => entry.kmPerKwh !== null)
-        .map(entry => [entry.timestamp * 1000, entry.kmPerKwh]);
-      krData = vehicleEntries
-        .filter(entry => entry.krPerKm !== null)
-        .map(entry => [entry.timestamp * 1000, entry.krPerKm]);
-    }
+
+    // Brug samlet gennemsnit (totalKmPerKwh, totalKrPerKm)
+    const kmData = vehicleEntries.map(entry => [entry.timestamp * 1000, entry.totalKmPerKwh]);
+    const krData = vehicleEntries.map(entry => [entry.timestamp * 1000, entry.totalKrPerKm]);
 
     kmPerKwhSeries.push({
       name: vehicleName,
@@ -1332,7 +1332,8 @@ function fetchCostAnalytics() {
   const params = new URLSearchParams({
     filter: filterEl.value,
     dateRange: dateRangeEl.value,
-    groupBy: groupBy
+    groupBy: groupBy,
+    showZeroKwh: showZeroKwhEl.checked
   });
 
   fetch('getChargeAnalytics.php?' + params.toString())
@@ -1368,7 +1369,6 @@ function renderCostTrendChart(dailyData) {
   const dates = dailyData.map(d => d.date);
   const internalCosts = dailyData.map(d => parseFloat(d.internal_cost) || 0);
   const externalCosts = dailyData.map(d => parseFloat(d.external_cost) || 0);
-  const avgCostPerKwh = dailyData.map(d => parseFloat(d.avg_cost_per_kwh) || 0);
 
   const options = {
     chart: {
@@ -1400,6 +1400,13 @@ function renderCostTrendChart(dailyData) {
     },
     stroke: {
       curve: 'smooth'
+    },
+    tooltip: {
+      y: {
+        formatter: function(value) {
+          return value.toFixed(2) + ' kr';
+        }
+      }
     }
   };
 

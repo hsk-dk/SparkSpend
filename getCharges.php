@@ -53,15 +53,8 @@ try {
     }
 
     if ($dateFilters) {
-        if ($dateFilters['isSingleDate']) {
-            // Single date: use equality
-            $internalWhere[] = "date(createdAt) = ?";
-            $externalWhere[] = "date(datetime) = ?";
-        } else {
-            // Date range: use BETWEEN
-            $internalWhere[] = "date(createdAt) BETWEEN ? AND ?";
-            $externalWhere[] = "date(datetime) BETWEEN ? AND ?";
-        }
+        $internalWhere[] = "date(createdAt) BETWEEN ? AND ?";
+        $externalWhere[] = "date(datetime) BETWEEN ? AND ?";
     }
 
     // Build WHERE clauses
@@ -109,12 +102,8 @@ try {
     }
 
     if ($dateFilters) {
-        if ($dateFilters['isSingleDate']) {
-            $stmtParams[] = $dateFilters['start'];
-        } else {
-            $stmtParams[] = $dateFilters['start'];
-            $stmtParams[] = $dateFilters['end'];
-        }
+        $stmtParams[] = $dateFilters['start'];
+        $stmtParams[] = $dateFilters['end'];
     }
 
     // Second: external query parameters (vehicleId, then dates) - same as internal
@@ -124,12 +113,8 @@ try {
     }
 
     if ($dateFilters) {
-        if ($dateFilters['isSingleDate']) {
-            $stmtParams[] = $dateFilters['start'];
-        } else {
-            $stmtParams[] = $dateFilters['start'];
-            $stmtParams[] = $dateFilters['end'];
-        }
+        $stmtParams[] = $dateFilters['start'];
+        $stmtParams[] = $dateFilters['end'];
     }
 
     $stmt->execute($stmtParams);

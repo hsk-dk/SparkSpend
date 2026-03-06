@@ -26,6 +26,15 @@ $dataEndpoint = 'https://public-api.monta.com/api/v1/charges';
 $GLOBALS['dbPath'] = env('CHARGING_DB_PATH', 'data/charging_data.db');
 $GLOBALS['powerlogDbPath'] = env('POWERLOG_DB_PATH', 'data/powerlog_data.db');
 
+// MySQL Heat Pump Configuration - loaded from .env
+$GLOBALS['mysqlHeatpumpHost'] = env('MYSQL_HEATPUMP_HOST');
+$GLOBALS['mysqlHeatpumpPort'] = env('MYSQL_HEATPUMP_PORT', '3306');
+$GLOBALS['mysqlHeatpumpUser'] = env('MYSQL_HEATPUMP_USER');
+$GLOBALS['mysqlHeatpumpPassword'] = env('MYSQL_HEATPUMP_PASSWORD', '');
+$GLOBALS['mysqlHeatpumpDatabase'] = env('MYSQL_HEATPUMP_DATABASE');
+$GLOBALS['mysqlHeatpumpTable'] = env('MYSQL_HEATPUMP_TABLE', 'powerlog');
+$GLOBALS['heatpumpSyncInterval'] = env('HEATPUMP_SYNC_INTERVAL', '300'); // Default: 5 minutes
+
 // Timezone Configuration
 $timezone = env('TIMEZONE', 'Europe/Copenhagen');
 date_default_timezone_set($timezone);

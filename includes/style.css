@@ -1305,16 +1305,15 @@ header {
 
 /* Footer */
 .site-footer {
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: saturate(110%) blur(6px);
-  border-top: 1px solid rgba(36, 49, 64, 0.10);
-  padding: 30px;
+  padding: 40px 30px;
   text-align: center;
   color: #425061;
   font-size: 0.875rem;
   position: relative;
   z-index: 10;
   margin-top: auto;
+  background: transparent;
+  border-top: none;
 }
 
 .footer-content {
@@ -1329,10 +1328,15 @@ header {
 }
 
 .logo img {
-  height: 48px;
+  height: 40px;
   width: auto;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
-  opacity: 0.8;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.logo img:hover {
+  opacity: 0.9;
 }
 
 .site-footer a {
