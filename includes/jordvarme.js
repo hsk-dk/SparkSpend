@@ -121,7 +121,7 @@ const jordvarmeApp = (() => {
                 values = data.map(d => parseFloat(d.total_kwh));
             } else if (currentMode === "monthly") {
                 const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
-                labels = data.map(d => monthNames[parseInt(d.month, 10) - 1]);
+                labels = data.map(d => monthNames[parseInt(d.month.slice(-2), 10) - 1]);
                 values = data.map(d => parseFloat(d.total_kwh));
             } else {
                 const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
@@ -179,7 +179,7 @@ const jordvarmeApp = (() => {
                 maxLabel = data[maxIndex].day.slice(8) + ". " + new Date(data[maxIndex].day).toLocaleString("da-DK", { month: "short" });
             } else if (currentMode === "monthly") {
                 const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
-                maxLabel = monthNames[parseInt(data[maxIndex].month, 10) - 1];
+                maxLabel = monthNames[parseInt(data[maxIndex].month.slice(-2), 10) - 1];
             } else {
                 const monthNames = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
                 maxLabel = `${monthNames[parseInt(data[maxIndex].month, 10) - 1]} ${data[maxIndex].year}`;
