@@ -1534,3 +1534,45 @@ header {
   color: #243140;
   text-decoration: underline;
 }
+
+/* ===== YEAR TOGGLE CHIPS (Jordvarme compare mode) ===== */
+
+.year-chip-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.year-chip {
+  padding: 4px 14px;
+  border-radius: 20px;
+  border: 2px solid var(--chip-color, #6b7280);
+  background: var(--chip-color, #6b7280);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  line-height: 1.4;
+}
+
+.year-chip:not(.active) {
+  background: transparent;
+  color: var(--chip-color, #6b7280);
+  opacity: 0.65;
+}
+
+.year-chip:hover {
+  opacity: 1;
+}
+
+/* Coloured dot used in compare stats table */
+.year-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
