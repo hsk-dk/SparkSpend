@@ -27,7 +27,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260306">
+  <link rel="stylesheet" href="includes/style.css?v=20260307">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
@@ -517,13 +517,13 @@ require 'includes/QueryBuilder.php';
 
 </section><!-- /#jordvarme-section -->
   <!-- App Utilities -->
-  <script src="includes/app.js?v=20260306"></script>
+  <script src="includes/app.js?v=20260307"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260306"></script>
-  <script src="includes/dashboard.js?v=20260306"></script>
-  <script src="includes/elbil.js?v=20260306"></script>
-  <script src="includes/jordvarme.js?v=20260306"></script>
+  <script src="includes/nav.js?v=20260307"></script>
+  <script src="includes/dashboard.js?v=20260307"></script>
+  <script src="includes/elbil.js?v=20260307"></script>
+  <script src="includes/jordvarme.js?v=20260307"></script>
 
   <!-- Footer -->
   <footer class="site-footer">

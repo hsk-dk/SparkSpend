@@ -1338,6 +1338,11 @@ header {
   opacity: 0.9;
 }
 
+/* Fix Bootstrap form-check-inline vertical alignment */
+.form-check-inline {
+  align-items: center;
+}
+
 /* ===== DASHBOARD OVERVIEW CARDS ===== */
 
 .dashboard-grid {

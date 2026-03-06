@@ -68,8 +68,20 @@ const SparkNav = (() => {
         const isElbil = currentTab === 'elbil-section';
         const filterBtn    = document.getElementById('filterToggleBtn');
         const newChargeBtn = document.querySelector('.button-create-charge');
+        const filterDrawer = document.getElementById('filterDrawer');
+        const filterBackdrop = document.getElementById('filterBackdrop');
+
         if (filterBtn)    filterBtn.style.display    = isElbil ? '' : 'none';
         if (newChargeBtn) newChargeBtn.style.display = isElbil ? '' : 'none';
+
+        if (filterDrawer) {
+            filterDrawer.style.display = isElbil ? '' : 'none';
+            if (!isElbil) {
+                filterDrawer.classList.remove('open');
+                if (filterBackdrop) filterBackdrop.classList.remove('visible');
+                document.body.classList.remove('filter-open');
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
