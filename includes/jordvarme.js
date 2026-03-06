@@ -146,6 +146,7 @@ const jordvarmeApp = (() => {
                     responsive: true,
                     plugins: {
                         legend: { display: false },
+                        datalabels: { display: false },
                         tooltip: {
                             callbacks: {
                                 label: ctx => `${ctx.parsed.y.toFixed(2)} kWh`
