@@ -996,13 +996,16 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
     // Funktion, der kaldes når "Rediger" klikkes.
     // For interne ladninger redigeres kun vehicleId, for eksterne alle felter.
     function editCharge(id, source, datetime, kwh, pris, vehicleId, providerId = null) {
+      // Clean up any stale backdrop elements before opening to prevent them blocking the modal
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+
       if (source === 'internal') {
         document.getElementById('internalChargeId').value = id;
         document.getElementById('internalVehicleId').value = vehicleId;
-        const internalEl = document.getElementById('internalChargeModal');
-        const existingInternal = bootstrap.Modal.getInstance(internalEl);
-        if (existingInternal) existingInternal.dispose();
-        new bootstrap.Modal(internalEl).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('internalChargeModal')).show();
       } else if (source === 'external') {
         document.getElementById('externalChargeId').value = id;
         document.getElementById('externalVehicleId').value = vehicleId;
@@ -1016,10 +1019,7 @@ function updatePieCharts(internalCount, externalCount, internalKwh, externalKwh,
         }
         document.getElementById('externalKwh').value = kwh;
         document.getElementById('externalPris').value = pris;
-        const externalEl = document.getElementById('externalChargeModal');
-        const existingExternal = bootstrap.Modal.getInstance(externalEl);
-        if (existingExternal) existingExternal.dispose();
-        new bootstrap.Modal(externalEl).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('externalChargeModal')).show();
       }
     }
 
