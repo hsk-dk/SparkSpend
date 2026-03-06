@@ -48,11 +48,10 @@ try {
     $result = QueryBuilder::updateExternalCharge($db, [
         'id' => $data['id'],
         'vehicleId' => $data['vehicleId'],
+        'providerId' => $data['providerId'],
         'kwh' => $data['kwh'],
         'cost' => $data['pris'],
         'chargeDate' => $dateTime,
-        'provider' => $data['provider'] ?? '',
-        'category' => $data['category'] ?? ''
     ]);
 
     if ($result) {

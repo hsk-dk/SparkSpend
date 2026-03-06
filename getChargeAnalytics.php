@@ -104,8 +104,8 @@ try {
     }
     unset($dailyData);
 
-    // Sort by date in descending order
-    krsort($dailyTotals);
+    // Sort by date ascending for correct chart axis order
+    ksort($dailyTotals);
 
     echo json_encode([
         'trend' => [

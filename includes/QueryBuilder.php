@@ -540,6 +540,38 @@ class QueryBuilder {
     }
 
     /**
+     * Insert a new external charge record into ext_charges table
+     *
+     * @param PDO $db Database connection
+     * @param array $data Array with keys: vehicleId, providerId, kwh, cost, chargeDate
+     * @return array Array with keys: success (bool), id (int|null)
+     */
+    public static function insertExternalCharge(PDO $db, array $data): array {
+        $query = "INSERT INTO ext_charges (vehicleId, providerId, kwh, pris, datetime) VALUES (?, ?, ?, ?, ?)";
+        $stmt = $db->prepare($query);
+        $ok = $stmt->execute([
+            $data['vehicleId'],
+            $data['providerId'] ?? 0,
+            $data['kwh'] ?? 0,
+            $data['cost'] ?? 0,
+            $data['chargeDate'] ?? null,
+        ]);
+        return ['success' => $ok, 'id' => $ok ? (int) $db->lastInsertId() : null];
+    }
+
+    /**
+     * Delete an external charge record from ext_charges table
+     *
+     * @param PDO $db Database connection
+     * @param int $id Charge ID to delete
+     * @return bool True if delete successful
+     */
+    public static function deleteExternalCharge(PDO $db, int $id): bool {
+        $stmt = $db->prepare("DELETE FROM ext_charges WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
+    /**
      * Insert vehicle odometer reading into vehicle_charges table
      *
      * @param PDO $db Database connection
