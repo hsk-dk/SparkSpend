@@ -15,8 +15,9 @@ vendor/
 # Logs
 *.log
 
-# Database backups
-data/backup/
+# Database files (managed outside git)
+*.db
+data/
 
 # OS files
 .DS_Store
