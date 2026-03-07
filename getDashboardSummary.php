@@ -15,9 +15,10 @@ try {
     $powerlogDb = DatabaseManager::getPowerlogDb();
 
     $currentMonth  = date('Y-m');
-    $prevMonth     = date('Y-m', strtotime('first day of last month'));
     $today         = date('Y-m-d');
-    $sparkStart    = date('Y-m-d', strtotime('-13 days'));
+    $sparkStart    = date('Y-m-01');        // first of current month
+    $prevStart     = date('Y-m-01', strtotime('first day of last month'));
+    $prevEnd       = date('Y-m-d', strtotime('-1 month')); // same day last month
 
     // =========================================================================
     // EV — current month totals (internal + external)
@@ -63,7 +64,8 @@ try {
         $evByDay[$row['day']] = ($evByDay[$row['day']] ?? 0) + floatval($row['kwh']);
     }
     $evSparkline = [];
-    for ($i = 13; $i >= 0; $i--) {
+    $daysThisMonth = (int)date('d');
+    for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
         $day = date('Y-m-d', strtotime("-{$i} days"));
         $evSparkline[] = round($evByDay[$day] ?? 0, 2);
     }
@@ -82,9 +84,9 @@ try {
     $stmtHPPrev = $powerlogDb->prepare("
         SELECT (MAX(kwh) - MIN(kwh)) as total_kwh
         FROM powerlogjord
-        WHERE strftime('%Y-%m', logdate) = ?
+        WHERE DATE(logdate) BETWEEN ? AND ?
     ");
-    $stmtHPPrev->execute([$prevMonth]);
+    $stmtHPPrev->execute([$prevStart, $prevEnd]);
     $hpPrev = floatval($stmtHPPrev->fetchColumn());
 
     $hpPctChange = $hpPrev > 0
@@ -108,7 +110,7 @@ try {
         $hpByDay[$row['day']] = floatval($row['kwh']);
     }
     $hpSparkline = [];
-    for ($i = 13; $i >= 0; $i--) {
+    for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
         $day = date('Y-m-d', strtotime("-{$i} days"));
         $hpSparkline[] = round($hpByDay[$day] ?? 0, 2);
     }

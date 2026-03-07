@@ -57,7 +57,7 @@ function renderHeatpumpCard(hp) {
             const up = hp.pct_change >= 0;
             trendEl.innerHTML =
                 `<i class="fas fa-arrow-${up ? 'up' : 'down'}"></i> ` +
-                `${Math.abs(hp.pct_change)}% vs. forrige måned`;
+                `${Math.abs(hp.pct_change)}% vs. samme periode sidste måned`;
             trendEl.className = 'dash-trend ' + (up ? 'trend-up' : 'trend-down');
         } else {
             trendEl.textContent = '';
