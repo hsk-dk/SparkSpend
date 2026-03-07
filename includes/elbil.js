@@ -110,9 +110,13 @@ const elbilApp = (() => {
         quickFilterEl.addEventListener('change', applyQuickFilter);
         dateRangeEl.addEventListener('change',   _onFilterChange);
 
-        document.querySelectorAll('input[name="costGrouping"]').forEach(r =>
-            r.addEventListener('change', fetchCostAnalytics)
-        );
+        document.querySelectorAll('button[data-grouping]').forEach(btn => {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('button[data-grouping]').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                fetchCostAnalytics();
+            });
+        });
 
         // Filter drawer
         const filterDrawer   = document.getElementById('filterDrawer');
@@ -593,7 +597,7 @@ const elbilApp = (() => {
     // Cost analytics
     // -------------------------------------------------------------------------
     function fetchCostAnalytics() {
-        const groupBy = document.querySelector('input[name="costGrouping"]:checked')?.value || 'week';
+        const groupBy = document.querySelector('button[data-grouping].active')?.dataset.grouping || 'week';
         const params  = new URLSearchParams({ filter: filterEl.value, dateRange: dateRangeEl.value, groupBy, showZeroKwh: showZeroKwhEl.checked });
         fetch('getChargeAnalytics.php?' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })

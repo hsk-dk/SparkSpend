@@ -27,7 +27,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260310">
+  <link rel="stylesheet" href="includes/style.css?v=20260311">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
@@ -421,20 +421,10 @@ require 'includes/QueryBuilder.php';
     <!-- Cost Analytics Card -->
     <div class="card p-4 mt-4">
       <h3>Omkostningsanalyse</h3>
-      <div class="mb-3">
-        <label class="form-check-label">Gruppering:</label>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="costGrouping" id="groupDay" value="day">
-          <label class="form-check-label" for="groupDay">Pr. dag</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="costGrouping" id="groupWeek" value="week" checked>
-          <label class="form-check-label" for="groupWeek">Pr. uge</label>
-        </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="radio" name="costGrouping" id="groupMonth" value="month">
-          <label class="form-check-label" for="groupMonth">Pr. måned</label>
-        </div>
+      <div class="hp-mode-nav mb-3">
+        <button class="hp-mode-btn" data-grouping="day">Pr. dag</button>
+        <button class="hp-mode-btn active" data-grouping="week">Pr. uge</button>
+        <button class="hp-mode-btn" data-grouping="month">Pr. måned</button>
       </div>
       <div class="row">
         <div class="col-md-6">
@@ -459,8 +449,8 @@ require 'includes/QueryBuilder.php';
     <!-- Vehicle Comparison Card -->
     <div class="card p-4 mt-4">
       <h3>Bilsammenligning</h3>
-      <div class="mb-3">
-        <label class="form-check-label">Sortering:</label>
+      <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <span class="text-muted small">Sorter efter:</span>
         <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_cost')">Samlede omkostninger</button>
         <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('avg_cost_per_kwh')">Pris pr kWh</button>
         <button type="button" class="btn btn-sm btn-secondary" onclick="sortVehicleComparison('total_kwh')">Samlet forbrug</button>
@@ -532,7 +522,7 @@ require 'includes/QueryBuilder.php';
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260309"></script>
-  <script src="includes/elbil.js?v=20260309"></script>
+  <script src="includes/elbil.js?v=20260311"></script>
   <script src="includes/jordvarme.js?v=20260310"></script>
 
   <!-- Footer -->

@@ -1539,13 +1539,13 @@ header {
 }
 
 .hp-mode-btn:hover:not(.active) {
-  background: #f3f4f6;
-  color: #374151;
+  background: rgba(36, 49, 64, 0.06);
+  color: var(--brand-ink);
 }
 
 .hp-mode-btn.active {
-  background: #eff6ff;
-  color: #3b82f6;
+  background: rgba(107, 163, 255, 0.12);
+  color: var(--brand-accent);
   font-weight: 600;
 }
 
