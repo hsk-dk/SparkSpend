@@ -37,10 +37,12 @@ const jordvarmeApp = (() => {
 
         const ctx = canvas.getContext("2d");
 
-        // ── Mode radio buttons ───────────────────────────────────────────────
-        document.querySelectorAll('input[name="heatpumpMode"]').forEach(radio => {
-            radio.addEventListener("change", function () {
-                currentMode = this.value;
+        // ── Mode buttons ─────────────────────────────────────────────────────
+        document.querySelectorAll('.hp-mode-btn').forEach(btn => {
+            btn.addEventListener("click", function () {
+                document.querySelectorAll('.hp-mode-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentMode = this.dataset.mode;
                 const isChronological = currentMode === "compare" || currentMode === "ytd";
                 periodNav.style.display = isChronological ? "none" : "";
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";

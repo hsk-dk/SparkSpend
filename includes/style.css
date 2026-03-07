@@ -1518,6 +1518,37 @@ header {
   display: block;
 }
 
+/* ===== HEATPUMP MODE SELECTOR ===== */
+
+.hp-mode-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.hp-mode-btn {
+  background: none;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.hp-mode-btn:hover:not(.active) {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.hp-mode-btn.active {
+  background: #eff6ff;
+  color: #3b82f6;
+  font-weight: 600;
+}
+
 @media (prefers-color-scheme: dark) {
   .dashboard-card {
     background: rgba(36, 49, 64, 0.9);

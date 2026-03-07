@@ -27,7 +27,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260309">
+  <link rel="stylesheet" href="includes/style.css?v=20260310">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
@@ -494,24 +494,11 @@ require 'includes/QueryBuilder.php';
 
   <div class="card p-4">
     <h3>Jordvarmeforbrug</h3>
-    <div class="mb-3">
-      <label class="form-check-label me-2">Vis:</label>
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpDaily" value="daily" checked>
-        <label class="form-check-label" for="heatpumpDaily">Daglig</label>
-      </div>
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpMonthly" value="monthly">
-        <label class="form-check-label" for="heatpumpMonthly">Månedlig</label>
-      </div>
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpCompare" value="compare">
-        <label class="form-check-label" for="heatpumpCompare">Sammenligning</label>
-      </div>
-      <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpYtd" value="ytd">
-        <label class="form-check-label" for="heatpumpYtd">År til dato</label>
-      </div>
+    <div class="hp-mode-nav mb-3">
+      <button class="hp-mode-btn active" data-mode="daily">Daglig</button>
+      <button class="hp-mode-btn" data-mode="monthly">Månedlig</button>
+      <button class="hp-mode-btn" data-mode="compare">Sammenligning</button>
+      <button class="hp-mode-btn" data-mode="ytd">År til dato</button>
     </div>
 
     <!-- Year toggle chips (compare mode only, populated by JS) -->
@@ -546,7 +533,7 @@ require 'includes/QueryBuilder.php';
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260309"></script>
   <script src="includes/elbil.js?v=20260309"></script>
-  <script src="includes/jordvarme.js?v=20260309"></script>
+  <script src="includes/jordvarme.js?v=20260310"></script>
 
   <!-- Footer -->
   <footer class="site-footer">
