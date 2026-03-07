@@ -50,7 +50,9 @@ try {
         $response = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
 
     } elseif ($mode === 'compare') {
-        // Compare monthly consumption across years
+        // Compare monthly consumption across years.
+        // Only include months where recorded days cover >= 90% of the month,
+        // to avoid partial months skewing the comparison.
         $stmt = $db->prepare("
             SELECT
                 strftime('%Y', logdate) AS year,
@@ -58,6 +60,11 @@ try {
                 (MAX(kwh) - MIN(kwh)) AS total_kwh
             FROM powerlogjord
             GROUP BY year, month
+            HAVING COUNT(DISTINCT DATE(logdate)) >=
+                CAST(strftime('%d', date(
+                    strftime('%Y', logdate) || '-' || strftime('%m', logdate) || '-01',
+                    '+1 month', '-1 day'
+                )) AS INTEGER) * 0.9
             ORDER BY year DESC, month
         ");
         $stmt->execute([]);
