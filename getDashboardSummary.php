@@ -19,6 +19,8 @@ try {
     $sparkStart    = date('Y-m-01');        // first of current month
     $prevStart     = date('Y-m-01', strtotime('first day of last month'));
     $prevEnd       = date('Y-m-d', strtotime('-1 month')); // same day last month
+    $lastYearStart = date('Y-m-01', strtotime('-1 year')); // first of same month last year
+    $lastYearEnd   = date('Y-m-d', strtotime('-1 year'));  // same day last year
 
     // =========================================================================
     // EV — current month totals (internal + external)
@@ -93,6 +95,18 @@ try {
         ? round(($hpCurrent - $hpPrev) / $hpPrev * 100, 1)
         : null;
 
+    $stmtHPYear = $powerlogDb->prepare("
+        SELECT (MAX(kwh) - MIN(kwh)) as total_kwh
+        FROM powerlogjord
+        WHERE DATE(logdate) BETWEEN ? AND ?
+    ");
+    $stmtHPYear->execute([$lastYearStart, $lastYearEnd]);
+    $hpLastYear = floatval($stmtHPYear->fetchColumn());
+
+    $hpPctChangeYear = $hpLastYear > 0
+        ? round(($hpCurrent - $hpLastYear) / $hpLastYear * 100, 1)
+        : null;
+
     // =========================================================================
     // Heatpump — 14-day sparkline
     // =========================================================================
@@ -126,10 +140,11 @@ try {
             'sparkline'     => $evSparkline,
         ],
         'heatpump' => [
-            'month_kwh'      => round($hpCurrent, 2),
-            'prev_month_kwh' => round($hpPrev, 2),
-            'pct_change'     => $hpPctChange,
-            'sparkline'      => $hpSparkline,
+            'month_kwh'       => round($hpCurrent, 2),
+            'prev_month_kwh'  => round($hpPrev, 2),
+            'pct_change'      => $hpPctChange,
+            'pct_change_year' => $hpPctChangeYear,
+            'sparkline'       => $hpSparkline,
         ],
     ]);
 

@@ -53,15 +53,21 @@ function renderHeatpumpCard(hp) {
 
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
+        let html = '';
         if (hp.pct_change !== null) {
             const up = hp.pct_change >= 0;
-            trendEl.innerHTML =
-                `<i class="fas fa-arrow-${up ? 'up' : 'down'}"></i> ` +
-                `${Math.abs(hp.pct_change)}% vs. samme periode sidste måned`;
-            trendEl.className = 'dash-trend ' + (up ? 'trend-up' : 'trend-down');
-        } else {
-            trendEl.textContent = '';
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `<i class="fas fa-arrow-${up ? 'up' : 'down'}"></i> ` +
+                    `${Math.abs(hp.pct_change)}% vs. sidst måned</div>`;
         }
+        if (hp.pct_change_year !== null) {
+            const up = hp.pct_change_year >= 0;
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `<i class="fas fa-arrow-${up ? 'up' : 'down'}"></i> ` +
+                    `${Math.abs(hp.pct_change_year)}% vs. samme måned sidste år</div>`;
+        }
+        trendEl.innerHTML = html;
+        trendEl.className = 'dash-trend';
     }
 
     _hpSparkChart = _renderSparkline(
