@@ -62,13 +62,13 @@ function renderHeatpumpCard(hp) {
         if (hp.pct_change !== null) {
             const up = hp.pct_change >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `<i class="fas fa-arrow-${up ? 'up' : 'down'}"></i> ` +
+                    `${up ? '↑' : '↓'} ` +
                     `${Math.abs(hp.pct_change)}% vs. sidst måned</div>`;
         }
         if (hp.pct_change_year !== null) {
             const up = hp.pct_change_year >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `<i class="fas fa-arrow-${up ? 'up' : 'down'}"></i> ` +
+                    `${up ? '↑' : '↓'} ` +
                     `${Math.abs(hp.pct_change_year)}% vs. samme måned sidste år</div>`;
         }
         trendEl.innerHTML = html;
@@ -124,7 +124,7 @@ function _setText(parent, selector, text) {
     if (el) el.textContent = text;
 }
 
-document.addEventListener('DOMContentLoaded', loadDashboard);
 document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
     window.SparkEvents?.addEventListener('charge:saved', loadDashboard);
 });

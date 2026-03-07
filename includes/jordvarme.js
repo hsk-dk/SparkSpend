@@ -38,9 +38,9 @@ const jordvarmeApp = (() => {
         const ctx = canvas.getContext("2d");
 
         // ── Mode buttons ─────────────────────────────────────────────────────
-        document.querySelectorAll('.hp-mode-btn').forEach(btn => {
+        document.querySelectorAll('#jordvarme-section .hp-mode-btn').forEach(btn => {
             btn.addEventListener("click", function () {
-                document.querySelectorAll('.hp-mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#jordvarme-section .hp-mode-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 currentMode = this.dataset.mode;
                 const isChronological = currentMode === "compare" || currentMode === "ytd";

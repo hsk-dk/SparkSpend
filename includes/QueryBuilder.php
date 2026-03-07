@@ -201,7 +201,7 @@ class QueryBuilder {
             $chargesExternal = $showZeroKwh
                 ? $chargesExternalRaw
                 : array_filter($chargesExternalRaw, function($charge) {
-                    return floatval($charge['kwh']) > 0;
+                    return floatval($charge['total_kwh']) > 0;
                 });
         }
 
@@ -209,10 +209,7 @@ class QueryBuilder {
         $externalGrouped = [];
         foreach ($chargesExternal as $charge) {
             $chargeDate = $charge['datetime'];
-            $dateObj = DateTime::createFromFormat(DateTime::ISO8601, $chargeDate);
-            if (!$dateObj) {
-                $dateObj = DateTime::createFromFormat('Y-m-d H:i:s', $chargeDate);
-            }
+            $dateObj = date_create($chargeDate);
 
             if ($dateObj) {
                 $groupedDate = match($groupBy) {

@@ -197,6 +197,7 @@ const elbilApp = (() => {
         fetchCharges();
         fetchEfficiencyStats();
         fetchCostAnalytics();
+        fetchVehicleComparison();
     }
 
     // -------------------------------------------------------------------------

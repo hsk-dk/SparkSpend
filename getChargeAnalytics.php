@@ -27,6 +27,9 @@ try {
     $filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
     $dateRange = isset($_GET['dateRange']) ? $_GET['dateRange'] : '';
     $groupBy = isset($_GET['groupBy']) ? $_GET['groupBy'] : 'week';
+    if (!in_array($groupBy, ['day', 'week', 'month'])) {
+        $groupBy = 'week';
+    }
     $showZeroKwh = (isset($_GET['showZeroKwh']) && $_GET['showZeroKwh'] === 'true') ? true : false;
 
     // Build filter array for QueryBuilder methods

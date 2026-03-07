@@ -221,15 +221,14 @@ try {
             $kwh = $chargeData['total_kwh'];
             $pris = $chargeData['total_pris'];
 
+            // Odometer went backwards - vehicle reset or data error
+            if ($kmDriven < 0) {
+                error_log("Warning: Negative km for vehicle $vehicleId: $kmDriven km (odometer went backwards)");
+                continue;
+            }
+
             // Only calculate efficiency if we have valid data
             if ($kwh > 0 && $kmDriven > 0) {
-                // Validate data: check for negative km
-                if ($kmDriven < 0) {
-                    // Odometer went backwards - likely vehicle reset or data error
-                    error_log("Warning: Negative km for vehicle $vehicleId: $kmDriven km (odometer went backwards)");
-                    continue;
-                }
-
                 // Skip very short trips (< 20 km) - these are likely charging session artifacts
                 // not real driving trips
                 if ($kmDriven < 20) {

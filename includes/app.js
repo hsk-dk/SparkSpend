@@ -222,7 +222,6 @@ const extractChargeData = (row) => {
  */
 const initializeAppUtilities = () => {
   // Any global initialization needed
-  console.log('SparkSpend app utilities initialized');
 };
 
 // Global event bus for cross-module communication
