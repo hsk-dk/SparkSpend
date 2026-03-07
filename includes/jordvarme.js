@@ -41,9 +41,9 @@ const jordvarmeApp = (() => {
         document.querySelectorAll('input[name="heatpumpMode"]').forEach(radio => {
             radio.addEventListener("change", function () {
                 currentMode = this.value;
-                const isCompare = currentMode === "compare";
-                periodNav.style.display = isCompare ? "none" : "";
-                if (!isCompare && yearContainer) yearContainer.style.display = "none";
+                const isChronological = currentMode === "compare" || currentMode === "ytd";
+                periodNav.style.display = isChronological ? "none" : "";
+                if (!isChronological && yearContainer) yearContainer.style.display = "none";
                 fetchAndRender();
             });
         });
@@ -78,6 +78,7 @@ const jordvarmeApp = (() => {
         function buildUrl() {
             if (currentMode === "daily")   return `getHeatpumpData.php?mode=daily&month=${currentMonth}`;
             if (currentMode === "monthly") return `getHeatpumpData.php?mode=monthly&year=${currentYear}`;
+            if (currentMode === "ytd")     return "getHeatpumpData.php?mode=ytd";
             return "getHeatpumpData.php?mode=compare";
         }
 
@@ -124,6 +125,11 @@ const jordvarmeApp = (() => {
 
             if (currentMode === "compare") {
                 renderCompareChart(data);
+                return;
+            }
+
+            if (currentMode === "ytd") {
+                renderYtdChart(data);
                 return;
             }
 
@@ -185,6 +191,25 @@ const jordvarmeApp = (() => {
                 };
             });
 
+            // Monthly average across all years (dashed reference line)
+            const avgData = Array.from({ length: 12 }, (_, m) => {
+                const vals = [...yearMap.values()].map(arr => arr[m]).filter(v => v !== null);
+                return vals.length > 0
+                    ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1))
+                    : null;
+            });
+            datasets.push({
+                label: "Gns.",
+                data: avgData,
+                borderColor: "#94a3b8",
+                backgroundColor: "transparent",
+                borderWidth: 2,
+                borderDash: [6, 4],
+                pointRadius: 0,
+                tension: 0.35,
+                spanGaps: true
+            });
+
             heatpumpChart = new Chart(ctx, {
                 type: "line",
                 data: { labels: MONTH_NAMES, datasets },
@@ -205,11 +230,11 @@ const jordvarmeApp = (() => {
                 }
             });
 
-            buildYearChips(years);
+            buildYearChips(years, true);
         }
 
         // ── Year toggle chips ────────────────────────────────────────────────
-        function buildYearChips(years) {
+        function buildYearChips(years, hasAvg = false) {
             if (!yearContainer) return;
             yearContainer.innerHTML = "";
 
@@ -230,6 +255,23 @@ const jordvarmeApp = (() => {
                 yearContainer.appendChild(chip);
             });
 
+            if (hasAvg) {
+                const avgIdx = years.length;
+                const chip   = document.createElement("button");
+                chip.type = "button";
+                chip.className = "year-chip active";
+                chip.textContent = "Gns.";
+                chip.style.setProperty("--chip-color", "#94a3b8");
+                chip.addEventListener("click", () => {
+                    const nowActive = chip.classList.toggle("active");
+                    if (heatpumpChart) {
+                        heatpumpChart.setDatasetVisibility(avgIdx, nowActive);
+                        heatpumpChart.update();
+                    }
+                });
+                yearContainer.appendChild(chip);
+            }
+
             yearContainer.style.display = "flex";
         }
 
@@ -244,6 +286,8 @@ const jordvarmeApp = (() => {
                 renderCompareStats(data);
                 return;
             }
+
+            if (currentMode === "ytd") return; // handled inside renderYtdChart
 
             const values = data.map(d => parseFloat(d.total_kwh));
             const total  = values.reduce((a, b) => a + b, 0);
@@ -294,6 +338,107 @@ const jordvarmeApp = (() => {
                 <table class="table table-sm mb-0">
                     <thead><tr>
                         <th>År</th><th class="text-end">Total</th><th class="text-end">Mdr.</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        }
+
+        // ── YTD cumulative chart ─────────────────────────────────────────────
+        function renderYtdChart(data) {
+            // Generate x-axis labels: every MM-DD from 01-01 to today
+            const today   = new Date();
+            const todayMd = String(today.getMonth() + 1).padStart(2, "0") + "-" +
+                            String(today.getDate()).padStart(2, "0");
+            const labels  = [];
+            const cursor  = new Date(today.getFullYear(), 0, 1);
+            while (true) {
+                const md = String(cursor.getMonth() + 1).padStart(2, "0") + "-" +
+                           String(cursor.getDate()).padStart(2, "0");
+                labels.push(md);
+                if (md === todayMd) break;
+                cursor.setDate(cursor.getDate() + 1);
+            }
+
+            // Group by year: Map<year, Map<MM-DD, daily_kwh>>
+            const yearDayMap = new Map();
+            data.forEach(row => {
+                if (!yearDayMap.has(row.year)) yearDayMap.set(row.year, new Map());
+                yearDayMap.get(row.year).set(row.day.slice(5), parseFloat(row.daily_kwh));
+            });
+
+            const years    = [...yearDayMap.keys()].sort();
+            const datasets = years.map((year, i) => {
+                const color  = YEAR_COLORS[i % YEAR_COLORS.length];
+                const dayMap = yearDayMap.get(year);
+                let cum = 0;
+                return {
+                    label: year,
+                    data: labels.map(md => parseFloat((cum += (dayMap.get(md) || 0)).toFixed(2))),
+                    borderColor: color,
+                    backgroundColor: color + "20",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    tension: 0.2,
+                    fill: false
+                };
+            });
+
+            if (heatpumpChart) { heatpumpChart.destroy(); heatpumpChart = null; }
+            heatpumpChart = new Chart(ctx, {
+                type: "line",
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: items => {
+                                    const md = items[0].label;
+                                    const [m, d] = md.split("-").map(Number);
+                                    return MONTH_NAMES[m - 1] + " " + d;
+                                },
+                                label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} kWh`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 0,
+                                callback: (val, idx) => {
+                                    const md = labels[idx];
+                                    return md && md.endsWith("-01")
+                                        ? MONTH_NAMES[parseInt(md.split("-")[0], 10) - 1]
+                                        : "";
+                                }
+                            }
+                        },
+                        y: { beginAtZero: true, title: { display: true, text: "Akkumuleret kWh" } }
+                    }
+                }
+            });
+
+            buildYearChips(years);
+            renderYtdStats(years, yearDayMap, labels);
+        }
+
+        function renderYtdStats(years, yearDayMap, labels) {
+            const rows = years.map((year, i) => {
+                const color = YEAR_COLORS[i % YEAR_COLORS.length];
+                const total = labels.reduce((sum, md) => sum + (yearDayMap.get(year).get(md) || 0), 0);
+                return `<tr>
+                    <td><span class="year-dot" style="background:${color}"></span>${year}</td>
+                    <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
+                </tr>`;
+            }).join("");
+            statsContent.innerHTML = `
+                <table class="table table-sm mb-0">
+                    <thead><tr>
+                        <th>År</th><th class="text-end">Akkumuleret</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;

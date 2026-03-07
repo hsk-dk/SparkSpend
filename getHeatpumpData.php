@@ -63,6 +63,22 @@ try {
         $stmt->execute([]);
         $response = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
 
+    } elseif ($mode === 'ytd') {
+        // Daily consumption per year, Jan 1 through today's day-of-year
+        $todayMd = date('m-d');
+        $stmt = $db->prepare("
+            SELECT
+                strftime('%Y', logdate) AS year,
+                DATE(logdate) AS day,
+                (MAX(kwh) - MIN(kwh)) AS daily_kwh
+            FROM powerlogjord
+            WHERE strftime('%m-%d', logdate) <= ?
+            GROUP BY year, day
+            ORDER BY year, day
+        ");
+        $stmt->execute([$todayMd]);
+        $response = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
+
     } elseif ($mode === 'sync_status') {
         // Return last sync timestamp from sync_log
         $stmt = $db->prepare("SELECT last_sync_timestamp, updated_at FROM sync_log WHERE source = 'heatpump' LIMIT 1");

@@ -37,6 +37,9 @@ function renderEvCard(ev) {
     _setText(card, '.dash-stat-charges', ev.month_charges + ' ladninger');
     _setText(card, '.dash-stat-kwh', ev.month_kwh.toFixed(1) + ' kWh');
     _setText(card, '.dash-stat-cost', ev.month_cost.toFixed(0) + ' kr');
+    _setText(card, '.dash-stat-cpkwh', ev.cost_per_kwh !== null ? ev.cost_per_kwh.toFixed(2) + ' kr/kWh' : '—');
+    _setText(card, '.dash-split', ev.home_kwh_pct !== null ? ev.home_kwh_pct.toFixed(0) + '% hjemme' : '');
+    _setText(card, '.dash-projected', ev.projected_cost !== null ? 'Forventet: ' + ev.projected_cost + ' kr' : '');
 
     _evSparkChart = _renderSparkline(
         'ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart
@@ -50,6 +53,8 @@ function renderHeatpumpCard(hp) {
     const month = _monthName();
     _setText(card, '.dash-period', month);
     _setText(card, '.dash-stat-kwh', hp.month_kwh.toFixed(1) + ' kWh');
+    _setText(card, '.dash-stat-daily', hp.daily_avg_kwh !== null ? hp.daily_avg_kwh.toFixed(1) + ' kWh' : '—');
+    _setText(card, '.dash-projected', hp.projected_kwh !== null ? 'Forventet: ' + hp.projected_kwh.toFixed(1) + ' kWh' : '');
 
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {

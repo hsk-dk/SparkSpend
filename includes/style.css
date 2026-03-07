@@ -1461,6 +1461,18 @@ header {
   height: 100% !important;
 }
 
+.dash-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.dash-projected {
+  font-style: italic;
+}
+
 /* ===== EV SUB-NAVIGATION ===== */
 
 .sub-nav {

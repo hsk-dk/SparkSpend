@@ -27,7 +27,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260308">
+  <link rel="stylesheet" href="includes/style.css?v=20260309">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
@@ -139,6 +139,14 @@ require 'includes/QueryBuilder.php';
             <div class="dash-stat-cost dash-stat-value">—</div>
             <div class="dash-stat-label">Pris</div>
           </div>
+          <div class="dash-stat">
+            <div class="dash-stat-cpkwh dash-stat-value">—</div>
+            <div class="dash-stat-label">kr/kWh</div>
+          </div>
+        </div>
+        <div class="dash-meta">
+          <span class="dash-split"></span>
+          <span class="dash-projected"></span>
         </div>
         <div class="dash-sparkline">
           <canvas id="ev-sparkline"></canvas>
@@ -161,6 +169,13 @@ require 'includes/QueryBuilder.php';
             <div class="dash-stat-kwh dash-stat-value">—</div>
             <div class="dash-stat-label">kWh</div>
           </div>
+          <div class="dash-stat">
+            <div class="dash-stat-daily dash-stat-value">—</div>
+            <div class="dash-stat-label">kWh/dag</div>
+          </div>
+        </div>
+        <div class="dash-meta">
+          <span class="dash-projected"></span>
         </div>
         <div class="dash-trend"></div>
         <div class="dash-sparkline">
@@ -493,6 +508,10 @@ require 'includes/QueryBuilder.php';
         <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpCompare" value="compare">
         <label class="form-check-label" for="heatpumpCompare">Sammenligning</label>
       </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="heatpumpMode" id="heatpumpYtd" value="ytd">
+        <label class="form-check-label" for="heatpumpYtd">År til dato</label>
+      </div>
     </div>
 
     <!-- Year toggle chips (compare mode only, populated by JS) -->
@@ -521,13 +540,13 @@ require 'includes/QueryBuilder.php';
 
 </section><!-- /#jordvarme-section -->
   <!-- App Utilities -->
-  <script src="includes/app.js?v=20260308"></script>
+  <script src="includes/app.js?v=20260309"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260308"></script>
-  <script src="includes/dashboard.js?v=20260308"></script>
-  <script src="includes/elbil.js?v=20260308"></script>
-  <script src="includes/jordvarme.js?v=20260308"></script>
+  <script src="includes/nav.js?v=20260309"></script>
+  <script src="includes/dashboard.js?v=20260309"></script>
+  <script src="includes/elbil.js?v=20260309"></script>
+  <script src="includes/jordvarme.js?v=20260309"></script>
 
   <!-- Footer -->
   <footer class="site-footer">

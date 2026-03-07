@@ -132,18 +132,34 @@ try {
     // =========================================================================
     // Response
     // =========================================================================
+    $totalKwh    = floatval($intMonth['kwh'])  + floatval($extMonth['kwh']);
+    $totalCost   = floatval($intMonth['cost']) + floatval($extMonth['cost']);
+    $daysInMonth = (int)date('t');
+
+    $evCostPerKwh   = $totalKwh > 0     ? round($totalCost / $totalKwh, 3) : null;
+    $evHomePct      = $totalKwh > 0     ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
+    $evProjected    = $daysThisMonth > 0 ? round($totalCost / $daysThisMonth * $daysInMonth) : null;
+
+    $hpDailyAvg     = $daysThisMonth > 0 ? round($hpCurrent / $daysThisMonth, 2) : null;
+    $hpProjected    = $daysThisMonth > 0 ? round($hpCurrent  / $daysThisMonth * $daysInMonth, 1) : null;
+
     echo json_encode([
         'ev' => [
-            'month_charges' => intval($intMonth['cnt']) + intval($extMonth['cnt']),
-            'month_kwh'     => round(floatval($intMonth['kwh']) + floatval($extMonth['kwh']), 2),
-            'month_cost'    => round(floatval($intMonth['cost']) + floatval($extMonth['cost']), 2),
-            'sparkline'     => $evSparkline,
+            'month_charges'  => intval($intMonth['cnt']) + intval($extMonth['cnt']),
+            'month_kwh'      => round($totalKwh, 2),
+            'month_cost'     => round($totalCost, 2),
+            'cost_per_kwh'   => $evCostPerKwh,
+            'home_kwh_pct'   => $evHomePct,
+            'projected_cost' => $evProjected,
+            'sparkline'      => $evSparkline,
         ],
         'heatpump' => [
             'month_kwh'       => round($hpCurrent, 2),
             'prev_month_kwh'  => round($hpPrev, 2),
             'pct_change'      => $hpPctChange,
             'pct_change_year' => $hpPctChangeYear,
+            'daily_avg_kwh'   => $hpDailyAvg,
+            'projected_kwh'   => $hpProjected,
             'sparkline'       => $hpSparkline,
         ],
     ]);
