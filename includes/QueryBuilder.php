@@ -451,53 +451,100 @@ class QueryBuilder {
     public static function getVehicleCostComparison(PDO $db, array $filters): array {
         $dateRange = $filters['dateRange'] ?? '';
 
-        // Parse date range if provided
         $startDate = null;
-        $endDate = null;
+        $endDate   = null;
         if (!empty($dateRange)) {
-            $dates = self::parseDateRange($dateRange);
+            $dates     = self::parseDateRange($dateRange);
             $startDate = $dates['start'];
-            $endDate = $dates['end'];
+            $endDate   = $dates['end'];
         }
 
-        // Get all vehicles
+        // Query 1: all vehicles
         $vehicles = self::selectAllVehicles($db);
-        $vehicleComparison = [];
+        if (empty($vehicles)) return [];
 
-        foreach ($vehicles as $vehicle) {
-            $vehicleId = $vehicle['id'];
-
-            // Use existing statistics method to get cost data per vehicle
-            $vehicleFilters = ['vehicleId' => $vehicleId];
-            if (!empty($dateRange)) {
-                $vehicleFilters['dateRange'] = $dateRange;
-            }
-
-            $stats = self::getCostStatistics($db, $vehicleFilters);
-
-            $vehicleComparison[] = [
-                'vehicleId' => $vehicleId,
-                'vehicleName' => $vehicle['vehicleName'],
-                'charge_count' => $stats['total_charges'],
-                'total_kwh' => round($stats['total_kwh'], 2),
-                'total_cost' => round($stats['total_cost'], 2),
-                'avg_cost_per_kwh' => $stats['avg_cost_per_kwh'],
-                'internal_kwh' => round($stats['internal_kwh'], 2),
-                'internal_cost' => round($stats['internal_cost'], 2),
-                'internal_charges' => $stats['internal_charges'],
-                'external_kwh' => round($stats['external_kwh'], 2),
-                'external_cost' => round($stats['external_cost'], 2),
-                'external_charges' => $stats['external_charges'],
-                'internal_percentage' => $stats['total_kwh'] > 0
-                    ? round(($stats['internal_kwh'] / $stats['total_kwh']) * 100, 1)
-                    : 0,
-                'external_percentage' => $stats['total_kwh'] > 0
-                    ? round(($stats['external_kwh'] / $stats['total_kwh']) * 100, 1)
-                    : 0
+        // Seed result map keyed by vehicleId
+        $map = [];
+        foreach ($vehicles as $v) {
+            $map[$v['id']] = [
+                'vehicleId'        => $v['id'],
+                'vehicleName'      => $v['vehicleName'],
+                'internal_charges' => 0,
+                'internal_kwh'     => 0.0,
+                'internal_cost'    => 0.0,
+                'external_charges' => 0,
+                'external_kwh'     => 0.0,
+                'external_cost'    => 0.0,
             ];
         }
 
-        return $vehicleComparison;
+        // Query 2: aggregate internal charges grouped by vehicle
+        $qInt  = "SELECT vehicleId,
+                      COUNT(*) as charge_count,
+                      COALESCE(SUM(consumedKwh), 0) as total_kwh,
+                      COALESCE(SUM(cost), 0) as total_cost
+                  FROM charges WHERE consumedKwh > 0";
+        $pInt  = [];
+        if ($startDate !== null) {
+            $qInt   .= " AND DATE(createdAt) BETWEEN ? AND ?";
+            $pInt[]  = $startDate;
+            $pInt[]  = $endDate;
+        }
+        $qInt .= " GROUP BY vehicleId";
+        $stmt  = $db->prepare($qInt);
+        $stmt->execute($pInt);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $vid = $row['vehicleId'];
+            if (isset($map[$vid])) {
+                $map[$vid]['internal_charges'] = intval($row['charge_count']);
+                $map[$vid]['internal_kwh']     = floatval($row['total_kwh']);
+                $map[$vid]['internal_cost']    = floatval($row['total_cost']);
+            }
+        }
+
+        // Query 3: all external charges — filter in PHP (datetime uses Z-suffix ISO 8601
+        // which SQLite date functions cannot parse reliably)
+        $stmt    = $db->prepare("SELECT vehicleId, datetime, kwh, pris FROM ext_charges WHERE kwh > 0");
+        $stmt->execute();
+        $startTs = $startDate !== null ? strtotime($startDate) : null;
+        $endTs   = $endDate   !== null ? strtotime($endDate . ' 23:59:59') : null;
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $vid = $row['vehicleId'];
+            if (!isset($map[$vid])) continue;
+            if ($startTs !== null) {
+                $t = strtotime($row['datetime']);
+                if ($t < $startTs || $t > $endTs) continue;
+            }
+            $map[$vid]['external_charges']++;
+            $map[$vid]['external_kwh']  += floatval($row['kwh']);
+            $map[$vid]['external_cost'] += floatval($row['pris']);
+        }
+
+        // Build final result with derived totals
+        $result = [];
+        foreach ($map as $v) {
+            $totalKwh     = $v['internal_kwh']  + $v['external_kwh'];
+            $totalCost    = $v['internal_cost'] + $v['external_cost'];
+            $totalCharges = $v['internal_charges'] + $v['external_charges'];
+            $result[] = [
+                'vehicleId'           => $v['vehicleId'],
+                'vehicleName'         => $v['vehicleName'],
+                'charge_count'        => $totalCharges,
+                'total_kwh'           => round($totalKwh, 2),
+                'total_cost'          => round($totalCost, 2),
+                'avg_cost_per_kwh'    => $totalKwh > 0 ? round($totalCost / $totalKwh, 3) : 0,
+                'internal_kwh'        => round($v['internal_kwh'], 2),
+                'internal_cost'       => round($v['internal_cost'], 2),
+                'internal_charges'    => $v['internal_charges'],
+                'external_kwh'        => round($v['external_kwh'], 2),
+                'external_cost'       => round($v['external_cost'], 2),
+                'external_charges'    => $v['external_charges'],
+                'internal_percentage' => $totalKwh > 0 ? round(($v['internal_kwh'] / $totalKwh) * 100, 1) : 0,
+                'external_percentage' => $totalKwh > 0 ? round(($v['external_kwh'] / $totalKwh) * 100, 1) : 0,
+            ];
+        }
+
+        return $result;
     }
 
     /**

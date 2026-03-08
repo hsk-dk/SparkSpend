@@ -22,6 +22,11 @@ try {
     if ($mode === 'daily' && isset($_GET['month'])) {
         // Daily consumption summary based on difference between first and last reading
         $month = $_GET['month']; // Format: YYYY-MM
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid month format. Use YYYY-MM.']);
+            exit;
+        }
         $stmt = $db->prepare("
             SELECT
                 DATE(logdate) AS day,
@@ -37,6 +42,11 @@ try {
     } elseif ($mode === 'monthly' && isset($_GET['year'])) {
         // Monthly consumption summary based on difference between first and last reading
         $year = $_GET['year']; // Format: YYYY
+        if (!preg_match('/^\d{4}$/', $year)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid year format. Use YYYY.']);
+            exit;
+        }
         $stmt = $db->prepare("
             SELECT
                 strftime('%Y-%m', logdate) AS month,

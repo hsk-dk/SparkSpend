@@ -61,13 +61,13 @@ function renderHeatpumpCard(hp) {
         let html = '';
         if (hp.pct_change !== null) {
             const up = hp.pct_change >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+            html += `<div class="${up ? 'trend-down' : 'trend-up'}">` +
                     `${up ? '↑' : '↓'} ` +
                     `${Math.abs(hp.pct_change)}% vs. sidst måned</div>`;
         }
         if (hp.pct_change_year !== null) {
             const up = hp.pct_change_year >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+            html += `<div class="${up ? 'trend-down' : 'trend-up'}">` +
                     `${up ? '↑' : '↓'} ` +
                     `${Math.abs(hp.pct_change_year)}% vs. samme måned sidste år</div>`;
         }

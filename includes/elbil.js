@@ -22,6 +22,7 @@ const elbilApp = (() => {
     let providers = [];
     let pieChartCount, pieChartKwh, pieChartPrice;
     let kmPerKwhChartInstance, krPerKmChartInstance, costTrendChartInstance;
+    let currentVehicleSort = null;
     let initialized = false;
 
     // -------------------------------------------------------------------------
@@ -660,8 +661,9 @@ const elbilApp = (() => {
     // Vehicle comparison
     // -------------------------------------------------------------------------
     function fetchVehicleComparison(sortBy) {
+        if (sortBy) currentVehicleSort = sortBy;
         const params = new URLSearchParams({ dateRange: dateRangeEl.value });
-        if (sortBy) params.set('sortBy', sortBy);
+        if (currentVehicleSort) params.set('sortBy', currentVehicleSort);
         fetch('getVehicleComparison.php?' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderVehicleComparison(data.vehicles); })
