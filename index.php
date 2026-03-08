@@ -534,22 +534,40 @@ require 'includes/QueryBuilder.php';
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260314"></script>
   <script src="includes/elbil.js?v=20260315"></script>
-  <script src="includes/jordvarme.js?v=20260316"></script>
+  <script src="includes/jordvarme.js?v=20260317"></script>
 
   <!-- Settings Modal -->
   <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-sm">
+    <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="settingsModalLabel">Indstillinger</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <label for="settingsElpris" class="form-label">Elpris (kr/kWh)</label>
-          <input type="number" class="form-control" id="settingsElpris"
-                 min="0" step="0.01" placeholder="0.00">
+          <div class="mb-3">
+            <label for="settingsPriszone" class="form-label">Priszone</label>
+            <select class="form-select" id="settingsPriszone">
+              <option value="DK1">DK1 — Jylland og Fyn</option>
+              <option value="DK2">DK2 — Sjælland og øer</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="settingsNetselskab" class="form-label">Netselskab</label>
+            <select class="form-select" id="settingsNetselskab">
+              <option value="" data-gln="">Vælg netselskab…</option>
+              <option value="Radius"  data-gln="5790000705689">Radius Elnet</option>
+              <option value="Cerius"  data-gln="5790000705184">Cerius (tidl. SEAS-NVE)</option>
+              <option value="N1"      data-gln="5790001089030">N1</option>
+              <option value="Dinel"   data-gln="5790000610099">Dinel</option>
+              <option value="Elektrus" data-gln="5790000836239">Elektrus</option>
+              <option value="RAH"     data-gln="5790000610822">RAH Net</option>
+              <option value="FLOW"    data-gln="5790000392551">FLOW Elnet</option>
+            </select>
+          </div>
           <div class="form-text">
-            Bruges til at beregne estimerede elomkostninger for varmepumpen.
+            Beregner estimerede elomkostninger for varmepumpen inkl. spotpris,
+            nettarif C, systemtarif, elafgift og moms (25%).
           </div>
         </div>
         <div class="modal-footer">

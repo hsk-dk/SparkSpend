@@ -37,28 +37,66 @@ const jordvarmeApp = (() => {
 
         const ctx = canvas.getContext("2d");
 
-        // ── Electricity rate (localStorage) ──────────────────────────────────
-        const LS_ELPRIS_KEY = 'sparkspend_elpris';
-        function getElpris() {
-            return parseFloat(localStorage.getItem(LS_ELPRIS_KEY)) || 0;
+        // ── Electricity cost settings (localStorage) ──────────────────────────
+        // Migrates away from the legacy static-rate key if present.
+        localStorage.removeItem('sparkspend_elpris');
+
+        const LS_PRISZONE_KEY   = 'sparkspend_priszone';
+        const LS_GLN_KEY        = 'sparkspend_gln';
+        const LS_NETSELSKAB_KEY = 'sparkspend_netselskab';
+
+        function getElSettings() {
+            return {
+                area: localStorage.getItem(LS_PRISZONE_KEY) || '',
+                gln:  localStorage.getItem(LS_GLN_KEY)      || '',
+            };
+        }
+        function elSettingsReady() {
+            const s = getElSettings();
+            return s.area !== '' && s.gln !== '';
         }
 
+        // Cost state: date string (YYYY-MM-DD) → kr/kWh, populated by fetchElCosts()
+        let activeCostMap = {};
+        // Last kWh dataset received from fetchAndRender, used to re-render stats after costs arrive
+        let lastKwhData   = null;
+
         // Settings modal wiring
-        const settingsSaveBtn  = document.getElementById('settingsSaveBtn');
-        const settingsElprisEl = document.getElementById('settingsElpris');
+        const settingsSaveBtn      = document.getElementById('settingsSaveBtn');
+        const settingsPriszoneEl   = document.getElementById('settingsPriszone');
+        const settingsNetselskabEl = document.getElementById('settingsNetselskab');
+
         document.getElementById('settingsModal')?.addEventListener('show.bs.modal', () => {
-            const saved = getElpris();
-            settingsElprisEl.value = saved > 0 ? saved : '';
+            const s = getElSettings();
+            if (s.area && settingsPriszoneEl) settingsPriszoneEl.value = s.area;
+            if (settingsNetselskabEl) {
+                [...settingsNetselskabEl.options].forEach(o => {
+                    o.selected = (o.dataset.gln === s.gln);
+                });
+            }
         });
+
         settingsSaveBtn?.addEventListener('click', () => {
-            const val = parseFloat(settingsElprisEl.value);
-            if (!isNaN(val) && val >= 0) {
-                localStorage.setItem(LS_ELPRIS_KEY, val.toFixed(4));
+            const area   = settingsPriszoneEl?.value || '';
+            const selOpt = settingsNetselskabEl?.options[settingsNetselskabEl.selectedIndex];
+            const gln    = selOpt?.dataset.gln || '';
+            if (area && gln) {
+                localStorage.setItem(LS_PRISZONE_KEY,   area);
+                localStorage.setItem(LS_GLN_KEY,        gln);
+                localStorage.setItem(LS_NETSELSKAB_KEY, selOpt.value);
             } else {
-                localStorage.removeItem(LS_ELPRIS_KEY);
+                localStorage.removeItem(LS_PRISZONE_KEY);
+                localStorage.removeItem(LS_GLN_KEY);
+                localStorage.removeItem(LS_NETSELSKAB_KEY);
             }
             bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
-            fetchAndRender();
+            if (elSettingsReady()) {
+                activeCostMap = {};
+                fetchElCosts();
+            } else {
+                activeCostMap = {};
+                if (lastKwhData) renderStats(lastKwhData);
+            }
         });
 
         // ── Mode buttons ─────────────────────────────────────────────────────
@@ -70,7 +108,9 @@ const jordvarmeApp = (() => {
                 const isChronological = currentMode === "compare" || currentMode === "ytd";
                 periodNav.style.display = isChronological ? "none" : "";
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";
+                activeCostMap = {};
                 fetchAndRender();
+                fetchElCosts();
             });
         });
 
@@ -86,7 +126,9 @@ const jordvarmeApp = (() => {
             } else if (currentMode === "monthly") {
                 currentYear = String(Number(currentYear) + direction);
             }
+            activeCostMap = {};
             fetchAndRender();
+            fetchElCosts();
         }
 
         function updatePeriodLabel() {
@@ -129,9 +171,11 @@ const jordvarmeApp = (() => {
                 .then(data => {
                     if (!Array.isArray(data) || data.length === 0) {
                         noDataEl.style.display = "";
+                        lastKwhData = null;
                         renderStats([]);
                         return;
                     }
+                    lastKwhData = data;
                     renderChart(data);
                     renderStats(data);
                     setChartVisible(true);
@@ -141,6 +185,45 @@ const jordvarmeApp = (() => {
                     errorEl.style.display = "";
                     statsContent.innerHTML = "<p class='text-muted'>Kunne ikke hente data.</p>";
                 });
+        }
+
+        // ── Electricity cost fetch ────────────────────────────────────────────
+        function fetchElCosts() {
+            if (!elSettingsReady()) return;
+            const { area, gln } = getElSettings();
+            const today = new Date().toISOString().slice(0, 10);
+
+            let start, end;
+            if (currentMode === 'daily') {
+                // One calendar month
+                const [y, m] = currentMonth.split('-').map(Number);
+                const lastDay = new Date(y, m, 0).getDate();
+                start = currentMonth + '-01';
+                end   = currentMonth + '-' + String(lastDay).padStart(2, '0');
+                if (end > today) end = today;
+            } else if (currentMode === 'monthly') {
+                start = currentYear + '-01-01';
+                end   = currentYear === String(new Date().getFullYear())
+                            ? today : currentYear + '-12-31';
+            } else {
+                // compare / ytd — fetch from a fixed reasonable lower bound to today
+                start = '2020-01-01';
+                end   = today;
+            }
+
+            const params = new URLSearchParams({ start, end, area, gln });
+            fetch('getElspotPrices.php?' + params)
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(data => {
+                    activeCostMap = {};
+                    (data.records || []).forEach(r => { activeCostMap[r.date] = parseFloat(r.kr_kwh); });
+                    _rerenderStats();
+                })
+                .catch(err => console.error('fetchElCosts:', err));
+        }
+
+        function _rerenderStats() {
+            if (lastKwhData) renderStats(lastKwhData);
         }
 
         // ── Chart rendering ──────────────────────────────────────────────────
@@ -330,10 +413,29 @@ const jordvarmeApp = (() => {
                 maxLabel = MONTH_NAMES[parseInt(data[maxIdx].month.slice(-2), 10) - 1];
             }
 
-            const elpris = getElpris();
-            const costRows = elpris > 0 ? `
-                    <tr><td>Estimeret omkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(total * elpris)}</td></tr>
-                    <tr><td>Gns. pr. ${currentMode === 'daily' ? 'dag' : 'måned'}</td><td class="text-end">${appUtils.formatCurrency(avg * elpris)}</td></tr>` : '';
+            // Compute estimated cost from activeCostMap (populated by fetchElCosts)
+            let totalCost = 0;
+            if (elSettingsReady() && Object.keys(activeCostMap).length > 0) {
+                if (currentMode === 'daily') {
+                    data.forEach(d => {
+                        const rate = activeCostMap[d.day] || 0;
+                        totalCost += parseFloat(d.total_kwh) * rate;
+                    });
+                } else {
+                    // Monthly: average daily rates within the month, multiply by monthly kWh
+                    data.forEach(d => {
+                        const monthPrefix = d.month; // 'YYYY-MM'
+                        const dayRates = Object.entries(activeCostMap)
+                            .filter(([date]) => date.startsWith(monthPrefix))
+                            .map(([, rate]) => rate);
+                        const avgRate = dayRates.length > 0
+                            ? dayRates.reduce((a, b) => a + b, 0) / dayRates.length : 0;
+                        totalCost += parseFloat(d.total_kwh) * avgRate;
+                    });
+                }
+            }
+            const costRows = totalCost > 0 ? `
+                    <tr><td>Estimeret spotomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>` : '';
 
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
@@ -355,15 +457,30 @@ const jordvarmeApp = (() => {
                 yearCounts.set(d.year, (yearCounts.get(d.year) || 0) + 1);
             });
 
-            const elpris = getElpris();
+            // Compute per-year estimated costs from activeCostMap (daily rates)
+            const hasCosts = elSettingsReady() && Object.keys(activeCostMap).length > 0;
+            const yearCosts = new Map();
+            if (hasCosts) {
+                data.forEach(d => {
+                    const monthPrefix = d.year + '-' + String(d.month || '').padStart(2, '0');
+                    // average daily rates in this month from activeCostMap
+                    const dayRates = Object.entries(activeCostMap)
+                        .filter(([date]) => date.startsWith(monthPrefix))
+                        .map(([, rate]) => rate);
+                    const avgRate = dayRates.length > 0
+                        ? dayRates.reduce((a, b) => a + b, 0) / dayRates.length : 0;
+                    yearCosts.set(d.year, (yearCosts.get(d.year) || 0) + parseFloat(d.total_kwh) * avgRate);
+                });
+            }
+
             const years = [...yearTotals.keys()].sort();
             const rows  = years.map((year, i) => {
                 const color   = YEAR_COLORS[i % YEAR_COLORS.length];
                 const total   = yearTotals.get(year);
                 const months  = yearCounts.get(year);
-                const costCell = elpris > 0
-                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(total * elpris)}</td>`
-                    : '';
+                const costCell = hasCosts && yearCosts.get(year) > 0
+                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(yearCosts.get(year))}</td>`
+                    : (hasCosts ? '<td></td>' : '');
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
                     <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
@@ -372,7 +489,7 @@ const jordvarmeApp = (() => {
                 </tr>`;
             }).join("");
 
-            const costHeader = elpris > 0 ? '<th class="text-end">Est. kr</th>' : '';
+            const costHeader = hasCosts ? '<th class="text-end">Est. kr</th>' : '';
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
                     <thead><tr>
@@ -466,20 +583,28 @@ const jordvarmeApp = (() => {
         }
 
         function renderYtdStats(years, yearDayMap, labels) {
-            const elpris = getElpris();
+            const hasCosts = elSettingsReady() && Object.keys(activeCostMap).length > 0;
             const rows = years.map((year, i) => {
                 const color = YEAR_COLORS[i % YEAR_COLORS.length];
                 const total = labels.reduce((sum, md) => sum + (yearDayMap.get(year).get(md) || 0), 0);
-                const costCell = elpris > 0
-                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(total * elpris)}</td>`
-                    : '';
+                let estCost = 0;
+                if (hasCosts) {
+                    labels.forEach(md => {
+                        const date = year + '-' + md; // 'YYYY-MM-DD'
+                        const kwh  = yearDayMap.get(year).get(md) || 0;
+                        estCost += kwh * (activeCostMap[date] || 0);
+                    });
+                }
+                const costCell = hasCosts && estCost > 0
+                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(estCost)}</td>`
+                    : (hasCosts ? '<td></td>' : '');
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
                     <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
                     ${costCell}
                 </tr>`;
             }).join("");
-            const costHeader = elpris > 0 ? '<th class="text-end">Est. kr</th>' : '';
+            const costHeader = hasCosts ? '<th class="text-end">Est. kr</th>' : '';
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
                     <thead><tr>
@@ -505,6 +630,7 @@ const jordvarmeApp = (() => {
         // ── Initial load ─────────────────────────────────────────────────────
         periodNav.style.display = "";
         fetchAndRender();
+        fetchElCosts();
         fetchSyncStatus();
     }
 
