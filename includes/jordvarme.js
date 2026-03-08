@@ -57,9 +57,11 @@ const jordvarmeApp = (() => {
         }
 
         // Cost state: date string (YYYY-MM-DD) → kr/kWh, populated by fetchElCosts()
-        let activeCostMap = {};
+        let activeCostMap    = {};
+        // Representative component breakdown for the period (from getElspotPrices.php response)
+        let activeComponents = null;
         // Last kWh dataset received from fetchAndRender, used to re-render stats after costs arrive
-        let lastKwhData   = null;
+        let lastKwhData      = null;
 
         // Settings modal wiring
         const settingsSaveBtn      = document.getElementById('settingsSaveBtn');
@@ -91,10 +93,10 @@ const jordvarmeApp = (() => {
             }
             bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
             if (elSettingsReady()) {
-                activeCostMap = {};
+                activeCostMap = {}; activeComponents = null;
                 fetchElCosts();
             } else {
-                activeCostMap = {};
+                activeCostMap = {}; activeComponents = null;
                 if (lastKwhData) renderStats(lastKwhData);
             }
         });
@@ -108,7 +110,7 @@ const jordvarmeApp = (() => {
                 const isChronological = currentMode === "compare" || currentMode === "ytd";
                 periodNav.style.display = isChronological ? "none" : "";
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";
-                activeCostMap = {};
+                activeCostMap = {}; activeComponents = null;
                 fetchAndRender();
                 fetchElCosts();
             });
@@ -126,7 +128,7 @@ const jordvarmeApp = (() => {
             } else if (currentMode === "monthly") {
                 currentYear = String(Number(currentYear) + direction);
             }
-            activeCostMap = {};
+            activeCostMap = {}; activeComponents = null;
             fetchAndRender();
             fetchElCosts();
         }
@@ -215,7 +217,8 @@ const jordvarmeApp = (() => {
             fetch('getElspotPrices.php?' + params)
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                 .then(data => {
-                    activeCostMap = {};
+                    activeCostMap    = {};
+                    activeComponents = data.components || null;
                     (data.records || []).forEach(r => { activeCostMap[r.date] = parseFloat(r.kr_kwh); });
                     _rerenderStats();
                 })
@@ -434,8 +437,14 @@ const jordvarmeApp = (() => {
                     });
                 }
             }
-            const costRows = totalCost > 0 ? `
-                    <tr><td>Estimeret spotomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>` : '';
+            const costRows = totalCost > 0 ? (() => {
+                const c = activeComponents;
+                const breakdown = c
+                    ? `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">
+                        Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · Ela ${c.elafgift_kr_kwh.toFixed(3)} · Net ${c.nettarif_kr_kwh.toFixed(3)} kr/kWh (ekskl. moms)</td></tr>`
+                    : '';
+                return `<tr><td>Estimeret elomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>${breakdown}`;
+            })() : '';
 
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">

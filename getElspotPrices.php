@@ -139,7 +139,7 @@ $elafgiftRecords = eds_fetch('DatahubPricelist', [
 // ─── 4. Nettarif C from user's DSO ───────────────────────────────────────────
 
 $nettarifRecords = eds_fetch('DatahubPricelist', [
-    'filter'  => json_encode(['GLN_Number' => $gln, 'Note' => 'Nettarif C', 'ChargeType' => 'D03']),
+    'filter'  => json_encode(['GLN_Number' => $gln, 'Note' => 'Nettarif C']),
     'columns' => 'Price1,ValidFrom,ValidTo',
     'limit'   => 50,
     'sort'    => 'ValidFrom desc',
