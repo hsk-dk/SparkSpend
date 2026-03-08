@@ -35,35 +35,50 @@ try {
     $stmtInt->execute([$currentMonth]);
     $intMonth = $stmtInt->fetch(PDO::FETCH_ASSOC);
 
-    $stmtExt = $chargesDb->prepare("
-        SELECT COUNT(*) as cnt,
-               COALESCE(SUM(kwh), 0) as kwh,
-               COALESCE(SUM(pris), 0) as cost
-        FROM ext_charges
-        WHERE strftime('%Y-%m', datetime) = ?
-    ");
-    $stmtExt->execute([$currentMonth]);
-    $extMonth = $stmtExt->fetch(PDO::FETCH_ASSOC);
+    // External charges — fetch all and filter in PHP.
+    // ext_charges.datetime is stored as ISO 8601 with Z suffix (e.g. 2024-12-07T15:37:00Z)
+    // which SQLite's strftime/date functions cannot parse reliably.
+    $stmtExt = $chargesDb->prepare("SELECT datetime, kwh, pris FROM ext_charges");
+    $stmtExt->execute();
+
+    $sparkStartTs  = strtotime($sparkStart);
+    $todayEndTs    = strtotime($today . ' 23:59:59');
+    $extMonthCnt   = 0;
+    $extMonthKwh   = 0.0;
+    $extMonthCost  = 0.0;
+    $extByDay      = [];
+
+    foreach ($stmtExt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $t   = strtotime($row['datetime']);
+        $day = date('Y-m-d', $t);
+        if (date('Y-m', $t) === $currentMonth) {
+            $extMonthCnt++;
+            $extMonthKwh  += floatval($row['kwh']);
+            $extMonthCost += floatval($row['pris']);
+        }
+        if ($t >= $sparkStartTs && $t <= $todayEndTs) {
+            $extByDay[$day] = ($extByDay[$day] ?? 0) + floatval($row['kwh']);
+        }
+    }
+    $extMonth = ['cnt' => $extMonthCnt, 'kwh' => $extMonthKwh, 'cost' => $extMonthCost];
 
     // =========================================================================
-    // EV — 14-day sparkline (internal + external merged by day)
+    // EV — 14-day sparkline (internal via SQL, external merged from PHP above)
     // =========================================================================
     $stmtSpark = $chargesDb->prepare("
         SELECT date(createdAt) as day, SUM(consumedKwh) as kwh
         FROM charges
         WHERE date(createdAt) BETWEEN ? AND ?
         GROUP BY day
-        UNION ALL
-        SELECT date(datetime) as day, SUM(kwh) as kwh
-        FROM ext_charges
-        WHERE date(datetime) BETWEEN ? AND ?
-        GROUP BY day
     ");
-    $stmtSpark->execute([$sparkStart, $today, $sparkStart, $today]);
+    $stmtSpark->execute([$sparkStart, $today]);
 
     $evByDay = [];
     foreach ($stmtSpark->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $evByDay[$row['day']] = ($evByDay[$row['day']] ?? 0) + floatval($row['kwh']);
+        $evByDay[$row['day']] = floatval($row['kwh']);
+    }
+    foreach ($extByDay as $day => $kwh) {
+        $evByDay[$day] = ($evByDay[$day] ?? 0) + $kwh;
     }
     $evSparkline = [];
     $daysThisMonth = (int)date('d');

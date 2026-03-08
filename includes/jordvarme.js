@@ -112,7 +112,8 @@ const jordvarmeApp = (() => {
                     renderStats(data);
                     setChartVisible(true);
                 })
-                .catch(() => {
+                .catch(err => {
+                    console.error('Jordvarme fetch error:', err);
                     errorEl.style.display = "";
                     statsContent.innerHTML = "<p class='text-muted'>Kunne ikke hente data.</p>";
                 });

@@ -336,8 +336,8 @@ const elbilApp = (() => {
                 : `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="${pName}">ev_station</span>`;
 
             let priceIcon = '', priceText = '';
-            if (pPerKwh > avgPricePerKwh) { priceIcon = '<i class="fas fa-arrow-up"></i>';   priceText = 'højere end gennemsnit'; }
-            else if (pPerKwh < avgPricePerKwh) { priceIcon = '<i class="fas fa-arrow-down"></i>'; priceText = 'lavere end gennemsnit'; }
+            if (pPerKwh > avgPricePerKwh) { priceIcon = '↑';   priceText = 'højere end gennemsnit'; }
+            else if (pPerKwh < avgPricePerKwh) { priceIcon = '↓'; priceText = 'lavere end gennemsnit'; }
 
             const fmtDate = new Date(charge.datetime).toLocaleString('da-DK', {
                 day: '2-digit', month: '2-digit', year: 'numeric',
@@ -511,6 +511,7 @@ const elbilApp = (() => {
                 appUtils.showFormMessage('externalChargeMsg', 'Ekstern ladning opdateret!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
                 fetchCharges();
+                fetchVehicleComparison();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
@@ -550,6 +551,7 @@ const elbilApp = (() => {
                 appUtils.showFormMessage('externalChargeMsg', 'Ladningen er slettet!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
                 fetchCharges();
+                fetchVehicleComparison();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
