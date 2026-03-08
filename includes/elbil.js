@@ -155,6 +155,7 @@ const elbilApp = (() => {
         fetchEfficiencyStats();
         fetchCostAnalytics();
         fetchVehicleComparison();
+        fetchProviderStats();
     }
 
     // -------------------------------------------------------------------------
@@ -199,6 +200,7 @@ const elbilApp = (() => {
         fetchEfficiencyStats();
         fetchCostAnalytics();
         fetchVehicleComparison();
+        fetchProviderStats();
     }
 
     // -------------------------------------------------------------------------
@@ -214,6 +216,7 @@ const elbilApp = (() => {
             fetchEfficiencyStats();
             fetchCostAnalytics();
             fetchVehicleComparison();
+            fetchProviderStats();
         } catch (e) {
             console.error('fetchVehicles:', e);
         }
@@ -513,6 +516,7 @@ const elbilApp = (() => {
                 bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
                 fetchCharges();
                 fetchVehicleComparison();
+                fetchProviderStats();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
@@ -534,6 +538,7 @@ const elbilApp = (() => {
                 bootstrap.Modal.getInstance(document.getElementById('createExChargeModal')).hide();
                 fetchCharges();
                 fetchVehicleComparison();
+                fetchProviderStats();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('exChargeMsg', data.error || 'Fejl', 'danger');
@@ -553,6 +558,7 @@ const elbilApp = (() => {
                 bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
                 fetchCharges();
                 fetchVehicleComparison();
+                fetchProviderStats();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
@@ -687,6 +693,53 @@ const elbilApp = (() => {
 
     // Expose sortVehicleComparison globally (called from HTML onclick)
     window.sortVehicleComparison = fetchVehicleComparison;
+
+    // -------------------------------------------------------------------------
+    // Provider stats
+    // -------------------------------------------------------------------------
+    function fetchProviderStats() {
+        const params = new URLSearchParams({ filter: filterEl.value, dateRange: dateRangeEl.value });
+        fetch('getProviderStats.php?' + params)
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(data => { if (data.error) throw new Error(data.error); _renderProviderStats(data); })
+            .catch(err => {
+                const el = document.getElementById('providerStatsContent');
+                if (el) el.innerHTML = `<p class="text-danger small">Fejl: ${err.message}</p>`;
+            });
+    }
+
+    function _renderProviderStats(data) {
+        const el = document.getElementById('providerStatsContent');
+        if (!el) return;
+        if (!data || !data.length) {
+            el.innerHTML = '<p class="text-muted small">Ingen eksterne ladninger i den valgte periode</p>';
+            return;
+        }
+        el.innerHTML = `
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>Ladeoperatør</th>
+                    <th class="text-end">Ladninger</th>
+                    <th class="text-end">kWh</th>
+                    <th class="text-end">kr</th>
+                    <th class="text-end">kr/kWh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.map(p => `
+                  <tr>
+                    <td>${p.providerName}</td>
+                    <td class="text-end">${p.charge_count}</td>
+                    <td class="text-end">${p.total_kwh.toFixed(2)}</td>
+                    <td class="text-end">${p.total_cost.toFixed(2)}</td>
+                    <td class="text-end">${p.avg_cost_per_kwh.toFixed(3)}</td>
+                  </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`;
+    }
 
     return { init };
 })();

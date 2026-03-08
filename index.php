@@ -441,6 +441,14 @@ require 'includes/QueryBuilder.php';
       </div>
     </div>
 
+    <!-- Provider Stats Card -->
+    <div class="card p-4 mt-4">
+      <h3>Ladesteder</h3>
+      <div id="providerStatsContent">
+        <p class="text-muted small">Indlæser data...</p>
+      </div>
+    </div>
+
   </div><!-- /#elbil-analyse -->
 
   <!-- Sub-section: Sammenligning -->
@@ -522,7 +530,7 @@ require 'includes/QueryBuilder.php';
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260314"></script>
-  <script src="includes/elbil.js?v=20260314"></script>
+  <script src="includes/elbil.js?v=20260315"></script>
   <script src="includes/jordvarme.js?v=20260313"></script>
 
   <!-- Footer -->
