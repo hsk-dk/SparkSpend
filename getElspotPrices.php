@@ -6,12 +6,16 @@
  * (api.energidataservice.dk) into daily average prices (kr/kWh) for use
  * in heat pump cost estimation on the Jordvarme tab.
  *
- * Price components:
- *   Spot price   — Elspotprices dataset, hourly, averaged per day (DK1/DK2)
- *   Systemtarif  — DatahubPricelist, Energinet, period-based flat rate
- *   Elafgift     — DatahubPricelist, Energinet, period-based flat rate
- *   Nettarif C   — DatahubPricelist, user's DSO (by GLN), period-based flat rate
+ * Price components (matched hour-by-hour):
+ *   Spot price   — Elspotprices dataset, hourly DKK/MWh (DK1/DK2)
+ *   Systemtarif  — DatahubPricelist, Energinet, Price1–Price24 per hour
+ *   Elafgift     — DatahubPricelist, Energinet, Price1–Price24 per hour
+ *   Nettarif C   — DatahubPricelist, user's DSO (by GLN), Price1–Price24 per hour
  *   VAT          — 25% applied to all of the above
+ *
+ * For each day, every available spot hour is paired with the tariff rates for
+ * that specific hour (Price{H+1} where H is 0–23). The daily kr/kWh is the
+ * mean of all computed hourly costs.
  *
  * GET params:
  *   start  YYYY-MM-DD   Start of date range (inclusive)
@@ -26,6 +30,13 @@ define('ENERGINET_GLN',     '5790000432752');
 define('EDS_BASE_URL',      'https://api.energidataservice.dk/dataset/');
 define('VAT_FACTOR',        1.25);
 define('CACHE_TTL_SECONDS', 21600); // 6 hours
+define('CACHE_VERSION',    2);      // bump to invalidate all existing cached responses
+
+// All 24 hourly price columns used in DatahubPricelist queries
+define('PRICE_COLUMNS', 'Price1,Price2,Price3,Price4,Price5,Price6,Price7,Price8,' .
+                        'Price9,Price10,Price11,Price12,Price13,Price14,Price15,Price16,' .
+                        'Price17,Price18,Price19,Price20,Price21,Price22,Price23,' .
+                        'Price24,ValidFrom,ValidTo');
 
 header('Content-Type: application/json');
 
@@ -53,7 +64,7 @@ if ($end < $start) {
 
 // ─── File cache ──────────────────────────────────────────────────────────────
 
-$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln);
+$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|v' . CACHE_VERSION);
 $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $cacheKey . '.json';
 
 if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < CACHE_TTL_SECONDS) {
@@ -82,23 +93,51 @@ function eds_fetch(string $dataset, array $params): array {
     return is_array($data) ? ($data['records'] ?? []) : [];
 }
 
-// ─── Helper: find applicable tariff for a given date ─────────────────────────
-// Records must be sorted ValidFrom DESC. Returns Price1 (kr/kWh) or 0.0.
+// ─── Helper: get hourly tariff from applicable record ────────────────────────
+// Records must be sorted ValidFrom DESC.
+// hour: 0–23 (DK local time). Returns Price{hour+1} kr/kWh or 0.0.
 
-function tariff_for_date(array $records, string $date): float {
+function tariff_for_hour(array $records, string $date, int $hour): float {
+    $col = 'Price' . ($hour + 1);
     foreach ($records as $rec) {
         $from = substr((string)($rec['ValidFrom'] ?? ''), 0, 10);
         $to   = isset($rec['ValidTo']) && $rec['ValidTo'] !== null
                 ? substr((string)$rec['ValidTo'], 0, 10)
                 : null;
         if ($from <= $date && ($to === null || $to > $date)) {
-            return floatval($rec['Price1'] ?? 0);
+            // Use the correct hourly price; fall back to Price1 if the column is absent/null
+            $val = (isset($rec[$col]) && $rec[$col] !== null && $rec[$col] !== '')
+                   ? $rec[$col] : ($rec['Price1'] ?? 0);
+            return floatval($val);
         }
     }
     return 0.0;
 }
 
-// ─── 1. Spot prices (hourly → daily average, DKK/MWh ÷ 1000 = kr/kWh) ──────
+// ─── Helper: daily-average tariff from all available hourly prices ────────────
+// Used for the components summary (representative value at start date).
+
+function tariff_avg_for_date(array $records, string $date): float {
+    foreach ($records as $rec) {
+        $from = substr((string)($rec['ValidFrom'] ?? ''), 0, 10);
+        $to   = isset($rec['ValidTo']) && $rec['ValidTo'] !== null
+                ? substr((string)$rec['ValidTo'], 0, 10)
+                : null;
+        if ($from <= $date && ($to === null || $to > $date)) {
+            $sum = 0.0; $cnt = 0;
+            for ($i = 1; $i <= 24; $i++) {
+                $v = $rec['Price' . $i] ?? null;
+                if ($v !== null && (string)$v !== '') {
+                    $sum += floatval($v); $cnt++;
+                }
+            }
+            return $cnt > 0 ? round($sum / $cnt, 4) : 0.0;
+        }
+    }
+    return 0.0;
+}
+
+// ─── 1. Spot prices (hourly, DKK/MWh → kr/kWh, grouped by day+hour) ─────────
 
 $spotRecords = eds_fetch('Elspotprices', [
     'start'   => $start,
@@ -108,63 +147,70 @@ $spotRecords = eds_fetch('Elspotprices', [
     'limit'   => 0,
 ]);
 
-$spotByDay = [];
+// $hoursByDay[date][] = ['h' => 0-23, 's' => spot_kr_kwh]
+$hoursByDay = [];
 foreach ($spotRecords as $rec) {
-    $day = substr((string)($rec['HourDK'] ?? ''), 0, 10);
+    $hourDK = (string)($rec['HourDK'] ?? '');
+    $day    = substr($hourDK, 0, 10);
     if ($day === '') continue;
-    $price = floatval($rec['SpotPriceDKK'] ?? 0);
-    if (!isset($spotByDay[$day])) $spotByDay[$day] = ['sum' => 0.0, 'cnt' => 0];
-    $spotByDay[$day]['sum'] += $price;
-    $spotByDay[$day]['cnt'] += 1;
+    // HourDK format: "YYYY-MM-DDTHH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
+    $hour = (int)substr($hourDK, 11, 2);
+    $spot = floatval($rec['SpotPriceDKK'] ?? 0) / 1000.0; // DKK/MWh → kr/kWh
+    $hoursByDay[$day][] = ['h' => $hour, 's' => $spot];
 }
 
-// ─── 2. Energinet systemtarif ────────────────────────────────────────────────
+// ─── 2. Energinet systemtarif (Price1–Price24) ────────────────────────────────
 
 $systemtarifRecords = eds_fetch('DatahubPricelist', [
     'filter'  => json_encode(['GLN_Number' => ENERGINET_GLN, 'Note' => 'Systemtarif']),
-    'columns' => 'Price1,ValidFrom,ValidTo',
+    'columns' => PRICE_COLUMNS,
     'limit'   => 50,
     'sort'    => 'ValidFrom desc',
 ]);
 
-// ─── 3. Elafgift (fetched dynamically — rate varies by year) ─────────────────
+// ─── 3. Elafgift (Price1–Price24, rate varies by year) ───────────────────────
 
 $elafgiftRecords = eds_fetch('DatahubPricelist', [
     'filter'  => json_encode(['GLN_Number' => ENERGINET_GLN, 'Note' => 'Elafgift']),
-    'columns' => 'Price1,ValidFrom,ValidTo',
+    'columns' => PRICE_COLUMNS,
     'limit'   => 50,
     'sort'    => 'ValidFrom desc',
 ]);
 
-// ─── 4. Nettarif C from user's DSO ───────────────────────────────────────────
+// ─── 4. Nettarif C from user's DSO (Price1–Price24) ──────────────────────────
+// Many DSOs have time-of-day pricing: higher rates 08–20h, lower off-peak.
+// Using all 24 price columns is essential for an accurate daily estimate.
 
 $nettarifRecords = eds_fetch('DatahubPricelist', [
     'filter'  => json_encode(['GLN_Number' => $gln, 'Note' => 'Nettarif C']),
-    'columns' => 'Price1,ValidFrom,ValidTo',
+    'columns' => PRICE_COLUMNS,
     'limit'   => 50,
     'sort'    => 'ValidFrom desc',
 ]);
 
-// ─── 5. Assemble daily records ───────────────────────────────────────────────
+// ─── 5. Assemble daily records (hour-by-hour cost matching) ─────────────────
 
 $dailyRecords = [];
 $cursor       = new DateTime($start);
 $endDate      = new DateTime($end);
 
 while ($cursor <= $endDate) {
-    $date = $cursor->format('Y-m-d');
+    $date  = $cursor->format('Y-m-d');
+    $hours = $hoursByDay[$date] ?? [];
 
-    // Spot: avg DKK/MWh for the day, converted to kr/kWh (÷ 1000)
-    $spotKrKwh = 0.0;
-    if (isset($spotByDay[$date]) && $spotByDay[$date]['cnt'] > 0) {
-        $spotKrKwh = ($spotByDay[$date]['sum'] / $spotByDay[$date]['cnt']) / 1000.0;
+    if (empty($hours)) {
+        $krKwh = 0.0;
+    } else {
+        $sum = 0.0;
+        foreach ($hours as $entry) {
+            $h   = $entry['h'];
+            $sys = tariff_for_hour($systemtarifRecords, $date, $h);
+            $ela = tariff_for_hour($elafgiftRecords,    $date, $h);
+            $net = tariff_for_hour($nettarifRecords,    $date, $h);
+            $sum += ($entry['s'] + $sys + $ela + $net) * VAT_FACTOR;
+        }
+        $krKwh = $sum / count($hours);
     }
-
-    $systemtarif = tariff_for_date($systemtarifRecords, $date);
-    $elafgift    = tariff_for_date($elafgiftRecords,    $date);
-    $nettarif    = tariff_for_date($nettarifRecords,    $date);
-
-    $krKwh = ($spotKrKwh + $systemtarif + $elafgift + $nettarif) * VAT_FACTOR;
 
     $dailyRecords[] = [
         'date'   => $date,
@@ -174,15 +220,20 @@ while ($cursor <= $endDate) {
     $cursor->modify('+1 day');
 }
 
-// ─── 6. Component summary (representative values at start date) ───────────────
+// ─── 6. Component summary (daily-average values at start date) ────────────────
+// spot_avg is the mean of all hourly spot prices on $start;
+// tariff averages cover all 24 Price columns of the applicable record.
+
+$startHours   = $hoursByDay[$start] ?? [];
+$spotAvgStart = count($startHours) > 0
+    ? array_sum(array_column($startHours, 's')) / count($startHours)
+    : 0.0;
 
 $components = [
-    'spot_avg_kr_kwh'    => isset($spotByDay[$start]) && $spotByDay[$start]['cnt'] > 0
-                                ? round($spotByDay[$start]['sum'] / $spotByDay[$start]['cnt'] / 1000, 4)
-                                : 0.0,
-    'systemtarif_kr_kwh' => round(tariff_for_date($systemtarifRecords, $start), 4),
-    'elafgift_kr_kwh'    => round(tariff_for_date($elafgiftRecords,    $start), 4),
-    'nettarif_kr_kwh'    => round(tariff_for_date($nettarifRecords,    $start), 4),
+    'spot_avg_kr_kwh'    => round($spotAvgStart, 4),
+    'systemtarif_kr_kwh' => tariff_avg_for_date($systemtarifRecords, $start),
+    'elafgift_kr_kwh'    => tariff_avg_for_date($elafgiftRecords,    $start),
+    'nettarif_kr_kwh'    => tariff_avg_for_date($nettarifRecords,    $start),
     'vat_factor'         => VAT_FACTOR,
 ];
 
