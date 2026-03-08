@@ -37,6 +37,30 @@ const jordvarmeApp = (() => {
 
         const ctx = canvas.getContext("2d");
 
+        // ── Electricity rate (localStorage) ──────────────────────────────────
+        const LS_ELPRIS_KEY = 'sparkspend_elpris';
+        function getElpris() {
+            return parseFloat(localStorage.getItem(LS_ELPRIS_KEY)) || 0;
+        }
+
+        // Settings modal wiring
+        const settingsSaveBtn  = document.getElementById('settingsSaveBtn');
+        const settingsElprisEl = document.getElementById('settingsElpris');
+        document.getElementById('settingsModal')?.addEventListener('show.bs.modal', () => {
+            const saved = getElpris();
+            settingsElprisEl.value = saved > 0 ? saved : '';
+        });
+        settingsSaveBtn?.addEventListener('click', () => {
+            const val = parseFloat(settingsElprisEl.value);
+            if (!isNaN(val) && val >= 0) {
+                localStorage.setItem(LS_ELPRIS_KEY, val.toFixed(4));
+            } else {
+                localStorage.removeItem(LS_ELPRIS_KEY);
+            }
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            fetchAndRender();
+        });
+
         // ── Mode buttons ─────────────────────────────────────────────────────
         document.querySelectorAll('#jordvarme-section .hp-mode-btn').forEach(btn => {
             btn.addEventListener("click", function () {
@@ -306,12 +330,18 @@ const jordvarmeApp = (() => {
                 maxLabel = MONTH_NAMES[parseInt(data[maxIdx].month.slice(-2), 10) - 1];
             }
 
+            const elpris = getElpris();
+            const costRows = elpris > 0 ? `
+                    <tr><td>Estimeret omkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(total * elpris)}</td></tr>
+                    <tr><td>Gns. pr. ${currentMode === 'daily' ? 'dag' : 'måned'}</td><td class="text-end">${appUtils.formatCurrency(avg * elpris)}</td></tr>` : '';
+
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
                     <tr><td>Total</td><td class="text-end fw-bold">${total.toFixed(1)} kWh</td></tr>
                     <tr><td>Gennemsnit</td><td class="text-end">${avg.toFixed(1)} kWh</td></tr>
                     <tr><td>Højeste</td><td class="text-end">${max.toFixed(1)} kWh (${maxLabel})</td></tr>
                     <tr><td>Perioder</td><td class="text-end">${data.length}</td></tr>
+                    ${costRows}
                 </table>`;
         }
 
@@ -325,22 +355,28 @@ const jordvarmeApp = (() => {
                 yearCounts.set(d.year, (yearCounts.get(d.year) || 0) + 1);
             });
 
+            const elpris = getElpris();
             const years = [...yearTotals.keys()].sort();
             const rows  = years.map((year, i) => {
                 const color   = YEAR_COLORS[i % YEAR_COLORS.length];
                 const total   = yearTotals.get(year);
                 const months  = yearCounts.get(year);
+                const costCell = elpris > 0
+                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(total * elpris)}</td>`
+                    : '';
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
                     <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
                     <td class="text-end text-muted" style="font-size:11px">${months} mdr.</td>
+                    ${costCell}
                 </tr>`;
             }).join("");
 
+            const costHeader = elpris > 0 ? '<th class="text-end">Est. kr</th>' : '';
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
                     <thead><tr>
-                        <th>År</th><th class="text-end">Total</th><th class="text-end">Mdr.</th>
+                        <th>År</th><th class="text-end">Total</th><th class="text-end">Mdr.</th>${costHeader}
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;
@@ -430,18 +466,24 @@ const jordvarmeApp = (() => {
         }
 
         function renderYtdStats(years, yearDayMap, labels) {
+            const elpris = getElpris();
             const rows = years.map((year, i) => {
                 const color = YEAR_COLORS[i % YEAR_COLORS.length];
                 const total = labels.reduce((sum, md) => sum + (yearDayMap.get(year).get(md) || 0), 0);
+                const costCell = elpris > 0
+                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(total * elpris)}</td>`
+                    : '';
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
                     <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
+                    ${costCell}
                 </tr>`;
             }).join("");
+            const costHeader = elpris > 0 ? '<th class="text-end">Est. kr</th>' : '';
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
                     <thead><tr>
-                        <th>År</th><th class="text-end">Akkumuleret</th>
+                        <th>År</th><th class="text-end">Akkumuleret</th>${costHeader}
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;

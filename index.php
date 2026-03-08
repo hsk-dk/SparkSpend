@@ -62,6 +62,9 @@ require 'includes/QueryBuilder.php';
       <button type="button" class="btn btn-secondary" id="filterToggleBtn" title="Åbn filtre">
         <i class="fas fa-sliders-h"></i>
       </button>
+      <button type="button" class="btn btn-secondary" id="settingsBtn" title="Indstillinger" data-bs-toggle="modal" data-bs-target="#settingsModal">
+        ⚙
+      </button>
       <button type="button" class="btn btn-primary button-create-charge" data-bs-toggle="modal" data-bs-target="#createExChargeModal">
         <i class="fas fa-plus"></i> <span>Ny Ladning</span>
       </button>
@@ -531,7 +534,30 @@ require 'includes/QueryBuilder.php';
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260314"></script>
   <script src="includes/elbil.js?v=20260315"></script>
-  <script src="includes/jordvarme.js?v=20260313"></script>
+  <script src="includes/jordvarme.js?v=20260316"></script>
+
+  <!-- Settings Modal -->
+  <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="settingsModalLabel">Indstillinger</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label for="settingsElpris" class="form-label">Elpris (kr/kWh)</label>
+          <input type="number" class="form-control" id="settingsElpris"
+                 min="0" step="0.01" placeholder="0.00">
+          <div class="form-text">
+            Bruges til at beregne estimerede elomkostninger for varmepumpen.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="settingsSaveBtn">Gem</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Footer -->
   <footer class="site-footer">
