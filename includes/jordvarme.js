@@ -233,6 +233,19 @@ const jordvarmeApp = (() => {
                 end   = today;
             }
 
+            // Show a cost-loading indicator appended below the stats table while
+            // the 4 external API calls in getElspotPrices.php are in flight.
+            // Only added if the stats table is already rendered; _rerenderStats()
+            // removes it naturally by replacing statsContent.innerHTML on success.
+            const costLoadingId = 'hp-cost-loading';
+            document.getElementById(costLoadingId)?.remove();
+            if (statsContent.querySelector('table')) {
+                statsContent.insertAdjacentHTML('beforeend',
+                    `<p id="${costLoadingId}" class="text-muted small mb-0 mt-1">` +
+                    `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>` +
+                    ` Beregner elpris…</p>`);
+            }
+
             const params = new URLSearchParams({ start, end, area, gln });
             fetch('getElspotPrices.php?' + params)
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -242,7 +255,10 @@ const jordvarmeApp = (() => {
                     (data.records || []).forEach(r => { activeCostMap[r.date] = parseFloat(r.kr_kwh); });
                     _rerenderStats();
                 })
-                .catch(err => console.error('fetchElCosts:', err));
+                .catch(err => {
+                    console.error('fetchElCosts:', err);
+                    document.getElementById(costLoadingId)?.remove();
+                });
         }
 
         function _rerenderStats() {
