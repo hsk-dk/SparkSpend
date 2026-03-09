@@ -112,7 +112,10 @@ const jordvarmeApp = (() => {
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";
                 activeCostMap = {}; activeComponents = null;
                 fetchAndRender();
-                fetchElCosts();
+                // compare/ytd: fetchElCosts is triggered inside fetchAndRender once
+                // data arrives, so the actual year range is known (avoids fetching
+                // 6+ years of hourly spot data for a fixed 2020→today window).
+                if (!isChronological) fetchElCosts();
             });
         });
 
@@ -181,6 +184,13 @@ const jordvarmeApp = (() => {
                     renderChart(data);
                     renderStats(data);
                     setChartVisible(true);
+                    // For compare/ytd the date range for costs depends on which years
+                    // are present in the data — trigger the fetch here with the data
+                    // so fetchElCosts can compute the correct start year.
+                    if (currentMode === 'compare' || currentMode === 'ytd') {
+                        activeCostMap = {}; activeComponents = null;
+                        fetchElCosts(data);
+                    }
                 })
                 .catch(err => {
                     console.error('Jordvarme fetch error:', err);
@@ -190,7 +200,9 @@ const jordvarmeApp = (() => {
         }
 
         // ── Electricity cost fetch ────────────────────────────────────────────
-        function fetchElCosts() {
+        // kwhData: optional — passed from fetchAndRender for compare/ytd so the
+        // year range can be derived from actual data without a race condition.
+        function fetchElCosts(kwhData) {
             if (!elSettingsReady()) return;
             const { area, gln } = getElSettings();
             const today = new Date().toISOString().slice(0, 10);
@@ -208,8 +220,16 @@ const jordvarmeApp = (() => {
                 end   = currentYear === String(new Date().getFullYear())
                             ? today : currentYear + '-12-31';
             } else {
-                // compare / ytd — fetch from a fixed reasonable lower bound to today
-                start = '2020-01-01';
+                // compare / ytd — derive year range from actual kWh data so we only
+                // fetch data for years that have measurements, not a fixed 2020→today
+                // window (which would be 6+ years of hourly spot records and very slow).
+                const srcData = kwhData || lastKwhData;
+                let minYear = new Date().getFullYear() - 2;
+                if (srcData && srcData.length > 0) {
+                    const years = srcData.map(d => parseInt(d.year)).filter(y => !isNaN(y));
+                    if (years.length > 0) minYear = Math.min(...years);
+                }
+                start = minYear + '-01-01';
                 end   = today;
             }
 
@@ -439,10 +459,14 @@ const jordvarmeApp = (() => {
             }
             const costRows = totalCost > 0 ? (() => {
                 const c = activeComponents;
-                const breakdown = c
-                    ? `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">
-                        Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · Ela ${c.elafgift_kr_kwh.toFixed(3)} · Net ${c.nettarif_kr_kwh.toFixed(3)} kr/kWh (ekskl. moms)</td></tr>`
-                    : '';
+                let breakdown = '';
+                if (c) {
+                    const netLabel = (c.nettarif_records === 0)
+                        ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
+                        : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
+                    breakdown = `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">` +
+                        `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</td></tr>`;
+                }
                 return `<tr><td>Estimeret elomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>${breakdown}`;
             })() : '';
 

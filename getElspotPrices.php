@@ -30,7 +30,7 @@ define('ENERGINET_GLN',     '5790000432752');
 define('EDS_BASE_URL',      'https://api.energidataservice.dk/dataset/');
 define('VAT_FACTOR',        1.25);
 define('CACHE_TTL_SECONDS', 21600); // 6 hours
-define('CACHE_VERSION',    2);      // bump to invalidate all existing cached responses
+define('CACHE_VERSION',    3);      // bump to invalidate all existing cached responses
 
 // All 24 hourly price columns used in DatahubPricelist queries
 define('PRICE_COLUMNS', 'Price1,Price2,Price3,Price4,Price5,Price6,Price7,Price8,' .
@@ -178,15 +178,20 @@ $elafgiftRecords = eds_fetch('DatahubPricelist', [
 ]);
 
 // ─── 4. Nettarif C from user's DSO (Price1–Price24) ──────────────────────────
-// Many DSOs have time-of-day pricing: higher rates 08–20h, lower off-peak.
-// Using all 24 price columns is essential for an accurate daily estimate.
+// Fetch all DatahubPricelist records for this GLN and filter PHP-side for
+// notes that start with "Nettarif C" (case-insensitive). This handles
+// operator-specific Note variations such as "Nettarif C time", "Nettarif C
+// lavlast" etc. that an exact-match API filter would silently miss.
 
-$nettarifRecords = eds_fetch('DatahubPricelist', [
-    'filter'  => json_encode(['GLN_Number' => $gln, 'Note' => 'Nettarif C']),
-    'columns' => PRICE_COLUMNS,
-    'limit'   => 50,
+$nettarifAll = eds_fetch('DatahubPricelist', [
+    'filter'  => json_encode(['GLN_Number' => $gln]),
+    'columns' => 'Note,' . PRICE_COLUMNS,
+    'limit'   => 500,
     'sort'    => 'ValidFrom desc',
 ]);
+$nettarifRecords = array_values(array_filter($nettarifAll, fn($r) =>
+    stripos($r['Note'] ?? '', 'nettarif c') === 0
+));
 
 // ─── 5. Assemble daily records (hour-by-hour cost matching) ─────────────────
 
@@ -230,11 +235,13 @@ $spotAvgStart = count($startHours) > 0
     : 0.0;
 
 $components = [
-    'spot_avg_kr_kwh'    => round($spotAvgStart, 4),
-    'systemtarif_kr_kwh' => tariff_avg_for_date($systemtarifRecords, $start),
-    'elafgift_kr_kwh'    => tariff_avg_for_date($elafgiftRecords,    $start),
-    'nettarif_kr_kwh'    => tariff_avg_for_date($nettarifRecords,    $start),
-    'vat_factor'         => VAT_FACTOR,
+    'spot_avg_kr_kwh'      => round($spotAvgStart, 4),
+    'systemtarif_kr_kwh'   => tariff_avg_for_date($systemtarifRecords, $start),
+    'elafgift_kr_kwh'      => tariff_avg_for_date($elafgiftRecords,    $start),
+    'nettarif_kr_kwh'      => tariff_avg_for_date($nettarifRecords,    $start),
+    'nettarif_records'     => count($nettarifRecords),   // 0 = DSO GLN/Note not found
+    'spot_hours'           => array_sum(array_map('count', $hoursByDay)),
+    'vat_factor'           => VAT_FACTOR,
 ];
 
 // ─── 7. Cache and respond ────────────────────────────────────────────────────
@@ -244,7 +251,11 @@ $response = json_encode([
     'components' => $components,
 ]);
 
-@file_put_contents($cacheFile, $response);
+// Only cache if spot data was found; an empty spot response could be a
+// transient API failure that should not be persisted for 6 hours.
+if ($components['spot_hours'] > 0) {
+    @file_put_contents($cacheFile, $response);
+}
 
 echo $response;
 ?>
