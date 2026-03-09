@@ -81,16 +81,40 @@ function getChargingData($accessToken, $dataEndpoint, $fromDate, $toDate) {
 }
 
 function getVehicleForCharge($cablePluggedInAt) {
-	$db = DatabaseManager::getChargesDb();
+    $db = DatabaseManager::getChargesDb();
 
-    $stmt = $db->prepare("SELECT vehicleId FROM vehicle_charges
-                          WHERE ABS(strftime('%s', cablePluggedInAt) - strftime('%s', ?)) < 3600
-                          ORDER BY ABS(strftime('%s', cablePluggedInAt) - strftime('%s', ?))
-                          LIMIT 1");
+    // PHP's strtotime() handles both "+01:00" (old rows) and "Z" (new rows) correctly,
+    // unlike SQLite's strftime('%s', ...) which returns NULL for "+HH:MM" offsets on
+    // many SQLite versions, causing every charge to fall back to vehicleId=1.
+    $targetTime = strtotime($cablePluggedInAt);
+    if ($targetTime === false) {
+        error_log("getVehicleForCharge: could not parse Monta timestamp: $cablePluggedInAt");
+        return 1;
+    }
 
-    $stmt->execute([$cablePluggedInAt, $cablePluggedInAt]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $row ? $row['vehicleId'] : 1;
+    // Fetch the 500 most recent vehicle_charges rows and compare in PHP
+    $stmt = $db->query("SELECT vehicleId, cablePluggedInAt FROM vehicle_charges
+                        ORDER BY rowid DESC LIMIT 500");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $bestVehicleId = 1;
+    $bestDiff      = PHP_INT_MAX;
+    foreach ($rows as $row) {
+        $storedTime = strtotime($row['cablePluggedInAt']);
+        if ($storedTime === false) continue;
+        $diff = abs($targetTime - $storedTime);
+        if ($diff < $bestDiff) {
+            $bestDiff      = $diff;
+            $bestVehicleId = $row['vehicleId'];
+        }
+    }
+
+    if ($bestDiff >= 3600) {
+        error_log("getVehicleForCharge: no vehicle_charges row within 1 hour of $cablePluggedInAt (closest diff: {$bestDiff}s) — defaulting to vehicleId=1");
+        return 1;
+    }
+
+    return $bestVehicleId;
 }
 
 // Funktion til at gemme data i databasen

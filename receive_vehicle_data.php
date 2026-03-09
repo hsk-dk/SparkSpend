@@ -57,9 +57,9 @@ try {
         exit;
     }
 
-    // Generate current timestamp in Copenhagen timezone
-    $dt = new DateTime("now", new DateTimeZone("Europe/Copenhagen"));
-    $cablePluggedInAt = $dt->format("Y-m-d\TH:i:sP"); // Includes timezone offset
+    // Generate current timestamp in UTC (Z-suffix is reliably parsed by SQLite strftime)
+    $dt = new DateTime("now", new DateTimeZone("UTC"));
+    $cablePluggedInAt = $dt->format("Y-m-d\TH:i:s\Z");
 
     // Store vehicle data
     $db = DatabaseManager::getChargesDb();
