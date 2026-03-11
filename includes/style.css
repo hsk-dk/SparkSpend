@@ -1473,6 +1473,18 @@ header {
   font-style: italic;
 }
 
+/* Loading skeleton — pulsing placeholder while dashboard data is fetching */
+@keyframes dash-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.15; }
+}
+
+.dash-loading .dash-stat-value,
+.dash-loading .dash-meta,
+.dash-loading .dash-trend {
+  animation: dash-pulse 1.3s ease-in-out infinite;
+}
+
 /* ===== EV SUB-NAVIGATION ===== */
 
 .sub-nav {

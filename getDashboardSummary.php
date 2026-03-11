@@ -35,17 +35,44 @@ try {
     $stmtInt->execute([$currentMonth]);
     $intMonth = $stmtInt->fetch(PDO::FETCH_ASSOC);
 
-    // External charges — fetch all and filter in PHP.
-    // ext_charges.datetime is stored as ISO 8601 with Z suffix (e.g. 2024-12-07T15:37:00Z)
-    // which SQLite's strftime/date functions cannot parse reliably.
-    $stmtExt = $chargesDb->prepare("SELECT datetime, kwh, pris FROM ext_charges");
-    $stmtExt->execute();
+    // EV — same period last month (MTD) and same period last year (MTD)
+    $stmtIntPrev = $chargesDb->prepare("
+        SELECT COALESCE(SUM(consumedKwh), 0) as kwh,
+               COALESCE(SUM(cost), 0) as cost
+        FROM charges
+        WHERE DATE(createdAt) BETWEEN ? AND ?
+    ");
+    $stmtIntPrev->execute([$prevStart, $prevEnd]);
+    $intPrev = $stmtIntPrev->fetch(PDO::FETCH_ASSOC);
+
+    $stmtIntLY = $chargesDb->prepare("
+        SELECT COALESCE(SUM(consumedKwh), 0) as kwh,
+               COALESCE(SUM(cost), 0) as cost
+        FROM charges
+        WHERE DATE(createdAt) BETWEEN ? AND ?
+    ");
+    $stmtIntLY->execute([$lastYearStart, $lastYearEnd]);
+    $intLY = $stmtIntLY->fetch(PDO::FETCH_ASSOC);
+
+    // External charges — ISO 8601 Z-suffix prevents SQL date filtering, so we fetch
+    // a bounded window (from same month last year onwards) and filter in PHP.
+    $stmtExt = $chargesDb->prepare("SELECT datetime, kwh, pris FROM ext_charges WHERE datetime >= ?");
+    $stmtExt->execute([$lastYearStart]);
 
     $sparkStartTs  = strtotime($sparkStart);
     $todayEndTs    = strtotime($today . ' 23:59:59');
+    $prevStartTs   = strtotime($prevStart);
+    $prevEndTs     = strtotime($prevEnd . ' 23:59:59');
+    $lyStartTs     = strtotime($lastYearStart);
+    $lyEndTs       = strtotime($lastYearEnd . ' 23:59:59');
+
     $extMonthCnt   = 0;
     $extMonthKwh   = 0.0;
     $extMonthCost  = 0.0;
+    $extPrevKwh    = 0.0;
+    $extPrevCost   = 0.0;
+    $extLYKwh      = 0.0;
+    $extLYCost     = 0.0;
     $extByDay      = [];
 
     foreach ($stmtExt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -55,6 +82,14 @@ try {
             $extMonthCnt++;
             $extMonthKwh  += floatval($row['kwh']);
             $extMonthCost += floatval($row['pris']);
+        }
+        if ($t >= $prevStartTs && $t <= $prevEndTs) {
+            $extPrevKwh  += floatval($row['kwh']);
+            $extPrevCost += floatval($row['pris']);
+        }
+        if ($t >= $lyStartTs && $t <= $lyEndTs) {
+            $extLYKwh  += floatval($row['kwh']);
+            $extLYCost += floatval($row['pris']);
         }
         if ($t >= $sparkStartTs && $t <= $todayEndTs) {
             $extByDay[$day] = ($extByDay[$day] ?? 0) + floatval($row['kwh']);
@@ -151,22 +186,29 @@ try {
     $totalCost   = floatval($intMonth['cost']) + floatval($extMonth['cost']);
     $daysInMonth = (int)date('t');
 
-    $evCostPerKwh   = $totalKwh > 0     ? round($totalCost / $totalKwh, 3) : null;
-    $evHomePct      = $totalKwh > 0     ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
-    $evProjected    = $daysThisMonth > 0 ? round($totalCost / $daysThisMonth * $daysInMonth) : null;
+    $prevTotalCost = floatval($intPrev['cost']) + $extPrevCost;
+    $lyTotalCost   = floatval($intLY['cost'])   + $extLYCost;
+
+    $evCostPerKwh        = $totalKwh > 0      ? round($totalCost / $totalKwh, 3) : null;
+    $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
+    $evProjected         = $daysThisMonth > 0 ? round($totalCost / $daysThisMonth * $daysInMonth) : null;
+    $evPctChangeCost     = $prevTotalCost > 0 ? round(($totalCost - $prevTotalCost) / $prevTotalCost * 100, 1) : null;
+    $evPctChangeCostYear = $lyTotalCost   > 0 ? round(($totalCost - $lyTotalCost)   / $lyTotalCost   * 100, 1) : null;
 
     $hpDailyAvg     = $daysThisMonth > 0 ? round($hpCurrent / $daysThisMonth, 2) : null;
     $hpProjected    = $daysThisMonth > 0 ? round($hpCurrent  / $daysThisMonth * $daysInMonth, 1) : null;
 
     echo json_encode([
         'ev' => [
-            'month_charges'  => intval($intMonth['cnt']) + intval($extMonth['cnt']),
-            'month_kwh'      => round($totalKwh, 2),
-            'month_cost'     => round($totalCost, 2),
-            'cost_per_kwh'   => $evCostPerKwh,
-            'home_kwh_pct'   => $evHomePct,
-            'projected_cost' => $evProjected,
-            'sparkline'      => $evSparkline,
+            'month_charges'        => intval($intMonth['cnt']) + intval($extMonth['cnt']),
+            'month_kwh'            => round($totalKwh, 2),
+            'month_cost'           => round($totalCost, 2),
+            'cost_per_kwh'         => $evCostPerKwh,
+            'home_kwh_pct'         => $evHomePct,
+            'projected_cost'       => $evProjected,
+            'pct_change_cost'      => $evPctChangeCost,
+            'pct_change_year_cost' => $evPctChangeCostYear,
+            'sparkline'            => $evSparkline,
         ],
         'heatpump' => [
             'month_kwh'       => round($hpCurrent, 2),

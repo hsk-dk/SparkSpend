@@ -10,6 +10,8 @@ let _evSparkChart  = null;
 let _hpSparkChart  = null;
 
 async function loadDashboard() {
+    const cards = ['ev-dashboard-card', 'hp-dashboard-card'];
+    cards.forEach(id => document.getElementById(id)?.classList.add('dash-loading'));
     try {
         const res = await fetch('getDashboardSummary.php');
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -25,6 +27,8 @@ async function loadDashboard() {
             if (el) el.querySelector('.dash-body').innerHTML =
                 '<p class="text-muted text-center small py-3">Data ikke tilgængeligt</p>';
         });
+    } finally {
+        cards.forEach(id => document.getElementById(id)?.classList.remove('dash-loading'));
     }
 }
 
@@ -32,6 +36,7 @@ function renderEvCard(ev) {
     const card = document.getElementById('ev-dashboard-card');
     if (!card) return;
 
+    const now   = new Date();
     const month = _monthName();
     _setText(card, '.dash-period', month);
     _setText(card, '.dash-stat-charges', ev.month_charges + ' ladninger');
@@ -41,31 +46,49 @@ function renderEvCard(ev) {
     _setText(card, '.dash-split', ev.home_kwh_pct !== null ? ev.home_kwh_pct.toFixed(0) + '% hjemme' : '');
     _setText(card, '.dash-projected', ev.projected_cost !== null ? 'Forventet: ' + ev.projected_cost + ' kr' : '');
 
-    _evSparkChart = _renderSparkline(
-        'ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart
-    );
+    const showTrends = now.getDate() >= 5;
+    const trendEl = card.querySelector('.dash-trend');
+    if (trendEl) {
+        let html = '';
+        if (showTrends && ev.pct_change_cost !== null) {
+            const up = ev.pct_change_cost >= 0;
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_cost)}% vs. samme periode sidst måned</div>`;
+        }
+        if (showTrends && ev.pct_change_year_cost !== null) {
+            const up = ev.pct_change_year_cost >= 0;
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_cost)}% vs. samme måned sidste år</div>`;
+        }
+        trendEl.innerHTML = html;
+    }
+
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    _evSparkChart = _renderSparkline('ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart, monthStart);
 }
 
 function renderHeatpumpCard(hp) {
     const card = document.getElementById('hp-dashboard-card');
     if (!card) return;
 
+    const now   = new Date();
     const month = _monthName();
     _setText(card, '.dash-period', month);
     _setText(card, '.dash-stat-kwh', hp.month_kwh.toFixed(1) + ' kWh');
     _setText(card, '.dash-stat-daily', hp.daily_avg_kwh !== null ? hp.daily_avg_kwh.toFixed(1) + ' kWh' : '—');
     _setText(card, '.dash-projected', hp.projected_kwh !== null ? 'Forventet: ' + hp.projected_kwh.toFixed(1) + ' kWh' : '');
 
+    const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
-        if (hp.pct_change !== null) {
+        if (showTrends && hp.pct_change !== null) {
             const up = hp.pct_change >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hp.pct_change)}% vs. sidst måned</div>`;
+                    `${Math.abs(hp.pct_change)}% vs. samme periode sidst måned</div>`;
         }
-        if (hp.pct_change_year !== null) {
+        if (showTrends && hp.pct_change_year !== null) {
             const up = hp.pct_change_year >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
@@ -75,9 +98,8 @@ function renderHeatpumpCard(hp) {
         trendEl.className = 'dash-trend';
     }
 
-    _hpSparkChart = _renderSparkline(
-        'hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart
-    );
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, monthStart);
 
     // Enrich with weather-normalised year-over-year trend (async, non-blocking)
     _enrichHpWithWeather(card, hp);
@@ -96,13 +118,12 @@ async function _enrichHpWithWeather(card, hp) {
     const lastYear  = thisYear - 1;
     const mm        = String(thisMonth).padStart(2, '0');
     const today     = now.toISOString().slice(0, 10);
-    const lastDayLY = new Date(lastYear, thisMonth, 0).getDate();
-    const ddLY      = String(lastDayLY).padStart(2, '0');
+    const ddNow     = String(now.getDate()).padStart(2, '0'); // same day last year → MTD comparison
 
     try {
         const [resThis, resLast] = await Promise.all([
             fetch(`getWeatherData.php?start=${thisYear}-${mm}-01&end=${today}&lat=${lat}&lon=${lon}`).then(r => r.json()),
-            fetch(`getWeatherData.php?start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddLY}&lat=${lat}&lon=${lon}`).then(r => r.json()),
+            fetch(`getWeatherData.php?start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddNow}&lat=${lat}&lon=${lon}`).then(r => r.json()),
         ]);
 
         const hddThis = (resThis.records  || []).reduce((s, r) => s + r.hdd, 0);
@@ -122,7 +143,7 @@ async function _enrichHpWithWeather(card, hp) {
     }
 }
 
-function _renderSparkline(canvasId, dataPoints, color, existing) {
+function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = null) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     if (existing) existing.destroy();
@@ -144,7 +165,17 @@ function _renderSparkline(canvasId, dataPoints, color, existing) {
             maintainAspectRatio: false,
             plugins: {
                 legend:  { display: false },
-                tooltip: { enabled: false },
+                tooltip: monthStart ? {
+                    enabled: true,
+                    callbacks: {
+                        title: (items) => {
+                            const d = new Date(monthStart);
+                            d.setDate(d.getDate() + items[0].dataIndex);
+                            return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+                        },
+                        label: (item) => item.raw.toFixed(1) + ' kWh'
+                    }
+                } : { enabled: false },
                 datalabels: { display: false }
             },
             scales: {

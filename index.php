@@ -151,6 +151,7 @@ require 'includes/QueryBuilder.php';
           <span class="dash-split"></span>
           <span class="dash-projected"></span>
         </div>
+        <div class="dash-trend"></div>
         <div class="dash-sparkline">
           <canvas id="ev-sparkline"></canvas>
         </div>
@@ -550,7 +551,7 @@ require 'includes/QueryBuilder.php';
 
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260309"></script>
-  <script src="includes/dashboard.js?v=20260311b"></script>
+  <script src="includes/dashboard.js?v=20260311c"></script>
   <script src="includes/elbil.js?v=20260311c"></script>
   <script src="includes/jordvarme.js?v=20260311b"></script>
 
