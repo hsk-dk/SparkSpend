@@ -13,6 +13,7 @@ const SparkNav = (() => {
     let currentTab = 'oversigt-section';
     let elbilLoaded = false;
     let jordvarmeLoaded = false;
+    let regningLoaded = false;
 
     // -------------------------------------------------------------------------
     // Main tab switching
@@ -39,6 +40,10 @@ const SparkNav = (() => {
         if (tabId === 'jordvarme-section' && !jordvarmeLoaded) {
             window.jordvarmeApp?.init();
             jordvarmeLoaded = true;
+        }
+        if (tabId === 'regning-section' && !regningLoaded) {
+            window.regningApp?.init();
+            regningLoaded = true;
         }
     }
 
@@ -99,6 +104,8 @@ const SparkNav = (() => {
             hash = '#elbil/' + sub;
         } else if (currentTab === 'jordvarme-section') {
             hash = '#jordvarme';
+        } else if (currentTab === 'regning-section') {
+            hash = '#regning';
         }
         history.replaceState(null, '', hash);
     }
@@ -112,6 +119,8 @@ const SparkNav = (() => {
             switchSubTab(sub);
         } else if (hash === 'jordvarme') {
             switchMainTab('jordvarme-section', false);
+        } else if (hash === 'regning') {
+            switchMainTab('regning-section', false);
         } else {
             switchMainTab('oversigt-section', false);
         }

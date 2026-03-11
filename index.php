@@ -55,6 +55,9 @@ require 'includes/QueryBuilder.php';
       <button class="header-tab-button" data-target="jordvarme-section">
         <i class="fas fa-fire"></i> Jordvarme
       </button>
+      <button class="header-tab-button" data-target="regning-section">
+        <i class="fas fa-file-invoice"></i> Regning
+      </button>
     </nav>
 
     <!-- Header Right: Filter Button + Create Charge Button -->
@@ -546,14 +549,30 @@ require 'includes/QueryBuilder.php';
   </div>
 
 </section><!-- /#jordvarme-section -->
+
+<section id="regning-section" class="tab-section">
+  <div class="card p-4">
+    <h3>Elforbrug til regning</h3>
+    <p class="text-muted mb-3">
+      Månedlig oversigt over forbrug til elbil og varmepumpe — brug kolonnerne til at fratrække
+      disse poster fra din samlede elregning og finde restforbruget.
+    </p>
+    <div id="regningTableWrapper">
+      <p class="text-muted">Indlæser…</p>
+    </div>
+    <div id="regningStatus" class="small mt-2 text-muted"></div>
+  </div>
+</section><!-- /#regning-section -->
+
   <!-- App Utilities -->
   <script src="includes/app.js?v=20260312"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260309"></script>
+  <script src="includes/nav.js?v=20260311"></script>
   <script src="includes/dashboard.js?v=20260311c"></script>
   <script src="includes/elbil.js?v=20260311c"></script>
   <script src="includes/jordvarme.js?v=20260311b"></script>
+  <script src="includes/regning.js?v=20260311"></script>
 
   <!-- Settings Modal -->
   <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
