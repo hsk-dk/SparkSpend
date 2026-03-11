@@ -170,12 +170,13 @@ try {
         ],
         'heatpump' => [
             'month_kwh'       => round($hpCurrent, 2),
-            'prev_month_kwh'  => round($hpPrev, 2),
-            'pct_change'      => $hpPctChange,
-            'pct_change_year' => $hpPctChangeYear,
-            'daily_avg_kwh'   => $hpDailyAvg,
-            'projected_kwh'   => $hpProjected,
-            'sparkline'       => $hpSparkline,
+            'prev_month_kwh'      => round($hpPrev, 2),
+            'last_year_month_kwh' => round($hpLastYear, 2),
+            'pct_change'          => $hpPctChange,
+            'pct_change_year'     => $hpPctChangeYear,
+            'daily_avg_kwh'       => $hpDailyAvg,
+            'projected_kwh'       => $hpProjected,
+            'sparkline'           => $hpSparkline,
         ],
     ]);
 

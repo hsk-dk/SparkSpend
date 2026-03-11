@@ -100,6 +100,8 @@ const jordvarmeApp = (() => {
             const w = getWeatherSettings();
             if (settingsLatEl) settingsLatEl.value = w.lat;
             if (settingsLonEl) settingsLonEl.value = w.lon;
+            const coordErrorEl = document.getElementById('settingsCoordError');
+            if (coordErrorEl) coordErrorEl.style.display = 'none';
         });
 
         settingsSaveBtn?.addEventListener('click', () => {
@@ -117,6 +119,25 @@ const jordvarmeApp = (() => {
             }
             const lat = settingsLatEl?.value.trim() || '';
             const lon = settingsLonEl?.value.trim() || '';
+            const coordErrorEl = document.getElementById('settingsCoordError');
+            // Validate coordinates if either field has a value
+            if (lat || lon) {
+                const latNum = parseFloat(lat);
+                const lonNum = parseFloat(lon);
+                if (!lat || !lon) {
+                    if (coordErrorEl) { coordErrorEl.textContent = 'Angiv både bredde- og længdegrad.'; coordErrorEl.style.display = ''; }
+                    return;
+                }
+                if (isNaN(latNum) || latNum < -90 || latNum > 90) {
+                    if (coordErrorEl) { coordErrorEl.textContent = 'Breddegrad skal være mellem −90 og 90.'; coordErrorEl.style.display = ''; }
+                    return;
+                }
+                if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) {
+                    if (coordErrorEl) { coordErrorEl.textContent = 'Længdegrad skal være mellem −180 og 180.'; coordErrorEl.style.display = ''; }
+                    return;
+                }
+            }
+            if (coordErrorEl) coordErrorEl.style.display = 'none';
             if (lat && lon) {
                 localStorage.setItem(LS_LAT_KEY, lat);
                 localStorage.setItem(LS_LON_KEY, lon);
@@ -312,6 +333,43 @@ const jordvarmeApp = (() => {
             if (currentMode === 'compare') renderCompareChart(lastKwhData);
         }
 
+        // ── Background baseline initialisation ────────────────────────────────
+        // Silently fetches compare + weather data on init (both server-side cached)
+        // to seed baselineKwhPerHdd so expected-vs-actual appears in daily/monthly
+        // stats without requiring the user to visit compare mode first.
+        function initBaseline() {
+            if (!weatherSettingsReady()) return;
+            const { lat, lon } = getWeatherSettings();
+            const today = new Date().toISOString().slice(0, 10);
+            fetch('getHeatpumpData.php?mode=compare')
+                .then(r => r.json())
+                .then(compareData => {
+                    if (!Array.isArray(compareData) || compareData.length === 0) return;
+                    const years   = compareData.map(d => parseInt(d.year)).filter(y => !isNaN(y));
+                    const minYear = Math.min(...years);
+                    const params  = new URLSearchParams({ start: minYear + '-01-01', end: today, lat, lon });
+                    return fetch('getWeatherData.php?' + params)
+                        .then(r => r.json())
+                        .then(weatherData => {
+                            const wMap = {};
+                            (weatherData.records || []).forEach(r => { wMap[r.date] = r.hdd; });
+                            let totalKwh = 0, totalHdd = 0;
+                            compareData.forEach(d => {
+                                const mp   = String(d.month || '').padStart(2, '0');
+                                const mHdd = Object.entries(wMap)
+                                    .filter(([date]) => date.startsWith(`${d.year}-${mp}`))
+                                    .reduce((s, [, h]) => s + h, 0);
+                                if (mHdd >= 5) { totalKwh += parseFloat(d.total_kwh); totalHdd += mHdd; }
+                            });
+                            if (totalHdd > 0 && baselineKwhPerHdd === null) {
+                                baselineKwhPerHdd = totalKwh / totalHdd;
+                                _rerenderStats();
+                            }
+                        });
+                })
+                .catch(() => {}); // silent — best-effort
+        }
+
         // ── Weather / degree-day fetch ────────────────────────────────────────
         // Calls getWeatherData.php which fetches from Open-Meteo and caches the
         // result server-side (24-hour TTL, same pattern as getElspotPrices.php).
@@ -474,6 +532,16 @@ const jordvarmeApp = (() => {
         }
 
         function renderCompareChart(data) {
+            // Capture which datasets were hidden before rebuilding, then destroy old chart
+            const hiddenLabels = new Set();
+            if (heatpumpChart) {
+                heatpumpChart.data.datasets.forEach((ds, i) => {
+                    if (!heatpumpChart.isDatasetVisible(i)) hiddenLabels.add(ds.label);
+                });
+                heatpumpChart.destroy();
+                heatpumpChart = null;
+            }
+
             // Pivot: Map<year, Array(12)> — null for months with no data
             const yearMap = new Map();
             data.forEach(d => {
@@ -497,7 +565,7 @@ const jordvarmeApp = (() => {
             const normalize = (kwh, year, monthIdx) => {
                 if (kwh === null) return null;
                 const hdd = monthlyHdd(year, monthIdx);
-                return hdd > 0 ? parseFloat((kwh / hdd).toFixed(3)) : null;
+                return hdd >= 5 ? parseFloat((kwh / hdd).toFixed(3)) : null; // < 5 GD (summer) → show as gap
             };
 
             const datasets = years.map((year, i) => {
@@ -561,7 +629,7 @@ const jordvarmeApp = (() => {
                 }
             });
 
-            buildYearChips(years, true);
+            buildYearChips(years, true, hiddenLabels);
 
             // kWh/GD normalization toggle chip — only shown when weather settings configured
             if (hasWeather && yearContainer) {
@@ -579,15 +647,17 @@ const jordvarmeApp = (() => {
         }
 
         // ── Year toggle chips ────────────────────────────────────────────────
-        function buildYearChips(years, hasAvg = false) {
+        function buildYearChips(years, hasAvg = false, hiddenLabels = new Set()) {
             if (!yearContainer) return;
             yearContainer.innerHTML = "";
+            let needsUpdate = false;
 
             years.forEach((year, i) => {
-                const color = YEAR_COLORS[i % YEAR_COLORS.length];
-                const chip  = document.createElement("button");
+                const color    = YEAR_COLORS[i % YEAR_COLORS.length];
+                const chip     = document.createElement("button");
+                const isHidden = hiddenLabels.has(year);
                 chip.type = "button";
-                chip.className = "year-chip active";
+                chip.className = 'year-chip' + (isHidden ? '' : ' active');
                 chip.textContent = year;
                 chip.style.setProperty("--chip-color", color);
                 chip.addEventListener("click", () => {
@@ -598,13 +668,18 @@ const jordvarmeApp = (() => {
                     }
                 });
                 yearContainer.appendChild(chip);
+                if (isHidden && heatpumpChart) {
+                    heatpumpChart.setDatasetVisibility(i, false);
+                    needsUpdate = true;
+                }
             });
 
             if (hasAvg) {
-                const avgIdx = years.length;
-                const chip   = document.createElement("button");
+                const avgIdx   = years.length;
+                const chip     = document.createElement("button");
+                const isHidden = hiddenLabels.has("Gns.");
                 chip.type = "button";
-                chip.className = "year-chip active";
+                chip.className = 'year-chip' + (isHidden ? '' : ' active');
                 chip.textContent = "Gns.";
                 chip.style.setProperty("--chip-color", "#94a3b8");
                 chip.addEventListener("click", () => {
@@ -615,8 +690,13 @@ const jordvarmeApp = (() => {
                     }
                 });
                 yearContainer.appendChild(chip);
+                if (isHidden && heatpumpChart) {
+                    heatpumpChart.setDatasetVisibility(avgIdx, false);
+                    needsUpdate = true;
+                }
             }
 
+            if (needsUpdate && heatpumpChart) heatpumpChart.update();
             yearContainer.style.display = "flex";
         }
 
@@ -805,7 +885,7 @@ const jordvarmeApp = (() => {
                     const mHdd = Object.entries(activeWeatherMap)
                         .filter(([date]) => date.startsWith(prefix))
                         .reduce((s, [, hdd]) => s + hdd, 0);
-                    if (mHdd > 0) {
+                    if (mHdd >= 5) { // exclude near-zero summer months (consistent with normalize())
                         totalBaseKwh += parseFloat(d.total_kwh);
                         totalBaseHdd += mHdd;
                     }
@@ -948,6 +1028,7 @@ const jordvarmeApp = (() => {
         fetchElCosts();
         fetchWeatherData();
         fetchSyncStatus();
+        initBaseline(); // seeds kWh/GD baseline from compare data without user needing to visit compare mode
     }
 
     return { init };

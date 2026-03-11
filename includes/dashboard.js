@@ -86,7 +86,9 @@ function renderHeatpumpCard(hp) {
 async function _enrichHpWithWeather(card, hp) {
     const lat = localStorage.getItem('sparkspend_hp_lat') || '';
     const lon = localStorage.getItem('sparkspend_hp_lon') || '';
-    if (!lat || !lon || hp.month_kwh === null || hp.pct_change_year === null) return;
+    // Use last_year_month_kwh exposed directly by getDashboardSummary.php
+    const lastYearKwh = hp.last_year_month_kwh ?? null;
+    if (!lat || !lon || hp.month_kwh === null || lastYearKwh === null || lastYearKwh <= 0) return;
 
     const now       = new Date();
     const thisYear  = now.getFullYear();
@@ -107,9 +109,7 @@ async function _enrichHpWithWeather(card, hp) {
         const hddLast = (resLast.records  || []).reduce((s, r) => s + r.hdd, 0);
         if (hddThis <= 0 || hddLast <= 0) return;
 
-        // Reconstruct same-month-last-year kWh from the pct_change_year figure
-        const lastYearKwh    = hp.month_kwh * 100 / (100 + hp.pct_change_year);
-        const normalizedPct  = Math.round(((hp.month_kwh / hddThis) / (lastYearKwh / hddLast) - 1) * 100);
+        const normalizedPct = Math.round(((hp.month_kwh / hddThis) / (lastYearKwh / hddLast) - 1) * 100);
 
         const trendEl = card.querySelector('.dash-trend');
         if (!trendEl) return;

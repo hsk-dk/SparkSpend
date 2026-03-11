@@ -9,7 +9,7 @@
  * Price components (matched hour-by-hour):
  *   Spot price   — Elspotprices dataset, hourly DKK/MWh (DK1/DK2)
  *   Systemtarif  — DatahubPricelist, Energinet, Price1–Price24 per hour
- *   Elafgift     — DatahubPricelist, Energinet, Price1–Price24 per hour
+ *   Elafgift     — Hardcoded procesformål rate (heat pump reduced rate, Energiafgiftsloven §11)
  *   Nettarif C   — DatahubPricelist, user's DSO (by GLN), Price1–Price24 per hour
  *   VAT          — 25% applied to all of the above
  *
@@ -30,9 +30,13 @@ define('ENERGINET_GLN',     '5790000432752');
 define('EDS_BASE_URL',      'https://api.energidataservice.dk/dataset/');
 define('VAT_FACTOR',        1.25);
 define('CACHE_TTL_SECONDS', 21600); // 6 hours
-define('CACHE_VERSION',    6);      // bump to invalidate all existing cached responses
+define('CACHE_VERSION',    7);      // bump to invalidate all existing cached responses
 // Elspotprices dataset was discontinued after this date; DayAheadPrices took over from Oct 2025.
 define('ELSPOT_CUTOFF',   '2025-09-30');
+// Reduced elafgift for heat pumps under procesformål / rumopvarmning (Energiafgiftsloven §11 stk. 3).
+// This rate is far below the standard residential rate (~0.76–0.94 kr/kWh).
+// Verify against current Skattestyrelsen rates before each calendar year.
+define('ELAFGIFT_HP_KR_KWH', 0.0088); // 2025 procesformål rate
 
 // All 24 hourly price columns used in DatahubPricelist queries
 define('PRICE_COLUMNS', 'Price1,Price2,Price3,Price4,Price5,Price6,Price7,Price8,' .
@@ -210,16 +214,7 @@ $systemtarifRecords = eds_fetch('DatahubPricelist', [
     'sort'    => 'ValidFrom desc',
 ]);
 
-// ─── 3. Elafgift (Price1–Price24, rate varies by year) ───────────────────────
-
-$elafgiftRecords = eds_fetch('DatahubPricelist', [
-    'filter'  => json_encode(['GLN_Number' => ENERGINET_GLN, 'Note' => 'Elafgift']),
-    'columns' => PRICE_COLUMNS,
-    'limit'   => 50,
-    'sort'    => 'ValidFrom desc',
-]);
-
-// ─── 4. Residential nettarif from user's DSO (Price1–Price24) ────────────────
+// ─── 3. Residential nettarif from user's DSO (Price1–Price24) ────────────────
 // Fetch all DatahubPricelist records for this GLN and select the residential
 // low-voltage tariff. Most DSOs follow Energinet naming ("Nettarif C ..."),
 // but some use different conventions:
@@ -257,7 +252,7 @@ if (!$nettarifRecords) {
     }
 }
 
-// ─── 5. Assemble daily records (hour-by-hour cost matching) ─────────────────
+// ─── 4. Assemble daily records (hour-by-hour cost matching) ─────────────────
 
 $dailyRecords = [];
 $cursor       = new DateTime($start);
@@ -274,7 +269,7 @@ while ($cursor <= $endDate) {
         foreach ($hours as $entry) {
             $h   = $entry['h'];
             $sys = tariff_for_hour($systemtarifRecords, $date, $h);
-            $ela = tariff_for_hour($elafgiftRecords,    $date, $h);
+            $ela = ELAFGIFT_HP_KR_KWH; // procesformål reduced rate (heat pump)
             $net = tariff_for_hour($nettarifRecords,    $date, $h);
             $sum += ($entry['s'] + $sys + $ela + $net) * VAT_FACTOR;
         }
@@ -289,7 +284,7 @@ while ($cursor <= $endDate) {
     $cursor->modify('+1 day');
 }
 
-// ─── 6. Component summary (daily-average values at start date) ────────────────
+// ─── 5. Component summary (daily-average values at start date) ────────────────
 // spot_avg is the mean of all hourly spot prices on $start;
 // tariff averages cover all 24 Price columns of the applicable record.
 
@@ -301,14 +296,14 @@ $spotAvgStart = count($startHours) > 0
 $components = [
     'spot_avg_kr_kwh'      => round($spotAvgStart, 4),
     'systemtarif_kr_kwh'   => tariff_avg_for_date($systemtarifRecords, $start),
-    'elafgift_kr_kwh'      => tariff_avg_for_date($elafgiftRecords,    $start),
+    'elafgift_kr_kwh'      => ELAFGIFT_HP_KR_KWH,
     'nettarif_kr_kwh'      => tariff_avg_for_date($nettarifRecords,    $start),
     'nettarif_records'     => count($nettarifRecords),   // 0 = DSO GLN/Note not found
     'spot_hours'           => array_sum(array_map('count', $hoursByDay)),
     'vat_factor'           => VAT_FACTOR,
 ];
 
-// ─── 7. Cache and respond ────────────────────────────────────────────────────
+// ─── 6. Cache and respond ────────────────────────────────────────────────────
 
 $response = json_encode([
     'records'    => $dailyRecords,

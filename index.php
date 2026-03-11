@@ -532,9 +532,9 @@ require 'includes/QueryBuilder.php';
 
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260309"></script>
-  <script src="includes/dashboard.js?v=20260311"></script>
+  <script src="includes/dashboard.js?v=20260311b"></script>
   <script src="includes/elbil.js?v=20260315"></script>
-  <script src="includes/jordvarme.js?v=20260311"></script>
+  <script src="includes/jordvarme.js?v=20260311b"></script>
 
   <!-- Settings Modal -->
   <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
@@ -556,13 +556,17 @@ require 'includes/QueryBuilder.php';
             <label for="settingsNetselskab" class="form-label">Netselskab</label>
             <select class="form-select" id="settingsNetselskab">
               <option value="" data-gln="">Vælg netselskab…</option>
-              <option value="Radius"  data-gln="5790000705689">Radius Elnet</option>
-              <option value="Cerius"  data-gln="5790000705184">Cerius (tidl. SEAS-NVE)</option>
-              <option value="N1"      data-gln="5790001089030">N1</option>
-              <option value="Dinel"   data-gln="5790000610099">Dinel</option>
-              <option value="Elektrus" data-gln="5790000836239">Elektrus</option>
-              <option value="RAH"     data-gln="5790000610822">RAH Net</option>
-              <option value="FLOW"    data-gln="5790000392551">FLOW Elnet</option>
+              <option value="Radius"    data-gln="5790000705689">Radius Elnet</option>
+              <option value="Cerius"    data-gln="5790000705184">Cerius (tidl. SEAS-NVE)</option>
+              <option value="N1"        data-gln="5790001089030">N1</option>
+              <option value="SE"        data-gln="5790000705870">SE Net</option>
+              <option value="FLOW"      data-gln="5790000392551">FLOW Elnet (tidl. Trefor)</option>
+              <option value="NKE"       data-gln="5790000610764">NKE-Elnet</option>
+              <option value="Nord"      data-gln="5790001088583">Nord Energi Net</option>
+              <option value="Konstant"  data-gln="5790000706006">Konstant Net</option>
+              <option value="RAH"       data-gln="5790000610822">RAH Net</option>
+              <option value="Dinel"     data-gln="5790000610099">Dinel</option>
+              <option value="Elektrus"  data-gln="5790000836239">Elektrus</option>
             </select>
           </div>
           <div class="form-text">
@@ -586,6 +590,7 @@ require 'includes/QueryBuilder.php';
               WGS84-koordinater til beregning af gradedage (HDD 17°C) via Open-Meteo.
               Vises som kWh/GD i statistikken.
             </div>
+            <div id="settingsCoordError" class="text-danger small mt-1" style="display:none"></div>
           </div>
         </div>
         <div class="modal-footer">
