@@ -534,7 +534,7 @@ require 'includes/QueryBuilder.php';
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260315"></script>
   <script src="includes/elbil.js?v=20260315"></script>
-  <script src="includes/jordvarme.js?v=20260323"></script>
+  <script src="includes/jordvarme.js?v=20260324"></script>
 
   <!-- Settings Modal -->
   <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">

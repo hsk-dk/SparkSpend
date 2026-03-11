@@ -303,8 +303,8 @@ const jordvarmeApp = (() => {
         }
 
         // ── Weather / degree-day fetch ────────────────────────────────────────
-        // Fetches daily mean temperature from Open-Meteo archive and converts to
-        // HDD (Heating Degree Days, base 17°C) per day. Populates activeWeatherMap.
+        // Calls getWeatherData.php which fetches from Open-Meteo and caches the
+        // result server-side (24-hour TTL, same pattern as getElspotPrices.php).
         // kwhData: optional, passed for compare/ytd so the year range is derived
         // from actual measurements (same pattern as fetchElCosts).
         function fetchWeatherData(kwhData) {
@@ -334,34 +334,12 @@ const jordvarmeApp = (() => {
                 end   = today;
             }
 
-            // Cache in sessionStorage — Open-Meteo historical data doesn't change
-            const cacheKey = `hdd_${lat}_${lon}_${start}_${end}`;
-            const cached   = sessionStorage.getItem(cacheKey);
-            if (cached) {
-                activeWeatherMap = JSON.parse(cached);
-                _rerenderStats();
-                return;
-            }
-
-            const url = 'https://archive-api.open-meteo.com/v1/archive' +
-                `?latitude=${lat}&longitude=${lon}` +
-                `&start_date=${start}&end_date=${end}` +
-                `&daily=temperature_2m_mean&timezone=Europe%2FCopenhagen`;
-
-            fetch(url)
+            const params = new URLSearchParams({ start, end, lat, lon });
+            fetch('getWeatherData.php?' + params)
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                 .then(data => {
                     activeWeatherMap = {};
-                    const times = data.daily?.time               || [];
-                    const temps = data.daily?.temperature_2m_mean || [];
-                    times.forEach((date, i) => {
-                        const t = temps[i];
-                        if (t !== null && t !== undefined) {
-                            activeWeatherMap[date] = Math.max(0, 17 - t);
-                        }
-                    });
-                    try { sessionStorage.setItem(cacheKey, JSON.stringify(activeWeatherMap)); }
-                    catch (_) { /* storage full — proceed without caching */ }
+                    (data.records || []).forEach(r => { activeWeatherMap[r.date] = r.hdd; });
                     _rerenderStats();
                 })
                 .catch(err => console.error('fetchWeatherData:', err));
