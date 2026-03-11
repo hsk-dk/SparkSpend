@@ -534,7 +534,7 @@ require 'includes/QueryBuilder.php';
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260315"></script>
   <script src="includes/elbil.js?v=20260315"></script>
-  <script src="includes/jordvarme.js?v=20260322"></script>
+  <script src="includes/jordvarme.js?v=20260323"></script>
 
   <!-- Settings Modal -->
   <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
@@ -568,6 +568,24 @@ require 'includes/QueryBuilder.php';
           <div class="form-text">
             Beregner estimerede elomkostninger for varmepumpen inkl. spotpris,
             nettarif C, systemtarif, elafgift og moms (25%).
+          </div>
+          <hr class="my-3">
+          <div class="mb-1">
+            <label class="form-label">Vejrdata — koordinater</label>
+            <div class="row g-2">
+              <div class="col">
+                <input type="number" class="form-control form-control-sm" id="settingsLat"
+                       placeholder="Breddegrad (55.76…)" step="any">
+              </div>
+              <div class="col">
+                <input type="number" class="form-control form-control-sm" id="settingsLon"
+                       placeholder="Længdegrad (9.54…)" step="any">
+              </div>
+            </div>
+            <div class="form-text">
+              WGS84-koordinater til beregning af gradedage (HDD 17°C) via Open-Meteo.
+              Vises som kWh/GD i statistikken.
+            </div>
           </div>
         </div>
         <div class="modal-footer">

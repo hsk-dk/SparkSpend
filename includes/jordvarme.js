@@ -44,6 +44,8 @@ const jordvarmeApp = (() => {
         const LS_PRISZONE_KEY   = 'sparkspend_priszone';
         const LS_GLN_KEY        = 'sparkspend_gln';
         const LS_NETSELSKAB_KEY = 'sparkspend_netselskab';
+        const LS_LAT_KEY        = 'sparkspend_hp_lat';
+        const LS_LON_KEY        = 'sparkspend_hp_lon';
 
         function getElSettings() {
             return {
@@ -56,10 +58,23 @@ const jordvarmeApp = (() => {
             return s.area !== '' && s.gln !== '';
         }
 
+        function getWeatherSettings() {
+            return {
+                lat: localStorage.getItem(LS_LAT_KEY) || '',
+                lon: localStorage.getItem(LS_LON_KEY) || '',
+            };
+        }
+        function weatherSettingsReady() {
+            const s = getWeatherSettings();
+            return s.lat !== '' && s.lon !== '';
+        }
+
         // Cost state: date string (YYYY-MM-DD) → kr/kWh, populated by fetchElCosts()
         let activeCostMap    = {};
         // Representative component breakdown for the period (from getElspotPrices.php response)
         let activeComponents = null;
+        // Weather state: date string (YYYY-MM-DD) → HDD (max(0, 17 - mean_temp)), from Open-Meteo
+        let activeWeatherMap = {};
         // Last kWh dataset received from fetchAndRender, used to re-render stats after costs arrive
         let lastKwhData      = null;
 
@@ -67,6 +82,8 @@ const jordvarmeApp = (() => {
         const settingsSaveBtn      = document.getElementById('settingsSaveBtn');
         const settingsPriszoneEl   = document.getElementById('settingsPriszone');
         const settingsNetselskabEl = document.getElementById('settingsNetselskab');
+        const settingsLatEl        = document.getElementById('settingsLat');
+        const settingsLonEl        = document.getElementById('settingsLon');
 
         document.getElementById('settingsModal')?.addEventListener('show.bs.modal', () => {
             const s = getElSettings();
@@ -76,6 +93,9 @@ const jordvarmeApp = (() => {
                     o.selected = (o.dataset.gln === s.gln);
                 });
             }
+            const w = getWeatherSettings();
+            if (settingsLatEl) settingsLatEl.value = w.lat;
+            if (settingsLonEl) settingsLonEl.value = w.lon;
         });
 
         settingsSaveBtn?.addEventListener('click', () => {
@@ -91,6 +111,15 @@ const jordvarmeApp = (() => {
                 localStorage.removeItem(LS_GLN_KEY);
                 localStorage.removeItem(LS_NETSELSKAB_KEY);
             }
+            const lat = settingsLatEl?.value.trim() || '';
+            const lon = settingsLonEl?.value.trim() || '';
+            if (lat && lon) {
+                localStorage.setItem(LS_LAT_KEY, lat);
+                localStorage.setItem(LS_LON_KEY, lon);
+            } else {
+                localStorage.removeItem(LS_LAT_KEY);
+                localStorage.removeItem(LS_LON_KEY);
+            }
             bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
             if (elSettingsReady()) {
                 activeCostMap = {}; activeComponents = null;
@@ -99,6 +128,9 @@ const jordvarmeApp = (() => {
                 activeCostMap = {}; activeComponents = null;
                 if (lastKwhData) renderStats(lastKwhData);
             }
+            activeWeatherMap = {};
+            if (weatherSettingsReady()) fetchWeatherData();
+            else if (lastKwhData) renderStats(lastKwhData);
         });
 
         // ── Mode buttons ─────────────────────────────────────────────────────
@@ -111,11 +143,13 @@ const jordvarmeApp = (() => {
                 periodNav.style.display = isChronological ? "none" : "";
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";
                 activeCostMap = {}; activeComponents = null;
+                activeWeatherMap = {};
                 fetchAndRender();
                 // compare/ytd: fetchElCosts is triggered inside fetchAndRender once
                 // data arrives, so the actual year range is known (avoids fetching
                 // 6+ years of hourly spot data for a fixed 2020→today window).
                 if (!isChronological) fetchElCosts();
+                if (!isChronological) fetchWeatherData();
             });
         });
 
@@ -139,8 +173,10 @@ const jordvarmeApp = (() => {
                 currentYear = String(next);
             }
             activeCostMap = {}; activeComponents = null;
+            activeWeatherMap = {};
             fetchAndRender();
             fetchElCosts();
+            fetchWeatherData();
         }
 
         function updatePeriodLabel() {
@@ -203,6 +239,8 @@ const jordvarmeApp = (() => {
                     if (currentMode === 'compare' || currentMode === 'ytd') {
                         activeCostMap = {}; activeComponents = null;
                         fetchElCosts(data);
+                        activeWeatherMap = {};
+                        fetchWeatherData(data);
                     }
                 })
                 .catch(err => {
@@ -262,6 +300,71 @@ const jordvarmeApp = (() => {
 
         function _rerenderStats() {
             if (lastKwhData) renderStats(lastKwhData);
+        }
+
+        // ── Weather / degree-day fetch ────────────────────────────────────────
+        // Fetches daily mean temperature from Open-Meteo archive and converts to
+        // HDD (Heating Degree Days, base 17°C) per day. Populates activeWeatherMap.
+        // kwhData: optional, passed for compare/ytd so the year range is derived
+        // from actual measurements (same pattern as fetchElCosts).
+        function fetchWeatherData(kwhData) {
+            if (!weatherSettingsReady()) return;
+            const { lat, lon } = getWeatherSettings();
+            const today = new Date().toISOString().slice(0, 10);
+
+            let start, end;
+            if (currentMode === 'daily') {
+                const [y, m] = currentMonth.split('-').map(Number);
+                const lastDay = new Date(y, m, 0).getDate();
+                start = currentMonth + '-01';
+                end   = currentMonth + '-' + String(lastDay).padStart(2, '0');
+                if (end > today) end = today;
+            } else if (currentMode === 'monthly') {
+                start = currentYear + '-01-01';
+                end   = currentYear === String(new Date().getFullYear())
+                            ? today : currentYear + '-12-31';
+            } else {
+                const srcData = kwhData || lastKwhData;
+                let minYear = new Date().getFullYear() - 2;
+                if (srcData && srcData.length > 0) {
+                    const years = srcData.map(d => parseInt(d.year)).filter(y => !isNaN(y));
+                    if (years.length > 0) minYear = Math.min(...years);
+                }
+                start = minYear + '-01-01';
+                end   = today;
+            }
+
+            // Cache in sessionStorage — Open-Meteo historical data doesn't change
+            const cacheKey = `hdd_${lat}_${lon}_${start}_${end}`;
+            const cached   = sessionStorage.getItem(cacheKey);
+            if (cached) {
+                activeWeatherMap = JSON.parse(cached);
+                _rerenderStats();
+                return;
+            }
+
+            const url = 'https://archive-api.open-meteo.com/v1/archive' +
+                `?latitude=${lat}&longitude=${lon}` +
+                `&start_date=${start}&end_date=${end}` +
+                `&daily=temperature_2m_mean&timezone=Europe%2FCopenhagen`;
+
+            fetch(url)
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(data => {
+                    activeWeatherMap = {};
+                    const times = data.daily?.time               || [];
+                    const temps = data.daily?.temperature_2m_mean || [];
+                    times.forEach((date, i) => {
+                        const t = temps[i];
+                        if (t !== null && t !== undefined) {
+                            activeWeatherMap[date] = Math.max(0, 17 - t);
+                        }
+                    });
+                    try { sessionStorage.setItem(cacheKey, JSON.stringify(activeWeatherMap)); }
+                    catch (_) { /* storage full — proceed without caching */ }
+                    _rerenderStats();
+                })
+                .catch(err => console.error('fetchWeatherData:', err));
         }
 
         // ── Chart rendering ──────────────────────────────────────────────────
@@ -523,6 +626,33 @@ const jordvarmeApp = (() => {
                 }
             }
 
+            // Degree-day rows (populated by fetchWeatherData via activeWeatherMap)
+            let weatherRows = '';
+            if (weatherSettingsReady()) {
+                const weatherReady = Object.keys(activeWeatherMap).length > 0;
+                if (weatherReady) {
+                    let totalHDD = 0;
+                    if (currentMode === 'daily') {
+                        data.forEach(d => { totalHDD += activeWeatherMap[d.day] || 0; });
+                    } else {
+                        data.forEach(d => {
+                            Object.entries(activeWeatherMap)
+                                .filter(([date]) => date.startsWith(d.month))
+                                .forEach(([, hdd]) => { totalHDD += hdd; });
+                        });
+                    }
+                    const kwhPerHdd = totalHDD > 0 ? total / totalHDD : 0;
+                    weatherRows =
+                        `<tr><td>Gradedage (HDD 17°C)</td><td class="text-end">${totalHDD.toFixed(1)}</td></tr>` +
+                        `<tr><td>Forbrug / graddag</td><td class="text-end">${kwhPerHdd.toFixed(2)} kWh/GD</td></tr>`;
+                } else {
+                    weatherRows =
+                        `<tr><td>Gradedage (HDD 17°C)</td>` +
+                        `<td class="text-end text-muted"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span></td></tr>` +
+                        `<tr><td>Forbrug / graddag</td><td class="text-end text-muted">—</td></tr>`;
+                }
+            }
+
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
                     <tr><td>Total</td><td class="text-end fw-bold">${total.toFixed(1)} kWh</td></tr>
@@ -530,6 +660,7 @@ const jordvarmeApp = (() => {
                     <tr><td>Højeste</td><td class="text-end">${max.toFixed(1)} kWh (${maxLabel})</td></tr>
                     <tr><td>Perioder</td><td class="text-end">${data.length}</td></tr>
                     ${costRows}
+                    ${weatherRows}
                 </table>`;
         }
 
@@ -717,6 +848,7 @@ const jordvarmeApp = (() => {
         periodNav.style.display = "";
         fetchAndRender();
         fetchElCosts();
+        fetchWeatherData();
         fetchSyncStatus();
     }
 
