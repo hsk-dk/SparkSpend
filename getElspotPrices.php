@@ -30,7 +30,7 @@ define('ENERGINET_GLN',     '5790000432752');
 define('EDS_BASE_URL',      'https://api.energidataservice.dk/dataset/');
 define('VAT_FACTOR',        1.25);
 define('CACHE_TTL_SECONDS', 21600); // 6 hours
-define('CACHE_VERSION',    5);      // bump to invalidate all existing cached responses
+define('CACHE_VERSION',    6);      // bump to invalidate all existing cached responses
 // Elspotprices dataset was discontinued after this date; DayAheadPrices took over from Oct 2025.
 define('ELSPOT_CUTOFF',   '2025-09-30');
 
@@ -233,6 +233,7 @@ $elafgiftRecords = eds_fetch('DatahubPricelist', [
 $nettarifAll = eds_fetch('DatahubPricelist', [
     'filter'  => json_encode(['GLN_Number' => $gln]),
     'columns' => 'Note,' . PRICE_COLUMNS,
+    'end'     => $end,   // exclude future tariffs (ValidFrom > $end) so limit=500 covers the right period
     'limit'   => 500,
     'sort'    => 'ValidFrom desc',
 ]);
