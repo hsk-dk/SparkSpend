@@ -30,7 +30,9 @@ define('ENERGINET_GLN',     '5790000432752');
 define('EDS_BASE_URL',      'https://api.energidataservice.dk/dataset/');
 define('VAT_FACTOR',        1.25);
 define('CACHE_TTL_SECONDS', 21600); // 6 hours
-define('CACHE_VERSION',    4);      // bump to invalidate all existing cached responses
+define('CACHE_VERSION',    5);      // bump to invalidate all existing cached responses
+// Elspotprices dataset was discontinued after this date; DayAheadPrices took over from Oct 2025.
+define('ELSPOT_CUTOFF',   '2025-09-30');
 
 // All 24 hourly price columns used in DatahubPricelist queries
 define('PRICE_COLUMNS', 'Price1,Price2,Price3,Price4,Price5,Price6,Price7,Price8,' .
@@ -143,26 +145,60 @@ function tariff_avg_for_date(array $records, string $date): float {
     return 0.0;
 }
 
-// ─── 1. Spot prices (hourly, DKK/MWh → kr/kWh, grouped by day+hour) ─────────
-
-$spotRecords = eds_fetch('Elspotprices', [
-    'start'   => $start,
-    'end'     => $end . 'T23:59',
-    'filter'  => json_encode(['PriceArea' => $area]),
-    'columns' => 'HourDK,SpotPriceDKK',
-    'limit'   => 0,
-]);
+// ─── 1. Spot prices (DKK/MWh → kr/kWh, grouped by day+hour) ─────────────────
+// EDS replaced Elspotprices (hourly) with DayAheadPrices (15-min) on 2025-10-01.
+// Both datasets are queried as needed and merged into $hoursByDay.
 
 // $hoursByDay[date][] = ['h' => 0-23, 's' => spot_kr_kwh]
 $hoursByDay = [];
-foreach ($spotRecords as $rec) {
-    $hourDK = (string)($rec['HourDK'] ?? '');
-    $day    = substr($hourDK, 0, 10);
-    if ($day === '') continue;
-    // HourDK format: "YYYY-MM-DDTHH:MM:SS" or "YYYY-MM-DD HH:MM:SS"
-    $hour = (int)substr($hourDK, 11, 2);
-    $spot = floatval($rec['SpotPriceDKK'] ?? 0) / 1000.0; // DKK/MWh → kr/kWh
-    $hoursByDay[$day][] = ['h' => $hour, 's' => $spot];
+
+// 1a. Legacy: Elspotprices — hourly, discontinued after 2025-09-30
+if ($start <= ELSPOT_CUTOFF) {
+    $elspotEnd   = min($end, ELSPOT_CUTOFF);
+    $spotRecords = eds_fetch('Elspotprices', [
+        'start'   => $start,
+        'end'     => $elspotEnd . 'T23:59',
+        'filter'  => json_encode(['PriceArea' => $area]),
+        'columns' => 'HourDK,SpotPriceDKK',
+        'limit'   => 0,
+    ]);
+    foreach ($spotRecords as $rec) {
+        $hourDK = (string)($rec['HourDK'] ?? '');
+        $day    = substr($hourDK, 0, 10);
+        if ($day === '') continue;
+        $hour = (int)substr($hourDK, 11, 2);
+        $spot = floatval($rec['SpotPriceDKK'] ?? 0) / 1000.0; // DKK/MWh → kr/kWh
+        $hoursByDay[$day][] = ['h' => $hour, 's' => $spot];
+    }
+}
+
+// 1b. Current: DayAheadPrices — 15-minute intervals, active from 2025-10-01
+$daStart = max($start, '2025-10-01');
+if ($daStart <= $end) {
+    $dayAheadRecords = eds_fetch('DayAheadPrices', [
+        'start'   => $daStart,
+        'end'     => $end . 'T23:59',
+        'filter'  => json_encode(['PriceArea' => $area]),
+        'columns' => 'TimeDK,DayAheadPriceDKK',
+        'limit'   => 0,
+    ]);
+    // Four 15-minute slots per hour — accumulate then average per day+hour.
+    $hourAccum = []; // [date][hour] = ['sum' => float, 'cnt' => int]
+    foreach ($dayAheadRecords as $rec) {
+        $timeDK = (string)($rec['TimeDK'] ?? '');
+        $day    = substr($timeDK, 0, 10);
+        if ($day === '') continue;
+        $hour = (int)substr($timeDK, 11, 2);
+        $spot = floatval($rec['DayAheadPriceDKK'] ?? 0) / 1000.0; // DKK/MWh → kr/kWh
+        $hourAccum[$day][$hour]['sum'] = ($hourAccum[$day][$hour]['sum'] ?? 0.0) + $spot;
+        $hourAccum[$day][$hour]['cnt'] = ($hourAccum[$day][$hour]['cnt'] ?? 0)   + 1;
+    }
+    foreach ($hourAccum as $day => $hours) {
+        ksort($hours); // ensure hours 0-23 are in order
+        foreach ($hours as $hour => $acc) {
+            $hoursByDay[$day][] = ['h' => $hour, 's' => $acc['sum'] / $acc['cnt']];
+        }
+    }
 }
 
 // ─── 2. Energinet systemtarif (Price1–Price24) ────────────────────────────────
