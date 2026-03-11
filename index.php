@@ -532,7 +532,7 @@ require 'includes/QueryBuilder.php';
 
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260309"></script>
-  <script src="includes/dashboard.js?v=20260314"></script>
+  <script src="includes/dashboard.js?v=20260315"></script>
   <script src="includes/elbil.js?v=20260315"></script>
   <script src="includes/jordvarme.js?v=20260322"></script>
 
