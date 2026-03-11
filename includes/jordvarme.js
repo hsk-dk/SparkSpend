@@ -124,12 +124,19 @@ const jordvarmeApp = (() => {
         nextBtn.addEventListener("click", () => shiftPeriod(1));
 
         function shiftPeriod(direction) {
+            const now        = new Date();
+            const todayYear  = now.getFullYear();
+            const todayMonth = `${todayYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
             if (currentMode === "daily") {
                 const [y, m] = currentMonth.split("-").map(Number);
-                const d = new Date(y, m - 1 + direction, 1);
-                currentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                const d    = new Date(y, m - 1 + direction, 1);
+                const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                if (next > todayMonth) return;
+                currentMonth = next;
             } else if (currentMode === "monthly") {
-                currentYear = String(Number(currentYear) + direction);
+                const next = Number(currentYear) + direction;
+                if (next > todayYear) return;
+                currentYear = String(next);
             }
             activeCostMap = {}; activeComponents = null;
             fetchAndRender();
@@ -137,14 +144,20 @@ const jordvarmeApp = (() => {
         }
 
         function updatePeriodLabel() {
+            const now        = new Date();
+            const todayYear  = now.getFullYear();
+            const todayMonth = `${todayYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
             if (currentMode === "daily") {
                 const [y, m] = currentMonth.split("-").map(Number);
                 const name = new Date(y, m - 1, 1).toLocaleString("da-DK", { month: "long", year: "numeric" });
                 periodLabel.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+                nextBtn.disabled = currentMonth >= todayMonth;
             } else if (currentMode === "monthly") {
                 periodLabel.textContent = currentYear;
+                nextBtn.disabled = Number(currentYear) >= todayYear;
             } else {
                 periodLabel.textContent = "";
+                nextBtn.disabled = false;
             }
         }
 
@@ -309,7 +322,32 @@ const jordvarmeApp = (() => {
                     plugins: {
                         legend: { display: false },
                         datalabels: { display: false },
-                        tooltip: { callbacks: { label: c => `${c.parsed.y.toFixed(2)} kWh` } }
+                        tooltip: {
+                        callbacks: {
+                            label: c => {
+                                const kwh = c.parsed.y;
+                                const lines = [`${kwh.toFixed(2)} kWh`];
+                                if (Object.keys(activeCostMap).length > 0) {
+                                    let rate = 0;
+                                    if (currentMode === 'daily') {
+                                        const date = data[c.dataIndex]?.day;
+                                        rate = date ? (activeCostMap[date] || 0) : 0;
+                                    } else {
+                                        const month = data[c.dataIndex]?.month;
+                                        if (month) {
+                                            const rates = Object.entries(activeCostMap)
+                                                .filter(([d]) => d.startsWith(month))
+                                                .map(([, r]) => r);
+                                            rate = rates.length
+                                                ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+                                        }
+                                    }
+                                    if (rate > 0) lines.push(`ca. ${appUtils.formatCurrency(kwh * rate)}`);
+                                }
+                                return lines;
+                            }
+                        }
+                    }
                     },
                     scales: { y: { beginAtZero: true, title: { display: true, text: "kWh" } } }
                 }
