@@ -30,7 +30,7 @@ define('ENERGINET_GLN',     '5790000432752');
 define('EDS_BASE_URL',      'https://api.energidataservice.dk/dataset/');
 define('VAT_FACTOR',        1.25);
 define('CACHE_TTL_SECONDS', 21600); // 6 hours
-define('CACHE_VERSION',    3);      // bump to invalidate all existing cached responses
+define('CACHE_VERSION',    4);      // bump to invalidate all existing cached responses
 
 // All 24 hourly price columns used in DatahubPricelist queries
 define('PRICE_COLUMNS', 'Price1,Price2,Price3,Price4,Price5,Price6,Price7,Price8,' .
@@ -84,12 +84,18 @@ function eds_fetch(string $dataset, array $params): array {
             'header'        => "Accept: application/json\r\n",
         ]
     ]);
-    $raw = @file_get_contents($url, false, $ctx);
+    $raw = file_get_contents($url, false, $ctx);
     if ($raw === false) {
-        error_log("getElspotPrices: failed to fetch $url");
+        error_log("getElspotPrices eds_fetch: connection failed for $dataset (allow_url_fopen=" . ini_get('allow_url_fopen') . ")");
         return [];
     }
+    // Log HTTP status code (available via $http_response_header after file_get_contents)
+    $statusLine = $http_response_header[0] ?? 'unknown';
     $data = json_decode($raw, true);
+    $count = is_array($data) ? count($data['records'] ?? []) : 0;
+    if ($count === 0) {
+        error_log("getElspotPrices eds_fetch: 0 records from $dataset — HTTP: $statusLine — body: " . substr($raw, 0, 200));
+    }
     return is_array($data) ? ($data['records'] ?? []) : [];
 }
 
@@ -177,11 +183,16 @@ $elafgiftRecords = eds_fetch('DatahubPricelist', [
     'sort'    => 'ValidFrom desc',
 ]);
 
-// ─── 4. Nettarif C from user's DSO (Price1–Price24) ──────────────────────────
-// Fetch all DatahubPricelist records for this GLN and filter PHP-side for
-// notes that start with "Nettarif C" (case-insensitive). This handles
-// operator-specific Note variations such as "Nettarif C time", "Nettarif C
-// lavlast" etc. that an exact-match API filter would silently miss.
+// ─── 4. Residential nettarif from user's DSO (Price1–Price24) ────────────────
+// Fetch all DatahubPricelist records for this GLN and select the residential
+// low-voltage tariff. Most DSOs follow Energinet naming ("Nettarif C ..."),
+// but some use different conventions:
+//   N1 (GLN 5790001089030): "Nettarif A lav" = residential low-voltage
+//
+// Priority (excluding "samplaceret" co-location variants):
+//   1. "Nettarif C"     — standard naming (Radius, Trefor, SE, NKE, etc.)
+//   2. "Nettarif A lav" — N1 residential low-voltage naming
+//   3. "Nettarif A"     — broader N1-style fallback
 
 $nettarifAll = eds_fetch('DatahubPricelist', [
     'filter'  => json_encode(['GLN_Number' => $gln]),
@@ -189,9 +200,25 @@ $nettarifAll = eds_fetch('DatahubPricelist', [
     'limit'   => 500,
     'sort'    => 'ValidFrom desc',
 ]);
-$nettarifRecords = array_values(array_filter($nettarifAll, fn($r) =>
-    stripos($r['Note'] ?? '', 'nettarif c') === 0
-));
+
+$netPatterns     = ['nettarif c', 'nettarif a lav', 'nettarif a'];
+$nettarifRecords = [];
+foreach ($netPatterns as $_pat) {
+    $candidates = array_values(array_filter($nettarifAll, fn($r) =>
+        stripos($r['Note'] ?? '', $_pat) === 0 &&
+        stripos($r['Note'] ?? '', 'samplaceret') === false
+    ));
+    if ($candidates) { $nettarifRecords = $candidates; break; }
+}
+// Last resort: same patterns but allow samplaceret records
+if (!$nettarifRecords) {
+    foreach ($netPatterns as $_pat) {
+        $candidates = array_values(array_filter($nettarifAll, fn($r) =>
+            stripos($r['Note'] ?? '', $_pat) === 0
+        ));
+        if ($candidates) { $nettarifRecords = $candidates; break; }
+    }
+}
 
 // ─── 5. Assemble daily records (hour-by-hour cost matching) ─────────────────
 
@@ -255,6 +282,8 @@ $response = json_encode([
 // transient API failure that should not be persisted for 6 hours.
 if ($components['spot_hours'] > 0) {
     @file_put_contents($cacheFile, $response);
+} else {
+    error_log("getElspotPrices: spot_hours=0 for area=$area start=$start end=$end — skipping cache write. Check EDS API connectivity.");
 }
 
 echo $response;
