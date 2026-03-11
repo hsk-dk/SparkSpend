@@ -406,6 +406,24 @@ require 'includes/QueryBuilder.php';
       </div>
     </div>
   </div>
+  <!-- Delete confirmation modal -->
+  <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Bekræft sletning</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Luk"></button>
+        </div>
+        <div class="modal-body">
+          <p>Er du sikker på, at du vil slette denne ladning?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuller</button>
+          <button type="button" class="btn btn-danger" id="deleteConfirmBtn">Slet</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- Slut på modaler -->
 
   <!-- Sub-section: Analyse -->
@@ -533,7 +551,7 @@ require 'includes/QueryBuilder.php';
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260309"></script>
   <script src="includes/dashboard.js?v=20260311b"></script>
-  <script src="includes/elbil.js?v=20260315"></script>
+  <script src="includes/elbil.js?v=20260311c"></script>
   <script src="includes/jordvarme.js?v=20260311b"></script>
 
   <!-- Settings Modal -->

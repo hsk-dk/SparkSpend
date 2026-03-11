@@ -116,19 +116,13 @@ class QueryBuilder {
             $endDate = $dates['end'];
         }
 
-        // Determine SQL date format based on groupBy
-        $dateFormat = match($groupBy) {
-            'day' => "'%Y-%m-%d'",
-            'month' => "'%Y-%m'",
-            'week' => "'%Y-%W'", // ISO week number
-            default => "'%Y-%W'"
-        };
-
         $trends = [];
 
         // ===== INTERNAL CHARGES (charges table) =====
+        // Always group by day in SQL; PHP collapses to week/month below so that
+        // both internal and external charges use the same ISO week key format.
         $queryInternal = "SELECT
-            strftime({$dateFormat}, createdAt) as date,
+            strftime('%Y-%m-%d', createdAt) as date,
             'internal' as source,
             COUNT(*) as charge_count,
             COALESCE(SUM(consumedKwh), 0) as total_kwh,
@@ -153,20 +147,47 @@ class QueryBuilder {
             $queryInternal .= " AND consumedKwh > 0";
         }
 
-        $queryInternal .= " GROUP BY strftime({$dateFormat}, createdAt) ORDER BY date ASC";
+        $queryInternal .= " GROUP BY strftime('%Y-%m-%d', createdAt) ORDER BY date ASC";
 
         $stmtInternal = $db->prepare($queryInternal);
         $stmtInternal->execute($paramsInternal);
         $chargesInternal = $stmtInternal->fetchAll();
+
+        // Collapse SQL day records into the requested time period.
+        // Using PHP ISO week (format 'o-\WW') for week grouping ensures internal and
+        // external charges land on the same key — SQLite's %W is Sunday-based and can
+        // differ from PHP's ISO (Monday-based) week at year boundaries.
+        $internalGrouped = [];
+        foreach ($chargesInternal as $record) {
+            $dateObj = date_create($record['date']);
+            if (!$dateObj) continue;
+            $groupedDate = match($groupBy) {
+                'day'   => $dateObj->format('Y-m-d'),
+                'month' => $dateObj->format('Y-m'),
+                default => $dateObj->format('o-\WW'), // ISO year + ISO week, zero-padded
+            };
+            if (!isset($internalGrouped[$groupedDate])) {
+                $internalGrouped[$groupedDate] = [
+                    'date'         => $groupedDate,
+                    'source'       => 'internal',
+                    'charge_count' => 0,
+                    'total_kwh'    => 0.0,
+                    'total_cost'   => 0.0,
+                ];
+            }
+            $internalGrouped[$groupedDate]['charge_count'] += intval($record['charge_count']);
+            $internalGrouped[$groupedDate]['total_kwh']    += floatval($record['total_kwh']);
+            $internalGrouped[$groupedDate]['total_cost']   += floatval($record['total_cost']);
+        }
 
         // ===== EXTERNAL CHARGES (ext_charges table) =====
         // Note: We can't use date() function in SQL for ISO 8601 format, so we fetch all and filter in PHP
         $queryExternal = "SELECT
             datetime,
             'external' as source,
-            COUNT(*) as charge_count,
-            COALESCE(SUM(kwh), 0) as total_kwh,
-            COALESCE(SUM(pris), 0) as total_cost
+            1 as charge_count,
+            kwh as total_kwh,
+            pris as total_cost
         FROM ext_charges
         WHERE 1=1";
 
@@ -178,7 +199,7 @@ class QueryBuilder {
         }
 
         // Don't filter by date in SQL - we'll do it in PHP
-        $queryExternal .= " GROUP BY datetime ORDER BY datetime ASC";
+        $queryExternal .= " ORDER BY datetime ASC";
 
         $stmtExternal = $db->prepare($queryExternal);
         $stmtExternal->execute($paramsExternal);
@@ -213,10 +234,9 @@ class QueryBuilder {
 
             if ($dateObj) {
                 $groupedDate = match($groupBy) {
-                    'day' => $dateObj->format('Y-m-d'),
+                    'day'   => $dateObj->format('Y-m-d'),
                     'month' => $dateObj->format('Y-m'),
-                    'week' => $dateObj->format('Y-W'),
-                    default => $dateObj->format('Y-W')
+                    default => $dateObj->format('o-\WW'), // ISO year + ISO week, zero-padded
                 };
 
                 if (!isset($externalGrouped[$groupedDate])) {
@@ -236,16 +256,7 @@ class QueryBuilder {
         }
 
         // Combine internal and external trends
-        $allTrends = [];
-        foreach ($chargesInternal as $record) {
-            $allTrends[] = [
-                'date' => $record['date'],
-                'source' => 'internal',
-                'charge_count' => intval($record['charge_count']),
-                'total_kwh' => floatval($record['total_kwh']),
-                'total_cost' => floatval($record['total_cost'])
-            ];
-        }
+        $allTrends = array_values($internalGrouped);
 
         foreach ($externalGrouped as $record) {
             $allTrends[] = $record;

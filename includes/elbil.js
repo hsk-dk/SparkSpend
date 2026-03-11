@@ -154,7 +154,6 @@ const elbilApp = (() => {
         fetchCharges();
         fetchEfficiencyStats();
         fetchCostAnalytics();
-        fetchVehicleComparison();
         fetchProviderStats();
     }
 
@@ -300,14 +299,12 @@ const elbilApp = (() => {
         let internalCount = 0, externalCount = 0;
         let internalKwh = 0, externalKwh = 0;
         let internalPrice = 0, externalPrice = 0;
-        let pricePerKwhArray = [];
         const totals = {};
 
         data.forEach(charge => {
             const kwh  = parseFloat(charge.kwh)  || 0;
             const pris = parseFloat(charge.pris) || 0;
             const pricePerKwh = kwh > 0 ? pris / kwh : 0;
-            pricePerKwhArray.push(pricePerKwh);
             const vName = (vehicles.find(v => v.id == charge.vehicleId) || {}).vehicleName || 'Ukendt';
 
             if (charge.source === 'internal') {
@@ -377,7 +374,7 @@ const elbilApp = (() => {
         const summaryTextEl = document.getElementById('summaryText');
         let html = `<h3>Opsummering</h3>
         <table class="table table-sm">
-            <tr><th>Bil</th><th>Samlet kWh</th><th>Hjemme</th><th>Ude</th><th>Samlet Pris</th><th>Gns. Pris/kWh</th></tr>`;
+            <tr><th>Bil</th><th>Samlet kWh</th><th>Hjemme (kr)</th><th>Ude (kr)</th><th>Samlet Pris</th><th>Gns. Pris/kWh</th></tr>`;
 
         Object.keys(totals).forEach(v => {
             const avg = totals[v].totalKwh > 0 ? totals[v].totalPris / totals[v].totalKwh : 0;
@@ -489,6 +486,7 @@ const elbilApp = (() => {
                 appUtils.showFormMessage('internalChargeMsg', 'Intern ladning opdateret!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('internalChargeModal')).hide();
                 fetchCharges();
+                fetchVehicleComparison();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } else {
                 appUtils.showFormMessage('internalChargeMsg', result.error || 'Fejl', 'danger');
@@ -548,22 +546,26 @@ const elbilApp = (() => {
 
     async function _deleteExternalCharge() {
         const id = document.getElementById('externalChargeId').value;
-        if (!confirm('Er du sikker på, at du vil slette denne ladning?')) return;
-        try {
-            const res    = await fetch('deleteExtCharge.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const result = await res.json();
-            if (result.success) {
-                appUtils.showFormMessage('externalChargeMsg', 'Ladningen er slettet!', 'success');
-                bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
-                fetchCharges();
-                fetchVehicleComparison();
-                fetchProviderStats();
-                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
-            } else {
-                appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
-            }
-        } catch (err) { appUtils.showFormMessage('externalChargeMsg', err.message, 'danger'); }
+        const confirmModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteConfirmModal'));
+        document.getElementById('deleteConfirmBtn').onclick = async () => {
+            confirmModal.hide();
+            try {
+                const res    = await fetch('deleteExtCharge.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const result = await res.json();
+                if (result.success) {
+                    appUtils.showFormMessage('externalChargeMsg', 'Ladningen er slettet!', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
+                    fetchCharges();
+                    fetchVehicleComparison();
+                    fetchProviderStats();
+                    window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
+                } else {
+                    appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
+                }
+            } catch (err) { appUtils.showFormMessage('externalChargeMsg', err.message, 'danger'); }
+        };
+        confirmModal.show();
     }
 
     // -------------------------------------------------------------------------
