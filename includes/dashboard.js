@@ -78,6 +78,48 @@ function renderHeatpumpCard(hp) {
     _hpSparkChart = _renderSparkline(
         'hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart
     );
+
+    // Enrich with weather-normalised year-over-year trend (async, non-blocking)
+    _enrichHpWithWeather(card, hp);
+}
+
+async function _enrichHpWithWeather(card, hp) {
+    const lat = localStorage.getItem('sparkspend_hp_lat') || '';
+    const lon = localStorage.getItem('sparkspend_hp_lon') || '';
+    if (!lat || !lon || hp.month_kwh === null || hp.pct_change_year === null) return;
+
+    const now       = new Date();
+    const thisYear  = now.getFullYear();
+    const thisMonth = now.getMonth() + 1;
+    const lastYear  = thisYear - 1;
+    const mm        = String(thisMonth).padStart(2, '0');
+    const today     = now.toISOString().slice(0, 10);
+    const lastDayLY = new Date(lastYear, thisMonth, 0).getDate();
+    const ddLY      = String(lastDayLY).padStart(2, '0');
+
+    try {
+        const [resThis, resLast] = await Promise.all([
+            fetch(`getWeatherData.php?start=${thisYear}-${mm}-01&end=${today}&lat=${lat}&lon=${lon}`).then(r => r.json()),
+            fetch(`getWeatherData.php?start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddLY}&lat=${lat}&lon=${lon}`).then(r => r.json()),
+        ]);
+
+        const hddThis = (resThis.records  || []).reduce((s, r) => s + r.hdd, 0);
+        const hddLast = (resLast.records  || []).reduce((s, r) => s + r.hdd, 0);
+        if (hddThis <= 0 || hddLast <= 0) return;
+
+        // Reconstruct same-month-last-year kWh from the pct_change_year figure
+        const lastYearKwh    = hp.month_kwh * 100 / (100 + hp.pct_change_year);
+        const normalizedPct  = Math.round(((hp.month_kwh / hddThis) / (lastYearKwh / hddLast) - 1) * 100);
+
+        const trendEl = card.querySelector('.dash-trend');
+        if (!trendEl) return;
+        const up = normalizedPct >= 0;
+        trendEl.innerHTML +=
+            `<div class="${up ? 'trend-up' : 'trend-down'}" title="Justeret for graddage (HDD 17°C)">` +
+            `${up ? '↑' : '↓'} ${Math.abs(normalizedPct)}% vejrkorrigeret vs. samme måned sidste år</div>`;
+    } catch (e) {
+        // Silently ignore — weather enrichment is best-effort
+    }
 }
 
 function _renderSparkline(canvasId, dataPoints, color, existing) {

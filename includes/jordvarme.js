@@ -75,6 +75,10 @@ const jordvarmeApp = (() => {
         let activeComponents = null;
         // Weather state: date string (YYYY-MM-DD) → HDD (max(0, 17 - mean_temp)), from Open-Meteo
         let activeWeatherMap = {};
+        // Whether the compare chart is showing kWh/GD instead of raw kWh
+        let compareNormalized = false;
+        // Baseline kWh/GD computed from compare-mode data; used for expected-vs-actual in stats
+        let baselineKwhPerHdd = null;
         // Last kWh dataset received from fetchAndRender, used to re-render stats after costs arrive
         let lastKwhData      = null;
 
@@ -143,7 +147,7 @@ const jordvarmeApp = (() => {
                 periodNav.style.display = isChronological ? "none" : "";
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";
                 activeCostMap = {}; activeComponents = null;
-                activeWeatherMap = {};
+                activeWeatherMap = {}; compareNormalized = false;
                 fetchAndRender();
                 // compare/ytd: fetchElCosts is triggered inside fetchAndRender once
                 // data arrives, so the actual year range is known (avoids fetching
@@ -302,6 +306,12 @@ const jordvarmeApp = (() => {
             if (lastKwhData) renderStats(lastKwhData);
         }
 
+        function _rerenderChart() {
+            if (!lastKwhData) return;
+            if (currentMode === 'daily' || currentMode === 'monthly') renderChart(lastKwhData);
+            if (currentMode === 'compare') renderCompareChart(lastKwhData);
+        }
+
         // ── Weather / degree-day fetch ────────────────────────────────────────
         // Calls getWeatherData.php which fetches from Open-Meteo and caches the
         // result server-side (24-hour TTL, same pattern as getElspotPrices.php).
@@ -341,6 +351,7 @@ const jordvarmeApp = (() => {
                     activeWeatherMap = {};
                     (data.records || []).forEach(r => { activeWeatherMap[r.date] = r.hdd; });
                     _rerenderStats();
+                    _rerenderChart();
                 })
                 .catch(err => console.error('fetchWeatherData:', err));
         }
@@ -371,52 +382,93 @@ const jordvarmeApp = (() => {
                 values = data.map(d => parseFloat(d.total_kwh));
             }
 
+            // Build HDD overlay values (one per bar)
+            const hasWeather = weatherSettingsReady() && Object.keys(activeWeatherMap).length > 0;
+            const hddValues  = hasWeather
+                ? (currentMode === 'daily'
+                    ? data.map(d => activeWeatherMap[d.day] ?? null)
+                    : data.map(d => {
+                        const sum = Object.entries(activeWeatherMap)
+                            .filter(([date]) => date.startsWith(d.month))
+                            .reduce((s, [, hdd]) => s + hdd, 0);
+                        return sum > 0 ? parseFloat(sum.toFixed(1)) : null;
+                    }))
+                : null;
+
+            const datasets = [{
+                label: "Forbrug (kWh)",
+                data: values,
+                backgroundColor: "rgba(34, 197, 94, 0.65)",
+                borderColor: "rgba(34, 197, 94, 1)",
+                borderWidth: 1,
+                borderRadius: 4,
+                yAxisID: 'y',
+            }];
+
+            if (hddValues) {
+                datasets.push({
+                    type: 'line',
+                    label: 'Gradedage (GD)',
+                    data: hddValues,
+                    borderColor: 'rgba(148, 163, 184, 0.85)',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    tension: 0.3,
+                    spanGaps: false,
+                    yAxisID: 'y2',
+                });
+            }
+
             heatpumpChart = new Chart(ctx, {
                 type: "bar",
-                data: {
-                    labels,
-                    datasets: [{
-                        label: "Forbrug (kWh)",
-                        data: values,
-                        backgroundColor: "rgba(34, 197, 94, 0.65)",
-                        borderColor: "rgba(34, 197, 94, 1)",
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
+                data: { labels, datasets },
                 options: {
                     responsive: true,
                     plugins: {
                         legend: { display: false },
                         datalabels: { display: false },
                         tooltip: {
-                        callbacks: {
-                            label: c => {
-                                const kwh = c.parsed.y;
-                                const lines = [`${kwh.toFixed(2)} kWh`];
-                                if (Object.keys(activeCostMap).length > 0) {
-                                    let rate = 0;
-                                    if (currentMode === 'daily') {
-                                        const date = data[c.dataIndex]?.day;
-                                        rate = date ? (activeCostMap[date] || 0) : 0;
-                                    } else {
-                                        const month = data[c.dataIndex]?.month;
-                                        if (month) {
-                                            const rates = Object.entries(activeCostMap)
-                                                .filter(([d]) => d.startsWith(month))
-                                                .map(([, r]) => r);
-                                            rate = rates.length
-                                                ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+                            filter: item => item.datasetIndex === 0,
+                            callbacks: {
+                                label: c => {
+                                    const kwh = c.parsed.y;
+                                    const lines = [`${kwh.toFixed(2)} kWh`];
+                                    if (Object.keys(activeCostMap).length > 0) {
+                                        let rate = 0;
+                                        if (currentMode === 'daily') {
+                                            const date = data[c.dataIndex]?.day;
+                                            rate = date ? (activeCostMap[date] || 0) : 0;
+                                        } else {
+                                            const month = data[c.dataIndex]?.month;
+                                            if (month) {
+                                                const rates = Object.entries(activeCostMap)
+                                                    .filter(([d]) => d.startsWith(month))
+                                                    .map(([, r]) => r);
+                                                rate = rates.length
+                                                    ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+                                            }
                                         }
+                                        if (rate > 0) lines.push(`ca. ${appUtils.formatCurrency(kwh * rate)}`);
                                     }
-                                    if (rate > 0) lines.push(`ca. ${appUtils.formatCurrency(kwh * rate)}`);
+                                    if (hddValues) {
+                                        const hdd = hddValues[c.dataIndex];
+                                        if (hdd > 0) lines.push(`${hdd.toFixed(1)} GD · ${(kwh / hdd).toFixed(2)} kWh/GD`);
+                                    }
+                                    return lines;
                                 }
-                                return lines;
                             }
                         }
-                    }
                     },
-                    scales: { y: { beginAtZero: true, title: { display: true, text: "kWh" } } }
+                    scales: {
+                        y:  { beginAtZero: true, title: { display: true, text: 'kWh' } },
+                        y2: hddValues
+                            ? { type: 'linear', position: 'right', beginAtZero: true,
+                                title: { display: true, text: 'GD' },
+                                grid: { drawOnChartArea: false } }
+                            : { display: false },
+                    }
                 }
             });
         }
@@ -429,12 +481,32 @@ const jordvarmeApp = (() => {
                 yearMap.get(d.year)[parseInt(d.month, 10) - 1] = parseFloat(d.total_kwh);
             });
 
-            const years    = [...yearMap.keys()].sort();
+            const years = [...yearMap.keys()].sort();
+
+            // Monthly HDD lookup helper (sum of daily HDD within a year-month)
+            const hasWeather = weatherSettingsReady() && Object.keys(activeWeatherMap).length > 0;
+            const monthlyHdd = (year, monthIdx) => {
+                const prefix = `${year}-${String(monthIdx + 1).padStart(2, '0')}`;
+                return Object.entries(activeWeatherMap)
+                    .filter(([d]) => d.startsWith(prefix))
+                    .reduce((s, [, h]) => s + h, 0);
+            };
+
+            // Normalize kWh → kWh/GD when toggle is active and weather data is available
+            const normalizing = compareNormalized && hasWeather;
+            const normalize = (kwh, year, monthIdx) => {
+                if (kwh === null) return null;
+                const hdd = monthlyHdd(year, monthIdx);
+                return hdd > 0 ? parseFloat((kwh / hdd).toFixed(3)) : null;
+            };
+
             const datasets = years.map((year, i) => {
                 const color = YEAR_COLORS[i % YEAR_COLORS.length];
                 return {
                     label: year,
-                    data: yearMap.get(year),
+                    data: normalizing
+                        ? yearMap.get(year).map((kwh, m) => normalize(kwh, year, m))
+                        : yearMap.get(year),
                     borderColor: color,
                     backgroundColor: color + "20",
                     borderWidth: 2,
@@ -447,9 +519,11 @@ const jordvarmeApp = (() => {
 
             // Monthly average across all years (dashed reference line)
             const avgData = Array.from({ length: 12 }, (_, m) => {
-                const vals = [...yearMap.values()].map(arr => arr[m]).filter(v => v !== null);
+                const vals = [...yearMap.values()]
+                    .map((arr, yi) => normalizing ? normalize(arr[m], years[yi], m) : arr[m])
+                    .filter(v => v !== null);
                 return vals.length > 0
-                    ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1))
+                    ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(normalizing ? 3 : 1))
                     : null;
             });
             datasets.push({
@@ -464,6 +538,8 @@ const jordvarmeApp = (() => {
                 spanGaps: true
             });
 
+            const yLabel = normalizing ? 'kWh/GD' : 'kWh';
+
             heatpumpChart = new Chart(ctx, {
                 type: "line",
                 data: { labels: MONTH_NAMES, datasets },
@@ -474,17 +550,32 @@ const jordvarmeApp = (() => {
                         datalabels: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: c => c.parsed.y !== null
-                                    ? `${c.dataset.label}: ${c.parsed.y.toFixed(1)} kWh`
-                                    : `${c.dataset.label}: ingen data`
+                                label: c => {
+                                    if (c.parsed.y === null) return `${c.dataset.label}: ingen data`;
+                                    return `${c.dataset.label}: ${c.parsed.y.toFixed(normalizing ? 2 : 1)} ${yLabel}`;
+                                }
                             }
                         }
                     },
-                    scales: { y: { beginAtZero: true, title: { display: true, text: "kWh" } } }
+                    scales: { y: { beginAtZero: true, title: { display: true, text: yLabel } } }
                 }
             });
 
             buildYearChips(years, true);
+
+            // kWh/GD normalization toggle chip — only shown when weather settings configured
+            if (hasWeather && yearContainer) {
+                const gdChip = document.createElement('button');
+                gdChip.type = 'button';
+                gdChip.className = 'year-chip' + (compareNormalized ? ' active' : '');
+                gdChip.textContent = 'kWh/GD';
+                gdChip.style.setProperty('--chip-color', '#f59e0b');
+                gdChip.addEventListener('click', () => {
+                    compareNormalized = !compareNormalized;
+                    renderCompareChart(lastKwhData);
+                });
+                yearContainer.appendChild(gdChip);
+            }
         }
 
         // ── Year toggle chips ────────────────────────────────────────────────
@@ -623,6 +714,18 @@ const jordvarmeApp = (() => {
                     weatherRows =
                         `<tr><td>Gradedage (HDD 17°C)</td><td class="text-end">${totalHDD.toFixed(1)}</td></tr>` +
                         `<tr><td>Forbrug / graddag</td><td class="text-end">${kwhPerHdd.toFixed(2)} kWh/GD</td></tr>`;
+
+                    // Expected vs. actual — only when a baseline has been computed from compare mode
+                    if (baselineKwhPerHdd !== null && totalHDD > 0) {
+                        const expectedKwh = baselineKwhPerHdd * totalHDD;
+                        const diffPct     = (total - expectedKwh) / expectedKwh * 100;
+                        const sign        = diffPct >= 0 ? '+' : '';
+                        const diffClass   = diffPct >  5 ? 'text-danger'
+                                          : diffPct < -5 ? 'text-success' : '';
+                        weatherRows +=
+                            `<tr><td>Forventet (vejrbaseret)</td><td class="text-end">${expectedKwh.toFixed(1)} kWh</td></tr>` +
+                            `<tr><td>Faktisk vs. forventet</td><td class="text-end ${diffClass}">${sign}${diffPct.toFixed(1)}%</td></tr>`;
+                    }
                 } else {
                     weatherRows =
                         `<tr><td>Gradedage (HDD 17°C)</td>` +
@@ -692,6 +795,23 @@ const jordvarmeApp = (() => {
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;
+
+            // Compute baseline kWh/GD from compare data for use in expected-vs-actual (daily/monthly stats)
+            if (weatherSettingsReady() && Object.keys(activeWeatherMap).length > 0) {
+                let totalBaseKwh = 0, totalBaseHdd = 0;
+                data.forEach(d => {
+                    const monthPad = String(d.month || '').padStart(2, '0');
+                    const prefix   = `${d.year}-${monthPad}`;
+                    const mHdd = Object.entries(activeWeatherMap)
+                        .filter(([date]) => date.startsWith(prefix))
+                        .reduce((s, [, hdd]) => s + hdd, 0);
+                    if (mHdd > 0) {
+                        totalBaseKwh += parseFloat(d.total_kwh);
+                        totalBaseHdd += mHdd;
+                    }
+                });
+                if (totalBaseHdd > 0) baselineKwhPerHdd = totalBaseKwh / totalBaseHdd;
+            }
         }
 
         // ── YTD cumulative chart ─────────────────────────────────────────────
