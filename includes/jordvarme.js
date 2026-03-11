@@ -246,19 +246,6 @@ const jordvarmeApp = (() => {
                 end   = today;
             }
 
-            // Show a cost-loading indicator appended below the stats table while
-            // the 4 external API calls in getElspotPrices.php are in flight.
-            // Only added if the stats table is already rendered; _rerenderStats()
-            // removes it naturally by replacing statsContent.innerHTML on success.
-            const costLoadingId = 'hp-cost-loading';
-            document.getElementById(costLoadingId)?.remove();
-            if (statsContent.querySelector('table')) {
-                statsContent.insertAdjacentHTML('beforeend',
-                    `<p id="${costLoadingId}" class="text-muted small mb-0 mt-1">` +
-                    `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>` +
-                    ` Beregner elpris…</p>`);
-            }
-
             const params = new URLSearchParams({ start, end, area, gln });
             fetch('getElspotPrices.php?' + params)
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -270,7 +257,6 @@ const jordvarmeApp = (() => {
                 })
                 .catch(err => {
                     console.error('fetchElCosts:', err);
-                    document.getElementById(costLoadingId)?.remove();
                 });
         }
 
@@ -492,7 +478,8 @@ const jordvarmeApp = (() => {
 
             // Compute estimated cost from activeCostMap (populated by fetchElCosts)
             let totalCost = 0;
-            if (elSettingsReady() && Object.keys(activeCostMap).length > 0) {
+            const costsReady = elSettingsReady() && Object.keys(activeCostMap).length > 0;
+            if (costsReady) {
                 if (currentMode === 'daily') {
                     data.forEach(d => {
                         const rate = activeCostMap[d.day] || 0;
@@ -511,18 +498,30 @@ const jordvarmeApp = (() => {
                     });
                 }
             }
-            const costRows = totalCost > 0 ? (() => {
-                const c = activeComponents;
-                let breakdown = '';
-                if (c) {
-                    const netLabel = (c.nettarif_records === 0)
-                        ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
-                        : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
-                    breakdown = `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">` +
-                        `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</td></tr>`;
+
+            // Always render two cost rows when electricity settings are configured so the
+            // table height is identical before and after costs load (prevents layout shift).
+            let costRows = '';
+            if (elSettingsReady()) {
+                if (costsReady && totalCost > 0) {
+                    const c = activeComponents;
+                    let breakdown = '';
+                    if (c) {
+                        const netLabel = (c.nettarif_records === 0)
+                            ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
+                            : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
+                        breakdown = `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">` +
+                            `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</td></tr>`;
+                    }
+                    costRows = `<tr><td>Estimeret elomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>${breakdown}`;
+                } else {
+                    // Placeholder rows — same count/height as the loaded state, no layout shift
+                    costRows =
+                        `<tr><td>Estimeret elomkostning</td>` +
+                        `<td class="text-end text-muted"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span></td></tr>` +
+                        `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">&nbsp;</td></tr>`;
                 }
-                return `<tr><td>Estimeret elomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>${breakdown}`;
-            })() : '';
+            }
 
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
