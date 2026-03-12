@@ -37,20 +37,17 @@ const jordvarmeApp = (() => {
 
         const ctx = canvas.getContext("2d");
 
-        // ── Electricity cost settings (localStorage) ──────────────────────────
-        // Migrates away from the legacy static-rate key if present.
-        localStorage.removeItem('sparkspend_elpris');
-
-        const LS_PRISZONE_KEY   = 'sparkspend_priszone';
-        const LS_GLN_KEY        = 'sparkspend_gln';
-        const LS_NETSELSKAB_KEY = 'sparkspend_netselskab';
-        const LS_LAT_KEY        = 'sparkspend_hp_lat';
-        const LS_LON_KEY        = 'sparkspend_hp_lon';
+        // ── Settings (server config via .env → window.sparkConfig) ───────────
+        // All previously localStorage-stored settings are now server-side only.
+        // Clean up any stale client-side values on first load.
+        ['sparkspend_elpris', 'sparkspend_priszone', 'sparkspend_gln',
+         'sparkspend_netselskab', 'sparkspend_hp_lat', 'sparkspend_hp_lon']
+            .forEach(k => localStorage.removeItem(k));
 
         function getElSettings() {
             return {
-                area: localStorage.getItem(LS_PRISZONE_KEY) || '',
-                gln:  localStorage.getItem(LS_GLN_KEY)      || '',
+                area: window.sparkConfig?.elspotArea || '',
+                gln:  window.sparkConfig?.elspotGln  || '',
             };
         }
         function elSettingsReady() {
@@ -60,8 +57,8 @@ const jordvarmeApp = (() => {
 
         function getWeatherSettings() {
             return {
-                lat: localStorage.getItem(LS_LAT_KEY) || '',
-                lon: localStorage.getItem(LS_LON_KEY) || '',
+                lat: window.sparkConfig?.weatherLat || '',
+                lon: window.sparkConfig?.weatherLon || '',
             };
         }
         function weatherSettingsReady() {
@@ -81,82 +78,6 @@ const jordvarmeApp = (() => {
         let baselineKwhPerHdd = null;
         // Last kWh dataset received from fetchAndRender, used to re-render stats after costs arrive
         let lastKwhData      = null;
-
-        // Settings modal wiring
-        const settingsSaveBtn      = document.getElementById('settingsSaveBtn');
-        const settingsPriszoneEl   = document.getElementById('settingsPriszone');
-        const settingsNetselskabEl = document.getElementById('settingsNetselskab');
-        const settingsLatEl        = document.getElementById('settingsLat');
-        const settingsLonEl        = document.getElementById('settingsLon');
-
-        document.getElementById('settingsModal')?.addEventListener('show.bs.modal', () => {
-            const s = getElSettings();
-            if (s.area && settingsPriszoneEl) settingsPriszoneEl.value = s.area;
-            if (settingsNetselskabEl) {
-                [...settingsNetselskabEl.options].forEach(o => {
-                    o.selected = (o.dataset.gln === s.gln);
-                });
-            }
-            const w = getWeatherSettings();
-            if (settingsLatEl) settingsLatEl.value = w.lat;
-            if (settingsLonEl) settingsLonEl.value = w.lon;
-            const coordErrorEl = document.getElementById('settingsCoordError');
-            if (coordErrorEl) coordErrorEl.style.display = 'none';
-        });
-
-        settingsSaveBtn?.addEventListener('click', () => {
-            const area   = settingsPriszoneEl?.value || '';
-            const selOpt = settingsNetselskabEl?.options[settingsNetselskabEl.selectedIndex];
-            const gln    = selOpt?.dataset.gln || '';
-            if (area && gln) {
-                localStorage.setItem(LS_PRISZONE_KEY,   area);
-                localStorage.setItem(LS_GLN_KEY,        gln);
-                localStorage.setItem(LS_NETSELSKAB_KEY, selOpt.value);
-            } else {
-                localStorage.removeItem(LS_PRISZONE_KEY);
-                localStorage.removeItem(LS_GLN_KEY);
-                localStorage.removeItem(LS_NETSELSKAB_KEY);
-            }
-            const lat = settingsLatEl?.value.trim() || '';
-            const lon = settingsLonEl?.value.trim() || '';
-            const coordErrorEl = document.getElementById('settingsCoordError');
-            // Validate coordinates if either field has a value
-            if (lat || lon) {
-                const latNum = parseFloat(lat);
-                const lonNum = parseFloat(lon);
-                if (!lat || !lon) {
-                    if (coordErrorEl) { coordErrorEl.textContent = 'Angiv både bredde- og længdegrad.'; coordErrorEl.style.display = ''; }
-                    return;
-                }
-                if (isNaN(latNum) || latNum < -90 || latNum > 90) {
-                    if (coordErrorEl) { coordErrorEl.textContent = 'Breddegrad skal være mellem −90 og 90.'; coordErrorEl.style.display = ''; }
-                    return;
-                }
-                if (isNaN(lonNum) || lonNum < -180 || lonNum > 180) {
-                    if (coordErrorEl) { coordErrorEl.textContent = 'Længdegrad skal være mellem −180 og 180.'; coordErrorEl.style.display = ''; }
-                    return;
-                }
-            }
-            if (coordErrorEl) coordErrorEl.style.display = 'none';
-            if (lat && lon) {
-                localStorage.setItem(LS_LAT_KEY, lat);
-                localStorage.setItem(LS_LON_KEY, lon);
-            } else {
-                localStorage.removeItem(LS_LAT_KEY);
-                localStorage.removeItem(LS_LON_KEY);
-            }
-            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
-            if (elSettingsReady()) {
-                activeCostMap = {}; activeComponents = null;
-                fetchElCosts();
-            } else {
-                activeCostMap = {}; activeComponents = null;
-                if (lastKwhData) renderStats(lastKwhData);
-            }
-            activeWeatherMap = {};
-            if (weatherSettingsReady()) fetchWeatherData();
-            else if (lastKwhData) renderStats(lastKwhData);
-        });
 
         // ── Mode buttons ─────────────────────────────────────────────────────
         document.querySelectorAll('#jordvarme-section .hp-mode-btn').forEach(btn => {

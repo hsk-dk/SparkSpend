@@ -36,6 +36,14 @@ $GLOBALS['mysqlHeatpumpTable'] = env('MYSQL_HEATPUMP_TABLE', 'powerlog');
 $GLOBALS['mysqlHousePowerTable'] = env('MYSQL_HOUSEPOWERLOG_TABLE', 'powerloghus');
 $GLOBALS['heatpumpSyncInterval'] = env('HEATPUMP_SYNC_INTERVAL', '300'); // Default: 5 minutes
 
+// Electricity cost settings — spot price area and grid operator GLN
+$GLOBALS['elspotArea'] = env('ELSPOT_AREA', 'DK2');
+$GLOBALS['elspotGln']  = env('ELSPOT_GLN',  '');
+
+// Weather data — GPS coordinates for degree-day (HDD) calculation via Open-Meteo
+$GLOBALS['weatherLat'] = env('WEATHER_LAT', '');
+$GLOBALS['weatherLon'] = env('WEATHER_LON', '');
+
 // Timezone Configuration
 $timezone = env('TIMEZONE', 'Europe/Copenhagen');
 date_default_timezone_set($timezone);

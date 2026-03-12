@@ -65,9 +65,6 @@ require 'includes/QueryBuilder.php';
       <button type="button" class="btn btn-secondary" id="filterToggleBtn" title="Åbn filtre">
         <i class="fas fa-sliders-h"></i>
       </button>
-      <button type="button" class="btn btn-secondary" id="settingsBtn" title="Indstillinger" data-bs-toggle="modal" data-bs-target="#settingsModal">
-        ⚙
-      </button>
       <button type="button" class="btn btn-primary button-create-charge" data-bs-toggle="modal" data-bs-target="#createExChargeModal">
         <i class="fas fa-plus"></i> <span>Ny Ladning</span>
       </button>
@@ -565,78 +562,21 @@ require 'includes/QueryBuilder.php';
 </section><!-- /#regning-section -->
 
   <!-- App Utilities -->
+  <!-- Server configuration for JS modules (area/GLN from .env, never from user input) -->
+  <script>window.sparkConfig = {
+    elspotArea: '<?= htmlspecialchars($GLOBALS['elspotArea'] ?? '', ENT_QUOTES) ?>',
+    elspotGln:  '<?= htmlspecialchars($GLOBALS['elspotGln']  ?? '', ENT_QUOTES) ?>',
+    weatherLat: '<?= htmlspecialchars($GLOBALS['weatherLat'] ?? '', ENT_QUOTES) ?>',
+    weatherLon: '<?= htmlspecialchars($GLOBALS['weatherLon'] ?? '', ENT_QUOTES) ?>'
+  };</script>
   <script src="includes/app.js?v=20260312"></script>
 
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260311"></script>
   <script src="includes/dashboard.js?v=20260311c"></script>
   <script src="includes/elbil.js?v=20260311c"></script>
-  <script src="includes/jordvarme.js?v=20260311b"></script>
-  <script src="includes/regning.js?v=20260311"></script>
-
-  <!-- Settings Modal -->
-  <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="settingsModalLabel">Indstillinger</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="settingsPriszone" class="form-label">Priszone</label>
-            <select class="form-select" id="settingsPriszone">
-              <option value="DK1">DK1 — Jylland og Fyn</option>
-              <option value="DK2">DK2 — Sjælland og øer</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label for="settingsNetselskab" class="form-label">Netselskab</label>
-            <select class="form-select" id="settingsNetselskab">
-              <option value="" data-gln="">Vælg netselskab…</option>
-              <option value="Radius"    data-gln="5790000705689">Radius Elnet</option>
-              <option value="Cerius"    data-gln="5790000705184">Cerius (tidl. SEAS-NVE)</option>
-              <option value="N1"        data-gln="5790001089030">N1</option>
-              <option value="SE"        data-gln="5790000705870">SE Net</option>
-              <option value="FLOW"      data-gln="5790000392551">FLOW Elnet (tidl. Trefor)</option>
-              <option value="NKE"       data-gln="5790000610764">NKE-Elnet</option>
-              <option value="Nord"      data-gln="5790001088583">Nord Energi Net</option>
-              <option value="Konstant"  data-gln="5790000706006">Konstant Net</option>
-              <option value="RAH"       data-gln="5790000610822">RAH Net</option>
-              <option value="Dinel"     data-gln="5790000610099">Dinel</option>
-              <option value="Elektrus"  data-gln="5790000836239">Elektrus</option>
-            </select>
-          </div>
-          <div class="form-text">
-            Beregner estimerede elomkostninger for varmepumpen inkl. spotpris,
-            nettarif C, systemtarif, elafgift og moms (25%).
-          </div>
-          <hr class="my-3">
-          <div class="mb-1">
-            <label class="form-label">Vejrdata — koordinater</label>
-            <div class="row g-2">
-              <div class="col">
-                <input type="number" class="form-control form-control-sm" id="settingsLat"
-                       placeholder="Breddegrad (55.76…)" step="any">
-              </div>
-              <div class="col">
-                <input type="number" class="form-control form-control-sm" id="settingsLon"
-                       placeholder="Længdegrad (9.54…)" step="any">
-              </div>
-            </div>
-            <div class="form-text">
-              WGS84-koordinater til beregning af gradedage (HDD 17°C) via Open-Meteo.
-              Vises som kWh/GD i statistikken.
-            </div>
-            <div id="settingsCoordError" class="text-danger small mt-1" style="display:none"></div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-primary" id="settingsSaveBtn">Gem</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <script src="includes/jordvarme.js?v=20260312b"></script>
+  <script src="includes/regning.js?v=20260312"></script>
 
   <!-- Footer -->
   <footer class="site-footer">

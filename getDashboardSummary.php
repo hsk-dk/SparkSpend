@@ -126,19 +126,45 @@ try {
     // Heatpump — current and previous month totals
     // =========================================================================
     $stmtHP = $powerlogDb->prepare("
-        SELECT (MAX(kwh) - MIN(kwh)) as total_kwh
-        FROM powerlogjord
-        WHERE strftime('%Y-%m', logdate) = ?
+        WITH daily_max AS (
+            SELECT DATE(logdate)  AS day,
+                   MAX(kwh)       AS max_kwh
+            FROM powerlogjord
+            WHERE DATE(logdate) >= DATE(?, '-1 day')
+              AND DATE(logdate) <= ?
+            GROUP BY DATE(logdate)
+        ),
+        daily_delta AS (
+            SELECT day,
+                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
+            FROM daily_max
+        )
+        SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
+        FROM daily_delta
+        WHERE strftime('%Y-%m', day) = ?
     ");
-    $stmtHP->execute([$currentMonth]);
+    $stmtHP->execute([$sparkStart, $today, $currentMonth]);
     $hpCurrent = floatval($stmtHP->fetchColumn());
 
     $stmtHPPrev = $powerlogDb->prepare("
-        SELECT (MAX(kwh) - MIN(kwh)) as total_kwh
-        FROM powerlogjord
-        WHERE DATE(logdate) BETWEEN ? AND ?
+        WITH daily_max AS (
+            SELECT DATE(logdate)  AS day,
+                   MAX(kwh)       AS max_kwh
+            FROM powerlogjord
+            WHERE DATE(logdate) >= DATE(?, '-1 day')
+              AND DATE(logdate) <= ?
+            GROUP BY DATE(logdate)
+        ),
+        daily_delta AS (
+            SELECT day,
+                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
+            FROM daily_max
+        )
+        SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
+        FROM daily_delta
+        WHERE DATE(day) BETWEEN ? AND ?
     ");
-    $stmtHPPrev->execute([$prevStart, $prevEnd]);
+    $stmtHPPrev->execute([$prevStart, $prevEnd, $prevStart, $prevEnd]);
     $hpPrev = floatval($stmtHPPrev->fetchColumn());
 
     $hpPctChange = $hpPrev > 0
@@ -146,11 +172,24 @@ try {
         : null;
 
     $stmtHPYear = $powerlogDb->prepare("
-        SELECT (MAX(kwh) - MIN(kwh)) as total_kwh
-        FROM powerlogjord
-        WHERE DATE(logdate) BETWEEN ? AND ?
+        WITH daily_max AS (
+            SELECT DATE(logdate)  AS day,
+                   MAX(kwh)       AS max_kwh
+            FROM powerlogjord
+            WHERE DATE(logdate) >= DATE(?, '-1 day')
+              AND DATE(logdate) <= ?
+            GROUP BY DATE(logdate)
+        ),
+        daily_delta AS (
+            SELECT day,
+                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
+            FROM daily_max
+        )
+        SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
+        FROM daily_delta
+        WHERE DATE(day) BETWEEN ? AND ?
     ");
-    $stmtHPYear->execute([$lastYearStart, $lastYearEnd]);
+    $stmtHPYear->execute([$lastYearStart, $lastYearEnd, $lastYearStart, $lastYearEnd]);
     $hpLastYear = floatval($stmtHPYear->fetchColumn());
 
     $hpPctChangeYear = $hpLastYear > 0
@@ -161,13 +200,25 @@ try {
     // Heatpump — 14-day sparkline
     // =========================================================================
     $stmtHPSpark = $powerlogDb->prepare("
-        SELECT DATE(logdate) as day, (MAX(kwh) - MIN(kwh)) as kwh
-        FROM powerlogjord
-        WHERE DATE(logdate) BETWEEN ? AND ?
-        GROUP BY day
+        WITH daily_max AS (
+            SELECT DATE(logdate)  AS day,
+                   MAX(kwh)       AS max_kwh
+            FROM powerlogjord
+            WHERE DATE(logdate) >= DATE(?, '-1 day')
+              AND DATE(logdate) <= ?
+            GROUP BY DATE(logdate)
+        ),
+        daily_delta AS (
+            SELECT day,
+                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS kwh
+            FROM daily_max
+        )
+        SELECT day, ROUND(kwh, 2) AS kwh
+        FROM daily_delta
+        WHERE DATE(day) BETWEEN ? AND ?
         ORDER BY day
     ");
-    $stmtHPSpark->execute([$sparkStart, $today]);
+    $stmtHPSpark->execute([$sparkStart, $today, $sparkStart, $today]);
 
     $hpByDay = [];
     foreach ($stmtHPSpark->fetchAll(PDO::FETCH_ASSOC) as $row) {

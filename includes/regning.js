@@ -31,11 +31,11 @@ const regningApp = (() => {
                 _clearStatus(statusEl);
 
                 // Asynchronously enrich with HP electricity cost if settings are ready
-                const area = localStorage.getItem('sparkspend_priszone') || '';
-                const gln  = localStorage.getItem('sparkspend_gln')      || '';
+                const area = window.sparkConfig?.elspotArea || '';
+                const gln  = window.sparkConfig?.elspotGln  || '';
                 if (!area || !gln) {
                     _setStatus(statusEl,
-                        'Varmepumpe el-omkostninger vises ikke — vælg Priszone og Netselskab under ⚙ Indstillinger.',
+                        'Varmepumpe el-omkostninger vises ikke — sæt ELSPOT_AREA og ELSPOT_GLN i .env-filen.',
                         'text-muted');
                     return;
                 }
