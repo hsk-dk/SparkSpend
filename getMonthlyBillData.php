@@ -10,7 +10,7 @@
  *   months[]         — list of YYYY-MM strings, newest first
  *   ev[YYYY-MM]      — {kwh, cost} (internal Monta + external charges combined)
  *   hp[YYYY-MM]      — {kwh} (powerlogjord daily-delta sum, reset-safe)
- *   hus[YYYY-MM]     — {kwh} (powerloghus daily-delta sum, reset-safe; empty if MySQL not configured)
+ *   hus[YYYY-MM]     — {kwh} (powerloghus SQLite daily-delta sum, reset-safe; empty if table not yet synced)
  *   range            — {start: YYYY-MM-DD, end: YYYY-MM-DD} for elspot cost fetch
  *
  * GET params:
@@ -19,7 +19,6 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
-require 'includes/MySQLManager.php';
 
 header('Content-Type: application/json');
 
@@ -114,32 +113,25 @@ try {
     }
 
     // =========================================================================
-    // House — whole-house meter from MySQL powerloghus (cumulative kWh meter).
-    // Same LAG-delta strategy as HP above: avoids inflated values on resets.
-    // Gracefully skipped if MySQL credentials are not configured.
+    // House — whole-house meter from SQLite powerloghus.
+    // Data is normalised to kWh during the sync cron job, so only a simple
+    // positive-clamp is needed here (no 500-cap required).
+    // Gracefully skipped if the table has not been synced yet.
     // =========================================================================
     $husByMonth = [];
     try {
-        $mysqlDb   = MySQLManager::getHeatpumpDb();
-        $husTable  = $GLOBALS['mysqlHousePowerTable'] ?? 'powerloghus';
-        $stmtHus   = $mysqlDb->prepare("
+        $stmtHus = $powerlogDb->prepare("
             WITH daily_max AS (
                 SELECT DATE(logdate)  AS day,
                        MAX(kwh)       AS max_kwh
-                FROM `{$husTable}`
-                WHERE DATE(logdate) >= DATE_SUB(?, INTERVAL 1 DAY)
+                FROM powerloghus
+                WHERE DATE(logdate) >= DATE(?, '-1 day')
                 GROUP BY DATE(logdate)
             ),
             daily_delta AS (
                 SELECT day,
-                       DATE_FORMAT(day, '%Y-%m') AS month,
-                       -- Clamp: negative = meter reset (0), >500 = corrupt spike (0).
-                       -- A real household day never exceeds ~200 kWh; 500 is a safe ceiling.
-                       CASE
-                           WHEN max_kwh - LAG(max_kwh) OVER (ORDER BY day) BETWEEN 0 AND 500
-                           THEN max_kwh - LAG(max_kwh) OVER (ORDER BY day)
-                           ELSE 0
-                       END AS delta_kwh
+                       strftime('%Y-%m', day)                              AS month,
+                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
                 FROM daily_max
             )
             SELECT month,
@@ -147,14 +139,13 @@ try {
             FROM daily_delta
             WHERE month >= ?
             GROUP BY month
-            ORDER BY month ASC
         ");
         $stmtHus->execute([$rangeStart, $oldest]);
         foreach ($stmtHus->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $husByMonth[$row['month']] = ['kwh' => round(floatval($row['total_kwh']), 2)];
         }
     } catch (Exception $husEx) {
-        // MySQL not configured or table missing — hus data will be empty
+        // powerloghus table not yet created / synced — hus data will be empty
         error_log('getMonthlyBillData: house power query failed — ' . $husEx->getMessage());
     }
 
