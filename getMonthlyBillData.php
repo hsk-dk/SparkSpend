@@ -10,6 +10,7 @@
  *   months[]         — list of YYYY-MM strings, newest first
  *   ev[YYYY-MM]      — {kwh, cost} (internal Monta + external charges combined)
  *   hp[YYYY-MM]      — {kwh} (powerlog MAX-MIN per month)
+ *   hus[YYYY-MM]     — {kwh} (whole-house meter MAX-MIN per month, empty if MySQL not configured)
  *   range            — {start: YYYY-MM-DD, end: YYYY-MM-DD} for elspot cost fetch
  *
  * GET params:
@@ -18,6 +19,7 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/MySQLManager.php';
 
 header('Content-Type: application/json');
 
@@ -93,6 +95,31 @@ try {
     }
 
     // =========================================================================
+    // House — whole-house meter (MAX(kwh) - MIN(kwh) from MySQL powerloghus)
+    // Gracefully skipped if MySQL credentials are not configured.
+    // =========================================================================
+    $husByMonth = [];
+    try {
+        $mysqlDb   = MySQLManager::getHeatpumpDb();
+        $husTable  = $GLOBALS['mysqlHousePowerTable'] ?? 'powerloghus';
+        $stmtHus   = $mysqlDb->prepare("
+            SELECT DATE_FORMAT(logdate, '%Y-%m') as month,
+                   (MAX(kwh) - MIN(kwh)) as total_kwh
+            FROM `{$husTable}`
+            WHERE logdate >= ?
+            GROUP BY DATE_FORMAT(logdate, '%Y-%m')
+            ORDER BY month ASC
+        ");
+        $stmtHus->execute([$rangeStart]);
+        foreach ($stmtHus->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $husByMonth[$row['month']] = ['kwh' => round(floatval($row['total_kwh']), 2)];
+        }
+    } catch (Exception $husEx) {
+        // MySQL not configured or table missing — hus data will be empty
+        error_log('getMonthlyBillData: house power query failed — ' . $husEx->getMessage());
+    }
+
+    // =========================================================================
     // Assemble combined EV per month
     // =========================================================================
     $evByMonth = [];
@@ -113,6 +140,7 @@ try {
         'months' => $months,
         'ev'     => $evByMonth,
         'hp'     => $hpByMonth,
+        'hus'    => $husByMonth,
         'range'  => ['start' => $rangeStart, 'end' => $rangeEnd],
     ]);
 

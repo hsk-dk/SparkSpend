@@ -62,45 +62,58 @@ const regningApp = (() => {
     // -------------------------------------------------------------------------
 
     function _renderTable(wrapper, billData, costMap) {
-        const { months, ev, hp } = billData;
+        const { months, ev, hp, hus } = billData;
         const hasCosts = Object.keys(costMap).length > 0;
+        const hasHus   = hus && Object.keys(hus).length > 0;
 
         // Accumulate totals
-        let totEvKwh = 0, totEvCost = 0, totHpKwh = 0, totHpCost = 0;
+        let totEvKwh = 0, totEvCost = 0, totHpKwh = 0, totHpCost = 0, totHusKwh = 0;
 
         const rows = months.map(m => {
             const evRow  = ev[m]  || { kwh: 0, cost: 0 };
             const hpRow  = hp[m]  || { kwh: 0 };
+            const husRow = hus[m] || { kwh: 0 };
             const hpCost = hasCosts ? hpRow.kwh * _monthAvgRate(costMap, m) : null;
 
             totEvKwh  += evRow.kwh;
             totEvCost += evRow.cost;
             totHpKwh  += hpRow.kwh;
+            totHusKwh += husRow.kwh;
             if (hpCost !== null) totHpCost += hpCost;
 
-            const totalKwh  = evRow.kwh + hpRow.kwh;
-            const totalCost = hpCost !== null ? evRow.cost + hpCost : null;
+            const totalKwh    = evRow.kwh + hpRow.kwh;
+            const totalCost   = hpCost !== null ? evRow.cost + hpCost : null;
+            const residualKwh = hasHus && husRow.kwh > 0 ? husRow.kwh - totalKwh : null;
 
             return `<tr>
                 <td class="text-nowrap">${_monthLabel(m)}</td>
+                ${hasHus ? `<td class="text-end">${husRow.kwh > 0 ? husRow.kwh.toFixed(1) : '—'}</td>` : ''}
                 <td class="text-end">${evRow.kwh > 0 ? evRow.kwh.toFixed(1) : '—'}</td>
                 <td class="text-end">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
                 <td class="text-end">${hpRow.kwh > 0 ? hpRow.kwh.toFixed(1) : '—'}</td>
                 ${hasCosts ? `<td class="text-end">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
                 <td class="text-end fw-semibold">${totalKwh > 0 ? totalKwh.toFixed(1) : '—'}</td>
                 ${hasCosts ? `<td class="text-end fw-semibold">${totalCost > 0 ? _kr(totalCost) : '—'}</td>` : ''}
+                ${hasHus ? `<td class="text-end fw-semibold">${residualKwh !== null ? residualKwh.toFixed(1) : '—'}</td>` : ''}
             </tr>`;
         }).join('');
 
         const totalKwhAll  = totEvKwh + totHpKwh;
         const totalCostAll = hasCosts ? totEvCost + totHpCost : null;
+        const totResidual  = hasHus && totHusKwh > 0 ? totHusKwh - totalKwhAll : null;
 
+        const husTh       = hasHus ? '<th class="text-end">Hus kWh</th>' : '';
         const vpKrTh      = hasCosts ? '<th class="text-end">VP kr*</th>' : '';
         const totalKrTh   = hasCosts ? '<th class="text-end">I alt kr*</th>' : '';
+        const residualTh  = hasHus ? '<th class="text-end">Restforbrug kWh</th>' : '';
+        const totHusTd    = hasHus
+            ? `<td class="text-end fw-bold">${totHusKwh > 0 ? totHusKwh.toFixed(1) : '—'}</td>` : '';
         const totHpCostTd = hasCosts
             ? `<td class="text-end fw-bold">${totHpCost > 0 ? _kr(totHpCost) : '—'}</td>`  : '';
         const totCostTd   = hasCosts
             ? `<td class="text-end fw-bold">${totalCostAll > 0 ? _kr(totalCostAll) : '—'}</td>` : '';
+        const totResidualTd = hasHus
+            ? `<td class="text-end fw-bold">${totResidual !== null ? totResidual.toFixed(1) : '—'}</td>` : '';
 
         wrapper.innerHTML = `
             <div class="table-responsive">
@@ -108,24 +121,28 @@ const regningApp = (() => {
                     <thead class="table-light">
                         <tr>
                             <th>Måned</th>
+                            ${husTh}
                             <th class="text-end">El-bil kWh</th>
                             <th class="text-end">El-bil kr</th>
                             <th class="text-end">VP kWh</th>
                             ${vpKrTh}
                             <th class="text-end">I alt kWh</th>
                             ${totalKrTh}
+                            ${residualTh}
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
                     <tfoot class="table-light fw-bold">
                         <tr>
                             <td>Total</td>
+                            ${totHusTd}
                             <td class="text-end">${totEvKwh.toFixed(1)}</td>
                             <td class="text-end">${totEvCost > 0 ? _kr(totEvCost) : '—'}</td>
                             <td class="text-end">${totHpKwh.toFixed(1)}</td>
                             ${totHpCostTd}
                             <td class="text-end">${totalKwhAll.toFixed(1)}</td>
                             ${totCostTd}
+                            ${totResidualTd}
                         </tr>
                     </tfoot>
                 </table>

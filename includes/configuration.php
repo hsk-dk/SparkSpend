@@ -33,6 +33,7 @@ $GLOBALS['mysqlHeatpumpUser'] = env('MYSQL_HEATPUMP_USER');
 $GLOBALS['mysqlHeatpumpPassword'] = env('MYSQL_HEATPUMP_PASSWORD', '');
 $GLOBALS['mysqlHeatpumpDatabase'] = env('MYSQL_HEATPUMP_DATABASE');
 $GLOBALS['mysqlHeatpumpTable'] = env('MYSQL_HEATPUMP_TABLE', 'powerlog');
+$GLOBALS['mysqlHousePowerTable'] = env('MYSQL_HOUSEPOWERLOG_TABLE', 'powerloghus');
 $GLOBALS['heatpumpSyncInterval'] = env('HEATPUMP_SYNC_INTERVAL', '300'); // Default: 5 minutes
 
 // Timezone Configuration
