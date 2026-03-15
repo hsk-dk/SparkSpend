@@ -2,18 +2,20 @@
  * SparkSpend Navigation
  *
  * Manages:
- * - Top-level tabs: Oversigt, Elbil, Jordvarme
+ * - Top-level tabs: Oversigt, Elbil, Jordvarme, Hus
  * - Sub-tabs within Elbil: Ladninger, Analyse, Sammenligning
- * - URL hash routing (#oversigt, #elbil/ladninger, #jordvarme)
+ * - Sub-tabs within Hus: Forbrug, Regning
+ * - URL hash routing (#oversigt, #elbil/ladninger, #jordvarme, #hus/forbrug, #hus/regning)
  * - Contextual header buttons (filter toggle + new-charge only on Elbil)
- * - Lazy initialisation of Elbil and Jordvarme data on first visit
+ * - Lazy initialisation of modules on first visit
  */
 
 const SparkNav = (() => {
     let currentTab = 'oversigt-section';
-    let elbilLoaded = false;
-    let jordvarmeLoaded = false;
-    let regningLoaded = false;
+    let elbilLoaded       = false;
+    let jordvarmeLoaded   = false;
+    let husForbrugLoaded  = false;
+    let husRegningLoaded  = false;
 
     // -------------------------------------------------------------------------
     // Main tab switching
@@ -41,14 +43,14 @@ const SparkNav = (() => {
             window.jordvarmeApp?.init();
             jordvarmeLoaded = true;
         }
-        if (tabId === 'regning-section' && !regningLoaded) {
-            window.regningApp?.init();
-            regningLoaded = true;
+        if (tabId === 'hus-section') {
+            // Init whichever hus sub-tab is currently active
+            _lazyInitHusSub();
         }
     }
 
     // -------------------------------------------------------------------------
-    // Sub-tab switching (Elbil only)
+    // Sub-tab switching (Elbil)
     // -------------------------------------------------------------------------
     function switchSubTab(subId) {
         const elbilSection = document.getElementById('elbil-section');
@@ -67,14 +69,49 @@ const SparkNav = (() => {
     }
 
     // -------------------------------------------------------------------------
+    // Sub-tab switching (Hus)
+    // -------------------------------------------------------------------------
+    function switchHusSubTab(subId) {
+        const husSection = document.getElementById('hus-section');
+        if (!husSection) return;
+
+        husSection.querySelectorAll('.sub-section').forEach(s => s.classList.remove('active'));
+        husSection.querySelectorAll('.sub-nav-btn').forEach(b => b.classList.remove('active'));
+
+        const sub = document.getElementById(subId);
+        if (sub) sub.classList.add('active');
+
+        const btn = husSection.querySelector(`.sub-nav-btn[data-sub="${subId}"]`);
+        if (btn) btn.classList.add('active');
+
+        _lazyInitHusSub();
+        updateHash();
+    }
+
+    function _lazyInitHusSub() {
+        const husSection  = document.getElementById('hus-section');
+        const activeSub   = husSection?.querySelector('.sub-section.active');
+        const activeSubId = activeSub?.id;
+
+        if (activeSubId === 'hus-forbrug' && !husForbrugLoaded) {
+            window.husApp?.init();
+            husForbrugLoaded = true;
+        }
+        if (activeSubId === 'hus-regning' && !husRegningLoaded) {
+            window.regningApp?.init();
+            husRegningLoaded = true;
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Context-aware header buttons
     // -------------------------------------------------------------------------
     function updateContextualButtons() {
         const isElbil = currentTab === 'elbil-section';
-        const filterBtn    = document.getElementById('filterToggleBtn');
-        const newChargeBtn = document.querySelector('.button-create-charge');
-        const filterDrawer = document.getElementById('filterDrawer');
-        const filterBackdrop = document.getElementById('filterBackdrop');
+        const filterBtn     = document.getElementById('filterToggleBtn');
+        const newChargeBtn  = document.querySelector('.button-create-charge');
+        const filterDrawer  = document.getElementById('filterDrawer');
+        const filterBackdrop= document.getElementById('filterBackdrop');
 
         if (filterBtn)    filterBtn.style.display    = isElbil ? '' : 'none';
         if (newChargeBtn) newChargeBtn.style.display = isElbil ? '' : 'none';
@@ -92,20 +129,26 @@ const SparkNav = (() => {
     // -------------------------------------------------------------------------
     // URL hash helpers
     // -------------------------------------------------------------------------
-    function getActiveSubId() {
+    function _getActiveElbilSubId() {
         const active = document.querySelector('#elbil-section .sub-section.active');
         return active ? active.id : 'elbil-ladninger';
+    }
+
+    function _getActiveHusSubId() {
+        const active = document.querySelector('#hus-section .sub-section.active');
+        return active ? active.id : 'hus-forbrug';
     }
 
     function updateHash() {
         let hash = '#oversigt';
         if (currentTab === 'elbil-section') {
-            const sub = getActiveSubId().replace('elbil-', '');
+            const sub = _getActiveElbilSubId().replace('elbil-', '');
             hash = '#elbil/' + sub;
         } else if (currentTab === 'jordvarme-section') {
             hash = '#jordvarme';
-        } else if (currentTab === 'regning-section') {
-            hash = '#regning';
+        } else if (currentTab === 'hus-section') {
+            const sub = _getActiveHusSubId().replace('hus-', '');
+            hash = '#hus/' + sub;
         }
         history.replaceState(null, '', hash);
     }
@@ -119,8 +162,11 @@ const SparkNav = (() => {
             switchSubTab(sub);
         } else if (hash === 'jordvarme') {
             switchMainTab('jordvarme-section', false);
-        } else if (hash === 'regning') {
-            switchMainTab('regning-section', false);
+        } else if (hash.startsWith('hus')) {
+            const parts = hash.split('/');
+            const sub = parts[1] ? 'hus-' + parts[1] : 'hus-forbrug';
+            switchMainTab('hus-section', false);
+            switchHusSubTab(sub);
         } else {
             switchMainTab('oversigt-section', false);
         }
@@ -132,7 +178,13 @@ const SparkNav = (() => {
     // -------------------------------------------------------------------------
     function navigateTo(mainTabId, subTabId) {
         switchMainTab(mainTabId, false);
-        if (subTabId) switchSubTab(subTabId);
+        if (subTabId) {
+            if (mainTabId === 'hus-section') {
+                switchHusSubTab(subTabId);
+            } else {
+                switchSubTab(subTabId);
+            }
+        }
         updateHash();
     }
 
@@ -145,9 +197,14 @@ const SparkNav = (() => {
             btn.addEventListener('click', () => switchMainTab(btn.dataset.target));
         });
 
-        // Sub-tab buttons
-        document.querySelectorAll('.sub-nav-btn').forEach(btn => {
+        // Elbil sub-tab buttons
+        document.querySelectorAll('#elbil-section .sub-nav-btn').forEach(btn => {
             btn.addEventListener('click', () => switchSubTab(btn.dataset.sub));
+        });
+
+        // Hus sub-tab buttons
+        document.querySelectorAll('#hus-section .sub-nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchHusSubTab(btn.dataset.sub));
         });
 
         // Apply hash or default to oversigt
@@ -158,7 +215,7 @@ const SparkNav = (() => {
         }
     }
 
-    return { init, switchMainTab, switchSubTab, navigateTo };
+    return { init, switchMainTab, switchSubTab, switchHusSubTab, navigateTo };
 })();
 
 window.SparkNav = SparkNav;

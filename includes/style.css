@@ -1631,3 +1631,25 @@ header {
   margin-right: 6px;
   flex-shrink: 0;
 }
+
+/* Inline colour dot for stats panels */
+.stat-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* Compact definition list for stats panels */
+.stat-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.stat-list dt { font-weight: 500; display: flex; align-items: center; }
+.stat-list dd { margin: 0; text-align: right; }

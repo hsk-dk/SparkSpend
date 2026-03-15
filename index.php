@@ -55,8 +55,8 @@ require 'includes/QueryBuilder.php';
       <button class="header-tab-button" data-target="jordvarme-section">
         <i class="fas fa-fire"></i> Jordvarme
       </button>
-      <button class="header-tab-button" data-target="regning-section">
-        <i class="fas fa-file-invoice"></i> Regning
+      <button class="header-tab-button" data-target="hus-section">
+        <i class="fas fa-house-chimney"></i> Hus
       </button>
     </nav>
 
@@ -547,19 +547,70 @@ require 'includes/QueryBuilder.php';
 
 </section><!-- /#jordvarme-section -->
 
-<section id="regning-section" class="tab-section">
-  <div class="card p-4">
-    <h3>Elforbrug til regning</h3>
-    <p class="text-muted mb-3">
-      Månedlig oversigt over forbrug til elbil og varmepumpe — brug kolonnerne til at fratrække
-      disse poster fra din samlede elregning og finde restforbruget.
-    </p>
-    <div id="regningTableWrapper">
-      <p class="text-muted">Indlæser…</p>
+<section id="hus-section" class="tab-section">
+
+  <!-- Sub-Navigation -->
+  <nav class="sub-nav">
+    <button class="sub-nav-btn" data-sub="hus-forbrug">
+      <i class="fas fa-bolt"></i> Forbrug
+    </button>
+    <button class="sub-nav-btn" data-sub="hus-regning">
+      <i class="fas fa-file-invoice"></i> Regning
+    </button>
+  </nav>
+
+  <!-- Sub-section: Forbrug -->
+  <div id="hus-forbrug" class="sub-section active">
+    <div class="card p-4">
+      <h3>Husforbrug</h3>
+      <div class="hp-mode-nav mb-3">
+        <button class="hp-mode-btn active" data-mode="daily">Daglig</button>
+        <button class="hp-mode-btn" data-mode="monthly">Månedlig</button>
+        <button class="hp-mode-btn" data-mode="compare">Sammenligning</button>
+        <button class="hp-mode-btn" data-mode="ytd">År til dato</button>
+      </div>
+
+      <!-- Year toggle chips (compare/ytd only, populated by JS) -->
+      <div id="husYearToggleContainer" class="year-chip-bar" style="display:none"></div>
+
+      <div class="row">
+        <div class="col-md-8">
+          <div class="d-flex align-items-center mb-2" id="husPeriodNav">
+            <button class="btn btn-sm btn-secondary me-2" id="husPrev">&laquo; Forrige</button>
+            <span id="husPeriodLabel" class="fw-bold"></span>
+            <button class="btn btn-sm btn-secondary ms-2" id="husNext">Næste &raquo;</button>
+          </div>
+          <canvas id="husChart"></canvas>
+          <div id="husNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
+          <div id="husError" class="text-danger text-center py-4" style="display:none">Fejl ved hentning af data.</div>
+        </div>
+        <div class="col-md-4">
+          <div class="card p-3" id="husStatsBox">
+            <h5>Statistik</h5>
+            <div id="husStatsContent"><p>Indlæser data...</p></div>
+          </div>
+          <div class="mt-2 text-muted small" id="husSyncStatus"></div>
+        </div>
+      </div>
     </div>
-    <div id="regningStatus" class="small mt-2 text-muted"></div>
-  </div>
-</section><!-- /#regning-section -->
+  </div><!-- /#hus-forbrug -->
+
+  <!-- Sub-section: Regning -->
+  <div id="hus-regning" class="sub-section">
+    <div class="card p-4">
+      <h3>Elforbrug til regning</h3>
+      <p class="text-muted mb-3">
+        Månedlig oversigt over forbrug til elbil og varmepumpe — brug kolonnerne til at fratrække
+        disse poster fra din samlede elregning og finde restforbruget.
+      </p>
+      <div id="regningTableWrapper">
+        <p class="text-muted">Indlæser…</p>
+      </div>
+      <div id="regningStatus" class="small mt-2 text-muted"></div>
+    </div>
+  </div><!-- /#hus-regning -->
+
+</section><!-- /#hus-section -->
 
   <!-- App Utilities -->
   <!-- Server configuration for JS modules (area/GLN from .env, never from user input) -->
@@ -572,11 +623,12 @@ require 'includes/QueryBuilder.php';
   <script src="includes/app.js?v=20260312"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260311"></script>
+  <script src="includes/nav.js?v=20260314"></script>
   <script src="includes/dashboard.js?v=20260311c"></script>
   <script src="includes/elbil.js?v=20260311c"></script>
   <script src="includes/jordvarme.js?v=20260312b"></script>
-  <script src="includes/regning.js?v=20260312"></script>
+  <script src="includes/hus.js?v=20260314"></script>
+  <script src="includes/regning.js?v=20260314"></script>
 
   <!-- Footer -->
   <footer class="site-footer">
