@@ -188,6 +188,36 @@ require 'includes/QueryBuilder.php';
       </div>
     </div>
 
+    <!-- Hus Dashboard Card -->
+    <div class="dashboard-card" id="hus-dashboard-card" onclick="SparkNav.navigateTo('hus-section','hus-forbrug')">
+      <div class="dash-header">
+        <span class="dash-icon"><i class="fas fa-house-chimney"></i></span>
+        <div>
+          <div class="dash-title">Hus</div>
+          <div class="dash-period"></div>
+        </div>
+      </div>
+      <div class="dash-body">
+        <div class="dash-stats">
+          <div class="dash-stat">
+            <div class="dash-stat-kwh dash-stat-value">—</div>
+            <div class="dash-stat-label">kWh</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-daily dash-stat-value">—</div>
+            <div class="dash-stat-label">kWh/dag</div>
+          </div>
+        </div>
+        <div class="dash-meta">
+          <span class="dash-projected"></span>
+        </div>
+        <div class="dash-trend"></div>
+        <div class="dash-sparkline">
+          <canvas id="hus-sparkline"></canvas>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
 
@@ -620,14 +650,14 @@ require 'includes/QueryBuilder.php';
     weatherLat: '<?= htmlspecialchars($GLOBALS['weatherLat'] ?? '', ENT_QUOTES) ?>',
     weatherLon: '<?= htmlspecialchars($GLOBALS['weatherLon'] ?? '', ENT_QUOTES) ?>'
   };</script>
-  <script src="includes/app.js?v=20260312"></script>
+  <script src="includes/app.js?v=20260315"></script>
 
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260314"></script>
-  <script src="includes/dashboard.js?v=20260311c"></script>
+  <script src="includes/dashboard.js?v=20260314"></script>
   <script src="includes/elbil.js?v=20260311c"></script>
   <script src="includes/jordvarme.js?v=20260312b"></script>
-  <script src="includes/hus.js?v=20260314"></script>
+  <script src="includes/hus.js?v=20260315"></script>
   <script src="includes/regning.js?v=20260314"></script>
 
   <!-- Footer -->

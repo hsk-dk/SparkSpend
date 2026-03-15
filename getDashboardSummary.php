@@ -231,6 +231,114 @@ try {
     }
 
     // =========================================================================
+    // House meter — current month, prev MTD, sparkline
+    // Wrapped in try-catch: if powerloghus table not yet synced, hus = null.
+    // =========================================================================
+    $husCurrentKwh = null;
+    $husPrevKwh    = null;
+    $husLastYearKwh= null;
+    $husSparkline  = null;
+
+    try {
+        $stmtHus = $powerlogDb->prepare("
+            WITH daily_max AS (
+                SELECT DATE(logdate)  AS day,
+                       MAX(kwh)       AS max_kwh
+                FROM powerloghus
+                WHERE DATE(logdate) >= DATE(?, '-1 day')
+                  AND DATE(logdate) <= ?
+                GROUP BY DATE(logdate)
+            ),
+            daily_delta AS (
+                SELECT day,
+                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
+                FROM daily_max
+            )
+            SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
+            FROM daily_delta
+            WHERE strftime('%Y-%m', day) = ?
+        ");
+        $stmtHus->execute([$sparkStart, $today, $currentMonth]);
+        $husCurrentKwh = floatval($stmtHus->fetchColumn());
+
+        $stmtHusPrev = $powerlogDb->prepare("
+            WITH daily_max AS (
+                SELECT DATE(logdate)  AS day,
+                       MAX(kwh)       AS max_kwh
+                FROM powerloghus
+                WHERE DATE(logdate) >= DATE(?, '-1 day')
+                  AND DATE(logdate) <= ?
+                GROUP BY DATE(logdate)
+            ),
+            daily_delta AS (
+                SELECT day,
+                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
+                FROM daily_max
+            )
+            SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
+            FROM daily_delta
+            WHERE DATE(day) BETWEEN ? AND ?
+        ");
+        $stmtHusPrev->execute([$prevStart, $prevEnd, $prevStart, $prevEnd]);
+        $husPrevKwh = floatval($stmtHusPrev->fetchColumn());
+
+        $stmtHusYear = $powerlogDb->prepare("
+            WITH daily_max AS (
+                SELECT DATE(logdate)  AS day,
+                       MAX(kwh)       AS max_kwh
+                FROM powerloghus
+                WHERE DATE(logdate) >= DATE(?, '-1 day')
+                  AND DATE(logdate) <= ?
+                GROUP BY DATE(logdate)
+            ),
+            daily_delta AS (
+                SELECT day,
+                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
+                FROM daily_max
+            )
+            SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
+            FROM daily_delta
+            WHERE DATE(day) BETWEEN ? AND ?
+        ");
+        $stmtHusYear->execute([$lastYearStart, $lastYearEnd, $lastYearStart, $lastYearEnd]);
+        $husLastYearKwh = floatval($stmtHusYear->fetchColumn());
+
+        $stmtHusSpark = $powerlogDb->prepare("
+            WITH daily_max AS (
+                SELECT DATE(logdate)  AS day,
+                       MAX(kwh)       AS max_kwh
+                FROM powerloghus
+                WHERE DATE(logdate) >= DATE(?, '-1 day')
+                  AND DATE(logdate) <= ?
+                GROUP BY DATE(logdate)
+            ),
+            daily_delta AS (
+                SELECT day,
+                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS kwh
+                FROM daily_max
+            )
+            SELECT day, ROUND(kwh, 2) AS kwh
+            FROM daily_delta
+            WHERE DATE(day) BETWEEN ? AND ?
+            ORDER BY day
+        ");
+        $stmtHusSpark->execute([$sparkStart, $today, $sparkStart, $today]);
+
+        $husByDay = [];
+        foreach ($stmtHusSpark->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $husByDay[$row['day']] = floatval($row['kwh']);
+        }
+        $husSparkline = [];
+        for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
+            $day = date('Y-m-d', strtotime("-{$i} days"));
+            $husSparkline[] = round($husByDay[$day] ?? 0, 2);
+        }
+    } catch (Exception $husEx) {
+        // powerloghus not yet synced — hus fields remain null
+        error_log('getDashboardSummary: house power query failed — ' . $husEx->getMessage());
+    }
+
+    // =========================================================================
     // Response
     // =========================================================================
     $totalKwh    = floatval($intMonth['kwh'])  + floatval($extMonth['kwh']);
@@ -249,6 +357,15 @@ try {
     $hpDailyAvg     = $daysThisMonth > 0 ? round($hpCurrent / $daysThisMonth, 2) : null;
     $hpProjected    = $daysThisMonth > 0 ? round($hpCurrent  / $daysThisMonth * $daysInMonth, 1) : null;
 
+    $husDailyAvg    = ($husCurrentKwh !== null && $daysThisMonth > 0)
+                        ? round($husCurrentKwh / $daysThisMonth, 2) : null;
+    $husProjected   = ($husCurrentKwh !== null && $daysThisMonth > 0)
+                        ? round($husCurrentKwh / $daysThisMonth * $daysInMonth, 1) : null;
+    $husPctChange   = ($husCurrentKwh !== null && $husPrevKwh > 0)
+                        ? round(($husCurrentKwh - $husPrevKwh) / $husPrevKwh * 100, 1) : null;
+    $husPctChangeYear = ($husCurrentKwh !== null && $husLastYearKwh > 0)
+                        ? round(($husCurrentKwh - $husLastYearKwh) / $husLastYearKwh * 100, 1) : null;
+
     echo json_encode([
         'ev' => [
             'month_charges'        => intval($intMonth['cnt']) + intval($extMonth['cnt']),
@@ -262,7 +379,7 @@ try {
             'sparkline'            => $evSparkline,
         ],
         'heatpump' => [
-            'month_kwh'       => round($hpCurrent, 2),
+            'month_kwh'           => round($hpCurrent, 2),
             'prev_month_kwh'      => round($hpPrev, 2),
             'last_year_month_kwh' => round($hpLastYear, 2),
             'pct_change'          => $hpPctChange,
@@ -271,6 +388,14 @@ try {
             'projected_kwh'       => $hpProjected,
             'sparkline'           => $hpSparkline,
         ],
+        'hus' => $husCurrentKwh !== null ? [
+            'month_kwh'       => round($husCurrentKwh, 2),
+            'pct_change'      => $husPctChange,
+            'pct_change_year' => $husPctChangeYear,
+            'daily_avg_kwh'   => $husDailyAvg,
+            'projected_kwh'   => $husProjected,
+            'sparkline'       => $husSparkline,
+        ] : null,
     ]);
 
 } catch (Exception $e) {

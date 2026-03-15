@@ -227,6 +227,70 @@ const initializeAppUtilities = () => {
 // Global event bus for cross-module communication
 window.SparkEvents = new EventTarget();
 
+// ============================================================================
+// SESSION EXPIRY DETECTION
+// Intercepts all fetch() calls globally so every module automatically detects
+// when the Authentik (or any auth-proxy) session has expired, without requiring
+// changes to individual modules.
+//
+// Expiry is signalled by either:
+//   - HTTP 401 / 403 (proxy configured to return these for API requests), or
+//   - A redirect that was transparently followed to an HTML login page
+//     (fetch follows 302 → 200 HTML; response.redirected === true and
+//      Content-Type is text/html, originating from a different path).
+// ============================================================================
+
+let _authExpiryNotified = false;
+
+function _handleAuthExpiry() {
+    if (_authExpiryNotified) return;
+    _authExpiryNotified = true;
+
+    // Show a non-blocking banner at the top of the page
+    const banner = document.createElement('div');
+    banner.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:99999',
+        'background:#1e293b', 'color:#f8fafc',
+        'padding:.75rem 1.25rem',
+        'font-size:.9rem', 'text-align:center',
+        'box-shadow:0 2px 8px rgba(0,0,0,.4)',
+    ].join(';');
+    banner.textContent = 'Din session er udløbet — du videresendes til login…';
+    document.body.prepend(banner);
+
+    // Reload after a short pause so the user sees the message
+    setTimeout(() => window.location.reload(), 2000);
+}
+
+(function _installFetchInterceptor() {
+    const _nativeFetch = window.fetch;
+    window.fetch = async function(input, init) {
+        const response = await _nativeFetch(input, init);
+
+        // Direct auth failure
+        if (response.status === 401 || response.status === 403) {
+            _handleAuthExpiry();
+            return response; // still return so caller can reject gracefully
+        }
+
+        // Auth-proxy transparent redirect: 302 → 200 HTML login page
+        // response.redirected is true when fetch followed at least one redirect.
+        // We only treat it as auth expiry when Content-Type is HTML, because
+        // legitimate same-origin redirects (if any) would not return HTML here.
+        if (response.redirected) {
+            const ct = response.headers.get('content-type') || '';
+            if (ct.includes('text/html')) {
+                _handleAuthExpiry();
+                // Throw so callers that check .ok or catch errors surface an error,
+                // but don't wait for JSON parsing (which would fail on HTML anyway).
+                throw new Error('Session udløbet');
+            }
+        }
+
+        return response;
+    };
+})();
+
 // Export for use in index.php inline scripts
 window.appUtils = {
   debounce,

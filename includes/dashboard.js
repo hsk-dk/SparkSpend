@@ -8,9 +8,10 @@
 
 let _evSparkChart  = null;
 let _hpSparkChart  = null;
+let _husSparkChart = null;
 
 async function loadDashboard() {
-    const cards = ['ev-dashboard-card', 'hp-dashboard-card'];
+    const cards = ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'];
     cards.forEach(id => document.getElementById(id)?.classList.add('dash-loading'));
     try {
         const res = await fetch('getDashboardSummary.php');
@@ -20,9 +21,16 @@ async function loadDashboard() {
 
         renderEvCard(data.ev);
         renderHeatpumpCard(data.heatpump);
+        if (data.hus) {
+            renderHusCard(data.hus);
+        } else {
+            const husCard = document.getElementById('hus-dashboard-card');
+            if (husCard) husCard.querySelector('.dash-body').innerHTML =
+                '<p class="text-muted text-center small py-3">Hus-data ikke synkroniseret endnu</p>';
+        }
     } catch (e) {
         console.error('Dashboard load error:', e);
-        ['ev-dashboard-card', 'hp-dashboard-card'].forEach(id => {
+        ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.querySelector('.dash-body').innerHTML =
                 '<p class="text-muted text-center small py-3">Data ikke tilgængeligt</p>';
@@ -103,6 +111,41 @@ function renderHeatpumpCard(hp) {
 
     // Enrich with weather-normalised year-over-year trend (async, non-blocking)
     _enrichHpWithWeather(card, hp);
+}
+
+function renderHusCard(hus) {
+    const card = document.getElementById('hus-dashboard-card');
+    if (!card) return;
+
+    const now   = new Date();
+    const month = _monthName();
+    _setText(card, '.dash-period', month);
+    _setText(card, '.dash-stat-kwh', hus.month_kwh.toFixed(1) + ' kWh');
+    _setText(card, '.dash-stat-daily', hus.daily_avg_kwh !== null ? hus.daily_avg_kwh.toFixed(1) + ' kWh' : '—');
+    _setText(card, '.dash-projected', hus.projected_kwh !== null ? 'Forventet: ' + hus.projected_kwh.toFixed(1) + ' kWh' : '');
+
+    const showTrends = now.getDate() >= 5;
+    const trendEl = card.querySelector('.dash-trend');
+    if (trendEl) {
+        let html = '';
+        if (showTrends && hus.pct_change !== null) {
+            const up = hus.pct_change >= 0;
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `${up ? '↑' : '↓'} ` +
+                    `${Math.abs(hus.pct_change)}% vs. samme periode sidst måned</div>`;
+        }
+        if (showTrends && hus.pct_change_year !== null) {
+            const up = hus.pct_change_year >= 0;
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `${up ? '↑' : '↓'} ` +
+                    `${Math.abs(hus.pct_change_year)}% vs. samme måned sidste år</div>`;
+        }
+        trendEl.innerHTML = html;
+        trendEl.className = 'dash-trend';
+    }
+
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    _husSparkChart = _renderSparkline('hus-sparkline', hus.sparkline, '#f59e0b', _husSparkChart, monthStart);
 }
 
 async function _enrichHpWithWeather(card, hp) {
