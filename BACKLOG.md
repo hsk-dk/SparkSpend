@@ -15,6 +15,7 @@ Items within each priority tier are ordered by impact.
 - ✅ **ENHANCEMENT — Session-timeout → automatisk login-redirect** — Global `fetch`-interceptor i `app.js` detekterer 401/403 og transparente auth-proxy-redirects (302 → HTML). Viser banner og reloader siden efter 2 sek.
 - ✅ **ENHANCEMENT — Konsekvente farver på tværs af sektioner** — Hus-sektionens søjlediagram bruger nu de samme farver som dashboard-kortene: grøn (Jordvarme), blå (El-bil), amber (Restforbrug).
 - ✅ **BUG — `ext_charges.datetime` gemt som pseudo-UTC (lokal tid + Z-suffix)** — `createExCharge.php` og `updateExtCharge.php` tilføjede nu `->setTimezone(new DateTimeZone('UTC'))` inden `format()`, så det gemte tidsstempel er ægte UTC. Opladninger tæt på midnat tilknyttes nu korrekt dato.
+- ✅ **ENHANCEMENT — Jordvarme estimeret kr-pris (alle 4 tilstande)** — `activeCostMap` + `fetchElCosts()` i `jordvarme.js` henter spotpris + nettarif + systemtarif + elafgift + moms fra `getElspotPrices.php`. Alle fire tilstande (daglig, månedlig, sammenligning, ÅTD) viser "Estimeret elomkostning" / "Est. kr"-kolonne.
 
 ---
 
@@ -30,9 +31,8 @@ SQLite-tabellen hedder `provideres`, endpointet er `getProvideres.php`, og `Quer
 
 ### ~~BUG — `ext_charges.datetime` gemt som pseudo-UTC (lokal tid + Z-suffix)~~ ✅ Rettet
 
-### ENHANCEMENT — Jordvarme estimeret kr-pris mangler
-Den sofistikerede elpriskalkulation (`getElspotPrices.php`) eksisterer og beregner korrekt spot + nettarif + systemtarif + elafgift + moms for et givet datointerval, men den bruges aldrig på varmepumpedata. Brugere ser kun kWh, ikke kr. Tilføjelse af "Estimeret pris" i alle fire Jordvarme-tilstande (daglig, månedlig, sammenligning, ÅTD) ved brug af `getElspotPrices.php` ville lukke det mest oplagte informationshul i appen.
-**Filer:** `includes/jordvarme.js`, `getElspotPrices.php`
+### ~~ENHANCEMENT — Jordvarme estimeret kr-pris mangler~~ ✅ Rettet
+~~Den sofistikerede elpriskalkulation (`getElspotPrices.php`) eksisterer og beregner korrekt spot + nettarif + systemtarif + elafgift + moms for et givet datointerval, men den bruges aldrig på varmepumpedata. Brugere ser kun kWh, ikke kr. Tilføjelse af "Estimeret pris" i alle fire Jordvarme-tilstande (daglig, månedlig, sammenligning, ÅTD) ved brug af `getElspotPrices.php` ville lukke det mest oplagte informationshul i appen.~~
 
 ### ENHANCEMENT — Vehicle management UI
 Køretøjer eksisterer i SQLite men kan kun oprettes/omdøbes via direkte databasemanipulation. Monta-synkroniseringen opretter automatisk med vehicleId fra API'et, men `vehicleName` opdateres aldrig fra API-responsen. En simpel modal til at omdøbe køretøjer ville fjerne behovet for SSH-adgang.
