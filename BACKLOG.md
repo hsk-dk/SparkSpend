@@ -23,6 +23,8 @@ Items within each priority tier are ordered by impact.
 - ✅ **ENHANCEMENT — Provider management UI** — Samme modal. Udbydere kan oprettes, omdøbes og slettes. `createProvider.php`, `updateProvider.php`, `deleteProvider.php` + tilhørende QueryBuilder-metoder. Sletning afvises hvis udbyderen er i brug.
 - ✅ **DEBT — Monta vehicleName auto-opdatering** — `QueryBuilder::upsertVehicle()` tilføjet. `receive_vehicle_data.php` accepterer nu valgfrit `vehicleName`-felt og upsert'er `vehicles`-tabellen. `cron/update_monta_data.php` checker API-responsen for vehicle-navnefelter og kalder upsert efter hvert match.
 - ✅ **ENHANCEMENT — EV opladningssession effekt (kW) + varighed** — `getCharges.php` returnerer nu `startedAt` + `stoppedAt` for interne ladninger. `_renderCharges` beregner varighed og Ø-kW og viser dem i ny "Varighed"-kolonne (`1h 23m` / `Ø 7.2 kW`).
+- ✅ **DEBT — Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php`** — Filbaseret cache i `/tmp`. `getDashboardSummary.php` bruger 60s TTL med daglig cache-nøgle. `getChargeAnalytics.php` bruger 300s TTL med md5-nøgle på alle GET-parametre.
+- ✅ **ENHANCEMENT — Årsrapportvisning** — Nyt topniveau-faneblad "Årsrapport" (`#aarsrapport`). `getAnnualSummary.php` aggregerer EV (intern + ekstern), jordvarme og hus pr. kalenderår. `includes/annual.js` renderer grupperet søjlediagram + tabel med EV ladninger, kWh, pris, VP kWh og Hus total kWh. 1-times filcache.
 
 ---
 
@@ -79,9 +81,8 @@ Ingen eksportfunktionalitet eksisterer nogen steder i appen. En "Eksporter CSV"-
 Aktuelt opdateres begge datakilder kun via planlagt cron. En settings modal "Sync nu"-knap ville lade brugere trække friske data på bestilling.
 **Filer:** ny `triggerSync.php`, `index.php` (settings modal)
 
-### ENHANCEMENT — Årsrapportvisning
-Ingen årsaggregering eksisterer. En "Årsrapport"-visning der viser hvert kalenderår som en række — total EV kWh, total EV pris, total VP kWh, estimeret VP-pris, total hus kWh — ville give det klareste overbliksbillede af energiudgifters tendenser.
-**Filer:** ny `getAnnualSummary.php`, `includes/dashboard.js` eller ny `includes/annual.js`
+### ~~ENHANCEMENT — Årsrapportvisning~~ ✅ Rettet
+~~Ingen årsaggregering eksisterer.~~ Nyt topniveau-faneblad med `getAnnualSummary.php` + `includes/annual.js`. Grupperet søjlediagram og tabel viser EV kWh, EV pris, VP kWh og Hus total kWh pr. kalenderår.
 
 ### ENHANCEMENT — CO2-emissionssporing
 Energi Data Service eksponerer `co2emissionsprognose` (CO2-prognose pr. kWh pr. time) for DK1/DK2. Den samme pipeline som bruges til elpriser kunne vedhæfte gCO2/kWh til hver ladningssession.
@@ -152,9 +153,8 @@ Tilføjelse af et simpelt kort over besøgte opladningssteder (Leaflet.js) ville
 ### DEBT — Ingen CHANGELOG
 **Filer:** ny `CHANGELOG.md`
 
-### DEBT — `getChargeAnalytics.php` og `getDashboardSummary.php` har ingen output-caching
-Begge endpoints rammer SQLite ved hvert request. `getElspotPrices.php` bruger filbaseret caching. Det samme mønster bør anvendes.
-**Filer:** `getChargeAnalytics.php`, `getDashboardSummary.php`
+### ~~DEBT — `getChargeAnalytics.php` og `getDashboardSummary.php` har ingen output-caching~~ ✅ Rettet
+~~Begge endpoints rammer SQLite ved hvert request.~~ `getDashboardSummary.php` caches 60 sekunder (per-dag filnavn). `getChargeAnalytics.php` caches 300 sekunder (md5-nøgle på alle GET-parametre). Samme `/tmp/sparkspend_*.json`-mønster som `getElspotPrices.php`.
 
 ### DEBT — Ingen inputvalidering på `receive_vehicle_data.php`
 Dette endpoint accepterer `vehicleId` og `odometer` fra POST JSON uden validering af at `vehicleId` eksisterer eller at `odometer` er et positivt tal.
@@ -224,4 +224,18 @@ Fokus: **Selvbetjening + EV-detaljer**
 | 2 | ~~**ENHANCEMENT** Provider management UI (opret/omdøb/slet)~~ | High | ✅ Afsluttet |
 | 3 | ~~**DEBT** Monta vehicleName auto-opdatering i sync-cron~~ | Low | ✅ Afsluttet |
 | 4 | ~~**ENHANCEMENT** EV opladningssession effekt (kW) + varighed~~ | Medium | ✅ Afsluttet |
-| 5 | **DEBT** Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php` | Medium | Åben |
+| 5 | ~~**DEBT** Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php`~~ | Medium | ✅ Afsluttet |
+
+---
+
+## Sprint 4 — Anbefaling
+
+Fokus: **Indsigt + Driftstransparens**
+
+| # | Item | Prioritet | Status |
+|---|---|---|---|
+| 1 | **ENHANCEMENT** EV hjemmeladning kr fra spotpris | Medium | ~~Fravalgt — Montas cost-felt er validt~~ |
+| 2 | ~~**ENHANCEMENT** Årsrapportvisning~~ | Medium | ✅ Afsluttet |
+| 3 | **ENHANCEMENT** Global sync-statusindikator | Medium | Åben |
+| 4 | **ENHANCEMENT** "Sync nu"-knap | Medium | Åben |
+| 5 | **ENHANCEMENT** Sparkline rullende 30-dages vindue | Low | Åben |

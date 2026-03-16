@@ -32,6 +32,15 @@ try {
     }
     $showZeroKwh = (isset($_GET['showZeroKwh']) && $_GET['showZeroKwh'] === 'true') ? true : false;
 
+    // ─── 5-minute file cache ──────────────────────────────────────────────────
+    $_analyticsCacheKey  = md5($filter . '|' . $dateRange . '|' . $groupBy . '|' . ($showZeroKwh ? '1' : '0'));
+    $_analyticsCacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_analytics_' . $_analyticsCacheKey . '.json';
+    if (file_exists($_analyticsCacheFile) && (time() - filemtime($_analyticsCacheFile)) < 300) {
+        echo file_get_contents($_analyticsCacheFile);
+        exit;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Build filter array for QueryBuilder methods
     $filters = [
         'groupBy' => $groupBy,
@@ -110,7 +119,7 @@ try {
     // Sort by date ascending for correct chart axis order
     ksort($dailyTotals);
 
-    echo json_encode([
+    $response = json_encode([
         'trend' => [
             'by_source' => $trendBySource,
             'daily_totals' => array_values($dailyTotals)
@@ -122,6 +131,8 @@ try {
             'groupBy' => $groupBy
         ]
     ]);
+    @file_put_contents($_analyticsCacheFile, $response);
+    echo $response;
 
 } catch (PDOException $e) {
     http_response_code(500);

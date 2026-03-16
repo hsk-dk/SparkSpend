@@ -17,6 +17,7 @@ const SparkNav = (() => {
     let jordvarmeLoaded   = false;
     let husForbrugLoaded  = false;
     let husRegningLoaded  = false;
+    let aarsrapportLoaded = false;
 
     // Resize all Chart.js charts in a section after it becomes visible.
     // Must run after a paint so the browser has applied display:block.
@@ -73,6 +74,14 @@ const SparkNav = (() => {
             // Init whichever hus sub-tab is currently active
             _lazyInitHusSub();
             _resizeSection('hus-section');
+        }
+        if (tabId === 'aarsrapport-section') {
+            if (!aarsrapportLoaded) {
+                aarsrapportLoaded = true;
+                requestAnimationFrame(() => window.annualApp?.init());
+            } else {
+                _resizeSection('aarsrapport-section');
+            }
         }
     }
 
@@ -177,6 +186,8 @@ const SparkNav = (() => {
         } else if (currentTab === 'hus-section') {
             const sub = _getActiveHusSubId().replace('hus-', '');
             hash = '#hus/' + sub;
+        } else if (currentTab === 'aarsrapport-section') {
+            hash = '#aarsrapport';
         }
         history.replaceState(null, '', hash);
     }
@@ -195,6 +206,8 @@ const SparkNav = (() => {
             const sub = parts[1] ? 'hus-' + parts[1] : 'hus-forbrug';
             switchMainTab('hus-section', false);
             switchHusSubTab(sub);
+        } else if (hash === 'aarsrapport') {
+            switchMainTab('aarsrapport-section', false);
         } else {
             switchMainTab('oversigt-section', false);
         }

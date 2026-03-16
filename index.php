@@ -58,6 +58,9 @@ require 'includes/QueryBuilder.php';
       <button class="header-tab-button" data-target="hus-section">
         <i class="fas fa-house-chimney"></i> Hus
       </button>
+      <button class="header-tab-button" data-target="aarsrapport-section">
+        <i class="fas fa-calendar-alt"></i> Årsrapport
+      </button>
     </nav>
 
     <!-- Header Right: Filter Button + Create Charge Button -->
@@ -681,6 +684,22 @@ require 'includes/QueryBuilder.php';
 
 </section><!-- /#hus-section -->
 
+<section id="aarsrapport-section" class="tab-section">
+  <div class="card p-4">
+    <h3>Årsrapport</h3>
+    <p class="text-muted mb-3">Samlet energiforbrug pr. kalenderår på tværs af el-bil, jordvarme og hus.</p>
+    <div id="annualLoading" class="text-muted py-3">Indlæser…</div>
+    <div id="annualContent" style="display:none">
+      <div class="row mb-2">
+        <div class="col-lg-9 col-md-12">
+          <canvas id="annualChart"></canvas>
+        </div>
+      </div>
+      <div id="annualTable"></div>
+    </div>
+  </div>
+</section><!-- /#aarsrapport-section -->
+
   <!-- App Utilities -->
   <!-- Server configuration for JS modules (area/GLN from .env, never from user input) -->
   <script>window.sparkConfig = {
@@ -692,12 +711,13 @@ require 'includes/QueryBuilder.php';
   <script src="includes/app.js?v=20260315"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260316c"></script>
+  <script src="includes/nav.js?v=20260316d"></script>
   <script src="includes/dashboard.js?v=20260316"></script>
   <script src="includes/elbil.js?v=20260316b"></script>
   <script src="includes/jordvarme.js?v=20260312b"></script>
   <script src="includes/hus.js?v=20260315"></script>
   <script src="includes/regning.js?v=20260314"></script>
+  <script src="includes/annual.js?v=20260316"></script>
 
   <!-- Footer -->
   <footer class="site-footer">

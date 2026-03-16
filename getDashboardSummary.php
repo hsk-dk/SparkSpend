@@ -10,6 +10,16 @@ require 'includes/DatabaseManager.php';
 
 header('Content-Type: application/json');
 
+// ─── 60-second file cache ─────────────────────────────────────────────────────
+// Key includes today's date so it resets at midnight automatically.
+$_dashCacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR
+                . 'sparkspend_dashboard_' . date('Y-m-d') . '.json';
+if (file_exists($_dashCacheFile) && (time() - filemtime($_dashCacheFile)) < 60) {
+    echo file_get_contents($_dashCacheFile);
+    exit;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 try {
     $chargesDb = DatabaseManager::getChargesDb();
     $powerlogDb = DatabaseManager::getPowerlogDb();
@@ -366,7 +376,7 @@ try {
     $husPctChangeYear = ($husCurrentKwh !== null && $husLastYearKwh > 0)
                         ? round(($husCurrentKwh - $husLastYearKwh) / $husLastYearKwh * 100, 1) : null;
 
-    echo json_encode([
+    $response = json_encode([
         'ev' => [
             'month_charges'        => intval($intMonth['cnt']) + intval($extMonth['cnt']),
             'month_kwh'            => round($totalKwh, 2),
@@ -397,6 +407,8 @@ try {
             'sparkline'       => $husSparkline,
         ] : null,
     ]);
+    @file_put_contents($_dashCacheFile, $response);
+    echo $response;
 
 } catch (Exception $e) {
     http_response_code(500);
