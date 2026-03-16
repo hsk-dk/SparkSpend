@@ -36,6 +36,7 @@ try {
     // Validate and format date
     try {
         $chargeDate = new DateTime($chargeDateTime);
+        $chargeDate->setTimezone(new DateTimeZone('UTC'));
         $chargeDate = $chargeDate->format('Y-m-d\TH:i:00\Z');
     } catch (Exception $e) {
         http_response_code(400);

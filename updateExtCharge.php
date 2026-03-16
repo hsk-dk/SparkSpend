@@ -34,6 +34,7 @@ try {
     // Validate and format datetime
     try {
         $dateTime = new DateTime($data['datetime']);
+        $dateTime->setTimezone(new DateTimeZone('UTC'));
         $dateTime = $dateTime->format('Y-m-d\TH:i:00\Z');
     } catch (Exception $e) {
         http_response_code(400);
