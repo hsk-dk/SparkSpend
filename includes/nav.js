@@ -12,10 +12,22 @@
 
 const SparkNav = (() => {
     let currentTab = 'oversigt-section';
+    let dashboardLoaded   = false;
     let elbilLoaded       = false;
     let jordvarmeLoaded   = false;
     let husForbrugLoaded  = false;
     let husRegningLoaded  = false;
+
+    // Resize all Chart.js charts in a section after it becomes visible.
+    // Must run after a paint so the browser has applied display:block.
+    function _resizeSection(sectionId) {
+        requestAnimationFrame(() => {
+            document.querySelectorAll(`#${sectionId} canvas`).forEach(canvas => {
+                const chart = typeof Chart !== 'undefined' && Chart.getChart(canvas);
+                if (chart) chart.resize();
+            });
+        });
+    }
 
     // -------------------------------------------------------------------------
     // Main tab switching
@@ -34,18 +46,33 @@ const SparkNav = (() => {
         updateContextualButtons();
         if (writeHash) updateHash();
 
-        // Lazy-load on first visit
-        if (tabId === 'elbil-section' && !elbilLoaded) {
-            window.elbilApp?.init();
-            elbilLoaded = true;
+        // Lazy-load on first visit; resize charts on return visits
+        if (tabId === 'oversigt-section') {
+            if (!dashboardLoaded) {
+                loadDashboard();
+                dashboardLoaded = true;
+            } else {
+                _resizeSection('oversigt-section');
+            }
         }
-        if (tabId === 'jordvarme-section' && !jordvarmeLoaded) {
-            window.jordvarmeApp?.init();
-            jordvarmeLoaded = true;
+        if (tabId === 'elbil-section') {
+            if (!elbilLoaded) {
+                elbilLoaded = true;
+                requestAnimationFrame(() => window.elbilApp?.init());
+            }
+        }
+        if (tabId === 'jordvarme-section') {
+            if (!jordvarmeLoaded) {
+                jordvarmeLoaded = true;
+                // Defer one frame so the browser completes layout (display:block) before
+                // Chart.js measures the canvas — prevents intermittent 0-height charts.
+                requestAnimationFrame(() => window.jordvarmeApp?.init());
+            }
         }
         if (tabId === 'hus-section') {
             // Init whichever hus sub-tab is currently active
             _lazyInitHusSub();
+            _resizeSection('hus-section');
         }
     }
 
@@ -85,6 +112,7 @@ const SparkNav = (() => {
         if (btn) btn.classList.add('active');
 
         _lazyInitHusSub();
+        _resizeSection('hus-section');
         updateHash();
     }
 
@@ -94,12 +122,12 @@ const SparkNav = (() => {
         const activeSubId = activeSub?.id;
 
         if (activeSubId === 'hus-forbrug' && !husForbrugLoaded) {
-            window.husApp?.init();
             husForbrugLoaded = true;
+            requestAnimationFrame(() => window.husApp?.init());
         }
         if (activeSubId === 'hus-regning' && !husRegningLoaded) {
-            window.regningApp?.init();
             husRegningLoaded = true;
+            requestAnimationFrame(() => window.regningApp?.init());
         }
     }
 

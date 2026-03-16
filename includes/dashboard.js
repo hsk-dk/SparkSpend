@@ -149,8 +149,8 @@ function renderHusCard(hus) {
 }
 
 async function _enrichHpWithWeather(card, hp) {
-    const lat = localStorage.getItem('sparkspend_hp_lat') || '';
-    const lon = localStorage.getItem('sparkspend_hp_lon') || '';
+    const lat = window.sparkConfig?.weatherLat || '';
+    const lon = window.sparkConfig?.weatherLon || '';
     // Use last_year_month_kwh exposed directly by getDashboardSummary.php
     const lastYearKwh = hp.last_year_month_kwh ?? null;
     if (!lat || !lon || hp.month_kwh === null || lastYearKwh === null || lastYearKwh <= 0) return;
@@ -241,6 +241,7 @@ function _setText(parent, selector, text) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadDashboard();
+    // loadDashboard() is called lazily by SparkNav when Oversigt tab is first activated.
+    // Re-fetch whenever a charge is saved so totals stay current.
     window.SparkEvents?.addEventListener('charge:saved', loadDashboard);
 });

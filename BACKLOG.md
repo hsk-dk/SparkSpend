@@ -16,6 +16,13 @@ Items within each priority tier are ordered by impact.
 - ✅ **ENHANCEMENT — Konsekvente farver på tværs af sektioner** — Hus-sektionens søjlediagram bruger nu de samme farver som dashboard-kortene: grøn (Jordvarme), blå (El-bil), amber (Restforbrug).
 - ✅ **BUG — `ext_charges.datetime` gemt som pseudo-UTC (lokal tid + Z-suffix)** — `createExCharge.php` og `updateExtCharge.php` tilføjede nu `->setTimezone(new DateTimeZone('UTC'))` inden `format()`, så det gemte tidsstempel er ægte UTC. Opladninger tæt på midnat tilknyttes nu korrekt dato.
 - ✅ **ENHANCEMENT — Jordvarme estimeret kr-pris (alle 4 tilstande)** — `activeCostMap` + `fetchElCosts()` i `jordvarme.js` henter spotpris + nettarif + systemtarif + elafgift + moms fra `getElspotPrices.php`. Alle fire tilstande (daglig, månedlig, sammenligning, ÅTD) viser "Estimeret elomkostning" / "Est. kr"-kolonne.
+- ✅ **BUG — `provideres` tabel/filnavn-typo** — SQLite-tabel omdøbt `provideres` → `providers` via `cron/migrate_providers_rename.php`. Ny `getProviders.php` oprettet, `elbil.js`, `QueryBuilder.php` og `getProviderStats.php` opdateret.
+- ✅ **ENHANCEMENT — Dashboard lazy-init + chart.resize** — `loadDashboard()` flyttes til første besøg på Oversigt-fanebladet i `nav.js`. `_resizeSection()` med `requestAnimationFrame` kaldes på alle faner ved hvert tab-skift, så Chart.js-instanser aldrig er tegnet ved 0×0.
+- ✅ **BUG — `_enrichHpWithWeather` brugte localStorage** — Vejrkorrigerings-funktion i `dashboard.js` læste `lat/lon` fra `localStorage` (ryddet ved load af jordvarme.js). Fikset til `window.sparkConfig.weatherLat/weatherLon`.
+- ✅ **ENHANCEMENT — Vehicle management UI** — "Administrér"-knap i Elbil sub-nav åbner modal med inline omdøbning af køretøjer. `updateVehicle.php` + `QueryBuilder::updateVehicle()` tilføjet.
+- ✅ **ENHANCEMENT — Provider management UI** — Samme modal. Udbydere kan oprettes, omdøbes og slettes. `createProvider.php`, `updateProvider.php`, `deleteProvider.php` + tilhørende QueryBuilder-metoder. Sletning afvises hvis udbyderen er i brug.
+- ✅ **DEBT — Monta vehicleName auto-opdatering** — `QueryBuilder::upsertVehicle()` tilføjet. `receive_vehicle_data.php` accepterer nu valgfrit `vehicleName`-felt og upsert'er `vehicles`-tabellen. `cron/update_monta_data.php` checker API-responsen for vehicle-navnefelter og kalder upsert efter hvert match.
+- ✅ **ENHANCEMENT — EV opladningssession effekt (kW) + varighed** — `getCharges.php` returnerer nu `startedAt` + `stoppedAt` for interne ladninger. `_renderCharges` beregner varighed og Ø-kW og viser dem i ny "Varighed"-kolonne (`1h 23m` / `Ø 7.2 kW`).
 
 ---
 
@@ -25,34 +32,29 @@ Items within each priority tier are ordered by impact.
 
 ## Priority: High
 
-### BUG — `provideres` table/filename typo er fastfrosset i schema
-SQLite-tabellen hedder `provideres`, endpointet er `getProvideres.php`, og `QueryBuilder::selectAllProviders()` forespørger den. En engangs-migration (`ALTER TABLE provideres RENAME TO providers`) plus fil/reference-omdøbning ville løse det permanent. Vedligeholder sig selv på tværs af alle kaldere.
-**Filer:** `includes/QueryBuilder.php`, `getProvideres.php`, alle kaldere
+### ~~BUG — `provideres` table/filename typo er fastfrosset i schema~~ ✅ Rettet
+~~SQLite-tabellen hedder `provideres`, endpointet er `getProvideres.php`, og `QueryBuilder::selectAllProviders()` forespørger den. En engangs-migration (`ALTER TABLE provideres RENAME TO providers`) plus fil/reference-omdøbning ville løse det permanent. Vedligeholder sig selv på tværs af alle kaldere.~~
 
 ### ~~BUG — `ext_charges.datetime` gemt som pseudo-UTC (lokal tid + Z-suffix)~~ ✅ Rettet
 
 ### ~~ENHANCEMENT — Jordvarme estimeret kr-pris mangler~~ ✅ Rettet
 ~~Den sofistikerede elpriskalkulation (`getElspotPrices.php`) eksisterer og beregner korrekt spot + nettarif + systemtarif + elafgift + moms for et givet datointerval, men den bruges aldrig på varmepumpedata. Brugere ser kun kWh, ikke kr. Tilføjelse af "Estimeret pris" i alle fire Jordvarme-tilstande (daglig, månedlig, sammenligning, ÅTD) ved brug af `getElspotPrices.php` ville lukke det mest oplagte informationshul i appen.~~
 
-### ENHANCEMENT — Vehicle management UI
-Køretøjer eksisterer i SQLite men kan kun oprettes/omdøbes via direkte databasemanipulation. Monta-synkroniseringen opretter automatisk med vehicleId fra API'et, men `vehicleName` opdateres aldrig fra API-responsen. En simpel modal til at omdøbe køretøjer ville fjerne behovet for SSH-adgang.
-**Filer:** `index.php`, eksisterende `getVehicles.php`, ny `updateVehicle.php`
+### ~~ENHANCEMENT — Vehicle management UI~~ ✅ Rettet
+~~Køretøjer eksisterer i SQLite men kan kun oprettes/omdøbes via direkte databasemanipulation.~~ "Administrér"-modal tilføjet i Elbil sub-nav. Inline omdøbning via `updateVehicle.php`.
 
-### ENHANCEMENT — Provider management UI
-Samme problem som køretøjer: udbydere (opladningsoperatører) kan kun tilføjes via direkte DB-adgang. Et lille panel med en udbyderliste + tilføj/omdøb/slet ville gøre appen selvforsynende.
-**Filer:** `index.php`, ny `createProvider.php`, ny `updateProvider.php`, ny `deleteProvider.php`
+### ~~ENHANCEMENT — Provider management UI~~ ✅ Rettet
+~~Samme problem som køretøjer: udbydere kan kun tilføjes via direkte DB-adgang.~~ Fuld CRUD i samme "Administrér"-modal: opret (`createProvider.php`), omdøb (`updateProvider.php`), slet (`deleteProvider.php` — blokerer sletning hvis udbyderen er i brug).
 
-### ENHANCEMENT — Dashboard genlæser ved settings-ændring
-Når brugeren opdaterer lat/lon i settings-modalen, fortsætter `_enrichHpWithWeather` i `dashboard.js` med at bruge de gamle cachede localStorage-værdier indtil siden genindlæses. Settings-gem-handleren i `jordvarme.js` bør dispatche en `settings:saved`-event på `window.SparkEvents`, og `dashboard.js` bør abonnere og trigge et nyt `loadDashboard()`.
-**Filer:** `includes/jordvarme.js`, `includes/dashboard.js`
+### ~~ENHANCEMENT — Dashboard genlæser ved settings-ændring~~ ✅ Rettet (delvist N/A)
+~~Når brugeren opdaterer lat/lon i settings-modalen,~~ Settings-modalen er fjernet — alle indstillinger er nu server-side via `.env`. Sideeffekt rettet: `_enrichHpWithWeather` i `dashboard.js` læste stadig fra `localStorage` (som ryddes ved load), og vejrkorrigering virkede aldrig. Fikset til at bruge `window.sparkConfig.weatherLat/weatherLon`.
 
 ---
 
 ## Priority: Medium
 
-### ENHANCEMENT — Dashboard lazy-init når Oversigt ikke er aktiv ved load
-`loadDashboard()` fyres ved `DOMContentLoaded` uden betingelser. Hvis SparkNav gendanner et andet faneblad (f.eks. Elbil fra det seneste URL-hash), er `#oversigt-section` skjult og Chart.js tegner sparklines i 0×0 pixels. SparkNav lazy-initialiserer allerede Elbil og Jordvarme; det samme mønster bør anvendes på Dashboard — kald `loadDashboard()` ved første visning af Oversigt-fanebladet frem for straks ved DOM-klar. Kald også `chart.resize()` når sektionen vises.
-**Filer:** `includes/nav.js`, `includes/dashboard.js`
+### ~~ENHANCEMENT — Dashboard lazy-init når Oversigt ikke er aktiv ved load~~ ✅ Rettet
+~~`loadDashboard()` fyres ved `DOMContentLoaded` uden betingelser.~~ `loadDashboard()` fjernet fra `DOMContentLoaded` i `dashboard.js`. `nav.js` kalder det nu ved første besøg på Oversigt-fanebladet. `_resizeSection()` kaldes med `requestAnimationFrame` på alle faner ved hvert tab-skift for at rette 0×0-charts.
 
 ### ENHANCEMENT — EV hjemmeladning kr fra spotpris
 Aktuelt tages EV-hjemmeladningsomkostninger direkte fra Monta API's `cost`-felt. Monta's pris kan afspejle en fast tarif eller en unøjagtig sats. Den eksisterende `getElspotPrices.php`-infrastruktur kunne i stedet beregne den reelle elomkostning for hjemmeladningssessioner (spot + tariffer), hvilket giver brugeren nøjagtig og transparent prissætning — samme metodologi som varmepumpen.
@@ -62,9 +64,8 @@ Aktuelt tages EV-hjemmeladningsomkostninger direkte fra Monta API's `cost`-felt.
 Jordvarme-fanebladet har en `Sammenligning`-tilstand der overlapper flere års månedlige forbrug på ét diagram. EV-fanebladet har køretøjssammenligning men ingen tilsvarende år-over-år oversigt over opladningsmønstre på tværs af kalenderår.
 **Filer:** `includes/elbil.js`, ny `getChargesByYear.php` eller udvid `getChargeAnalytics.php`
 
-### ENHANCEMENT — Opladningssession effekt (kW) og varighed
-Monta API sender `cablePluggedInAt`, `startedAt` og `stoppedAt`. Sessionvarighed og gennemsnitlig effekt beregnes aldrig. Tilføjelse af disse som kolonner eller tooltip-data i opladningstabellen ville hjælpe brugere med at identificere usædvanligt langsomme sessioner.
-**Filer:** `includes/elbil.js`, `getCharges.php`
+### ~~ENHANCEMENT — Opladningssession effekt (kW) og varighed~~ ✅ Rettet
+~~Monta API sender `cablePluggedInAt`, `startedAt` og `stoppedAt`. Sessionvarighed og gennemsnitlig effekt beregnes aldrig.~~ Ny "Varighed"-kolonne i opladningstabellen viser `1h 23m` og `Ø X.X kW` for interne ladninger; externe ladninger viser `—`.
 
 ### ENHANCEMENT — CSV/Excel-eksport af opladningshistorik
 Ingen eksportfunktionalitet eksisterer nogen steder i appen. En "Eksporter CSV"-knap på opladningstabellen og en månedlig sammendragseksport på Jordvarme-fanebladet ville opfylde grundlæggende dataportabilitetsforventninger.
@@ -130,9 +131,8 @@ Monta API leverer `state` og `stopReason` (f.eks. `completed`, `stopped_by_user`
 `cron/cron.log` er SSH-eksklusiv. En sammenklappelig "Systemlog"-sektion i settings-modalen der viser de seneste 50 linjer ville hjælpe brugeren med at diagnosticere sync-fejl uden at forlade browseren.
 **Filer:** ny `getSystemLog.php`, `index.php`
 
-### ENHANCEMENT — Monta køretøjsnavn auto-opdatering ved sync
-`cron/update_monta_data.php` opdaterer aldrig `vehicleName` i `vehicles`-tabellen fra Monta API.
-**Filer:** `cron/update_monta_data.php`
+### ~~ENHANCEMENT — Monta køretøjsnavn auto-opdatering ved sync~~ ✅ Rettet
+~~`cron/update_monta_data.php` opdaterer aldrig `vehicleName` i `vehicles`-tabellen fra Monta API.~~ `upsertVehicle()` kaldes nu efter hvert charge-match. `receive_vehicle_data.php` accepterer valgfrit `vehicleName`.
 
 ### ENHANCEMENT — Opladningskort / stedssporing
 Tilføjelse af et simpelt kort over besøgte opladningssteder (Leaflet.js) ville give en "hvor har jeg ladet"-dimension.
@@ -202,14 +202,26 @@ Tibber eksponerer en realtids el-pris websocket. Tilslutning til den ville mulig
 
 ## Næste Sprint — Anbefaling
 
-Fokus: **Datakvalitet + Jordvarme-paritet med Hus**
-
-Hus-sektionen har nu kr-estimater (via Regning-fanen). Jordvarme mangler det samme. De to bugs er hurtige og reducerer stille data-fejl.
+Fokus: **Datakvalitet + UX-forbedringer** — Sprint afsluttet ✅
 
 | # | Item | Prioritet | Status |
 |---|---|---|---|
 | 1 | ~~**BUG** `ext_charges.datetime` faux-UTC fix~~ | High | ✅ Afsluttet |
-| 2 | **BUG** `provideres` → `providers` rename | High | Åben |
-| 3 | **ENHANCEMENT** Jordvarme estimeret kr-pris (alle 4 tilstande) | High | Åben |
-| 4 | **ENHANCEMENT** Dashboard lazy-init (chart.resize ved tab-skift) | Medium | Åben |
-| 5 | **ENHANCEMENT** Dashboard genlæser ved settings-ændring | High | Åben |
+| 2 | ~~**BUG** `provideres` → `providers` rename~~ | High | ✅ Afsluttet |
+| 3 | ~~**ENHANCEMENT** Jordvarme estimeret kr-pris (alle 4 tilstande)~~ | High | ✅ Afsluttet |
+| 4 | ~~**ENHANCEMENT** Dashboard lazy-init (chart.resize ved tab-skift)~~ | Medium | ✅ Afsluttet |
+| 5 | ~~**ENHANCEMENT** Dashboard genlæser ved settings-ændring~~ | High | ✅ Afsluttet (N/A + localStorage-bug fix) |
+
+---
+
+## Sprint 3 — Anbefaling
+
+Fokus: **Selvbetjening + EV-detaljer**
+
+| # | Item | Prioritet | Status |
+|---|---|---|---|
+| 1 | ~~**ENHANCEMENT** Vehicle management UI (omdøb)~~ | High | ✅ Afsluttet |
+| 2 | ~~**ENHANCEMENT** Provider management UI (opret/omdøb/slet)~~ | High | ✅ Afsluttet |
+| 3 | ~~**DEBT** Monta vehicleName auto-opdatering i sync-cron~~ | Low | ✅ Afsluttet |
+| 4 | ~~**ENHANCEMENT** EV opladningssession effekt (kW) + varighed~~ | Medium | ✅ Afsluttet |
+| 5 | **DEBT** Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php` | Medium | Åben |

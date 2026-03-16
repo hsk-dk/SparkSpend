@@ -223,7 +223,7 @@ const elbilApp = (() => {
 
     async function fetchProviders() {
         try {
-            const res  = await fetch('getProvideres.php');
+            const res  = await fetch('getProviders.php');
             const data = await appUtils.handleFetchResponse(res);
             providers = data;
             _populateProviderSelects();
@@ -345,6 +345,19 @@ const elbilApp = (() => {
                 hour: '2-digit', minute: '2-digit'
             });
 
+            // Duration + avg power (internal charges only — ext_charges have no startedAt/stoppedAt)
+            let sessionCell = '<td class="text-muted text-center">—</td>';
+            if (charge.startedAt && charge.stoppedAt) {
+                const durH = (new Date(charge.stoppedAt) - new Date(charge.startedAt)) / 3_600_000;
+                if (durH > 0.01) {
+                    const h      = Math.floor(durH);
+                    const m      = Math.round((durH - h) * 60);
+                    const durStr = h > 0 ? `${h}h ${m < 10 ? '0' + m : m}m` : `${m}m`;
+                    const avgKw  = kwh / durH;
+                    sessionCell  = `<td>${durStr}<br><small class="text-muted">Ø ${avgKw.toFixed(1)} kW</small></td>`;
+                }
+            }
+
             const row = document.createElement('tr');
             row.dataset.chargeId  = charge.id;
             row.dataset.source    = charge.source;
@@ -357,6 +370,7 @@ const elbilApp = (() => {
             row.innerHTML = `
                 <td>${fmtDate}</td>
                 <td>${kwh.toFixed(2)} kWh</td>
+                ${sessionCell}
                 <td>${pris.toFixed(2)} kr</td>
                 <td>${priceIcon} ${pPerKwh.toFixed(2)} kr/kWh <small>${priceText}</small></td>
                 <td>${vName}</td>
@@ -743,7 +757,212 @@ const elbilApp = (() => {
             </div>`;
     }
 
-    return { init };
+    // -------------------------------------------------------------------------
+    // Manage modal: vehicles + providers
+    // -------------------------------------------------------------------------
+
+    function _esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function _showManageMsg(msg, type = 'danger') {
+        const el = document.getElementById('manageMsg');
+        if (el) el.innerHTML = `<span class="text-${type}">${msg}</span>`;
+    }
+
+    function openManageModal() {
+        _renderManageVehicles(vehicles);
+        _renderManageProviders(providers);
+        document.getElementById('manageMsg').textContent = '';
+        document.getElementById('newProviderName').value = '';
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('manageModal')).show();
+    }
+
+    function _renderManageVehicles(list) {
+        const el = document.getElementById('manageVehiclesList');
+        if (!el) return;
+        if (!list.length) {
+            el.innerHTML = '<p class="text-muted small">Ingen køretøjer registreret.</p>';
+            return;
+        }
+        el.innerHTML = list.map(v => `
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="flex-grow-1" id="vname-${v.id}">${_esc(v.vehicleName)}</span>
+              <input type="text" class="form-control form-control-sm d-none" id="vinput-${v.id}"
+                     value="${_esc(v.vehicleName)}" maxlength="80">
+              <button class="btn btn-sm btn-outline-secondary" id="vedit-${v.id}"
+                      onclick="elbilApp.startEditVehicle(${v.id})">
+                <i class="fas fa-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-success d-none" id="vsave-${v.id}"
+                      onclick="elbilApp.saveVehicle(${v.id})">
+                <i class="fas fa-check"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary d-none" id="vcancel-${v.id}"
+                      onclick="elbilApp.cancelEditVehicle(${v.id}, ${JSON.stringify(v.vehicleName)})">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>`).join('');
+    }
+
+    function _renderManageProviders(list) {
+        const el = document.getElementById('manageProvidersList');
+        if (!el) return;
+        if (!list.length) {
+            el.innerHTML = '<p class="text-muted small mb-0">Ingen udbydere registreret.</p>';
+            return;
+        }
+        el.innerHTML = list.map(p => `
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="flex-grow-1" id="pname-${p.id}">${_esc(p.providerName)}</span>
+              <input type="text" class="form-control form-control-sm d-none" id="pinput-${p.id}"
+                     value="${_esc(p.providerName)}" maxlength="80">
+              <button class="btn btn-sm btn-outline-secondary" id="pedit-${p.id}"
+                      onclick="elbilApp.startEditProvider(${p.id})">
+                <i class="fas fa-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-success d-none" id="psave-${p.id}"
+                      onclick="elbilApp.saveProvider(${p.id})">
+                <i class="fas fa-check"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary d-none" id="pcancel-${p.id}"
+                      onclick="elbilApp.cancelEditProvider(${p.id}, ${JSON.stringify(p.providerName)})">
+                <i class="fas fa-times"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" id="pdel-${p.id}"
+                      onclick="elbilApp.deleteProvider(${p.id})">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>`).join('');
+    }
+
+    function startEditVehicle(id) {
+        document.getElementById('vname-' + id)?.classList.add('d-none');
+        document.getElementById('vinput-' + id)?.classList.remove('d-none');
+        document.getElementById('vedit-' + id)?.classList.add('d-none');
+        document.getElementById('vsave-' + id)?.classList.remove('d-none');
+        document.getElementById('vcancel-' + id)?.classList.remove('d-none');
+        document.getElementById('vinput-' + id)?.focus();
+    }
+
+    function cancelEditVehicle(id, originalName) {
+        document.getElementById('vname-' + id)?.classList.remove('d-none');
+        document.getElementById('vinput-' + id)?.classList.add('d-none');
+        document.getElementById('vedit-' + id)?.classList.remove('d-none');
+        document.getElementById('vsave-' + id)?.classList.add('d-none');
+        document.getElementById('vcancel-' + id)?.classList.add('d-none');
+        const inp = document.getElementById('vinput-' + id);
+        if (inp) inp.value = originalName;
+    }
+
+    async function saveVehicle(id) {
+        const inp  = document.getElementById('vinput-' + id);
+        const name = inp?.value.trim();
+        if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
+        try {
+            const res  = await fetch('updateVehicle.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, name }),
+            });
+            const data = await res.json();
+            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            const v = vehicles.find(x => x.id == id);
+            if (v) v.vehicleName = name;
+            document.getElementById('vname-' + id).textContent = name;
+            cancelEditVehicle(id, name);
+            _populateVehicleFilter();
+            _showManageMsg('Køretøj opdateret', 'success');
+        } catch (e) { _showManageMsg(e.message); }
+    }
+
+    function startEditProvider(id) {
+        document.getElementById('pname-' + id)?.classList.add('d-none');
+        document.getElementById('pinput-' + id)?.classList.remove('d-none');
+        document.getElementById('pedit-' + id)?.classList.add('d-none');
+        document.getElementById('psave-' + id)?.classList.remove('d-none');
+        document.getElementById('pcancel-' + id)?.classList.remove('d-none');
+        document.getElementById('pdel-' + id)?.classList.add('d-none');
+        document.getElementById('pinput-' + id)?.focus();
+    }
+
+    function cancelEditProvider(id, originalName) {
+        document.getElementById('pname-' + id)?.classList.remove('d-none');
+        document.getElementById('pinput-' + id)?.classList.add('d-none');
+        document.getElementById('pedit-' + id)?.classList.remove('d-none');
+        document.getElementById('psave-' + id)?.classList.add('d-none');
+        document.getElementById('pcancel-' + id)?.classList.add('d-none');
+        document.getElementById('pdel-' + id)?.classList.remove('d-none');
+        const inp = document.getElementById('pinput-' + id);
+        if (inp) inp.value = originalName;
+    }
+
+    async function saveProvider(id) {
+        const inp  = document.getElementById('pinput-' + id);
+        const name = inp?.value.trim();
+        if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
+        try {
+            const res  = await fetch('updateProvider.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, name }),
+            });
+            const data = await res.json();
+            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            const p = providers.find(x => x.id == id);
+            if (p) p.providerName = name;
+            document.getElementById('pname-' + id).textContent = name;
+            cancelEditProvider(id, name);
+            _populateProviderSelects();
+            _showManageMsg('Udbyder opdateret', 'success');
+        } catch (e) { _showManageMsg(e.message); }
+    }
+
+    async function createProvider() {
+        const inp  = document.getElementById('newProviderName');
+        const name = inp?.value.trim();
+        if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
+        try {
+            const res  = await fetch('createProvider.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+            const data = await res.json();
+            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            providers.push({ id: data.id, providerName: data.providerName });
+            providers.sort((a, b) => a.providerName.localeCompare(b.providerName, 'da'));
+            if (inp) inp.value = '';
+            _renderManageProviders(providers);
+            _populateProviderSelects();
+            _showManageMsg('Udbyder oprettet', 'success');
+        } catch (e) { _showManageMsg(e.message); }
+    }
+
+    async function deleteProvider(id) {
+        if (!confirm('Slet denne udbyder?')) return;
+        try {
+            const res  = await fetch('deleteProvider.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id }),
+            });
+            const data = await res.json();
+            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            providers = providers.filter(p => p.id != id);
+            _renderManageProviders(providers);
+            _populateProviderSelects();
+            _showManageMsg('Udbyder slettet', 'success');
+        } catch (e) { _showManageMsg(e.message); }
+    }
+
+    return {
+        init,
+        openManageModal,
+        startEditVehicle, cancelEditVehicle, saveVehicle,
+        startEditProvider, cancelEditProvider, saveProvider,
+        createProvider, deleteProvider,
+    };
 })();
 
 window.elbilApp = elbilApp;

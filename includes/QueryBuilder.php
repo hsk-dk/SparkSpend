@@ -46,10 +46,56 @@ class QueryBuilder {
      * @return array Array of provider records with id and providerName
      */
     public static function selectAllProviders(PDO $db): array {
-        $query = "SELECT id, providerName FROM provideres ORDER BY providerName";
+        $query = "SELECT id, providerName FROM providers ORDER BY providerName";
         $stmt = $db->prepare($query);
         $stmt->execute();
         return $stmt->fetchAll();
+    }
+
+    public static function updateVehicle(PDO $db, int $id, string $name): bool {
+        $stmt = $db->prepare("UPDATE vehicles SET vehicleName = ? WHERE id = ?");
+        return $stmt->execute([trim($name), $id]);
+    }
+
+    /**
+     * Insert vehicle if it doesn't exist; update vehicleName when a non-empty name is given.
+     * Used by receive_vehicle_data.php and update_monta_data.php to keep names current.
+     */
+    public static function upsertVehicle(PDO $db, int $id, string $name = ''): void {
+        $name = trim($name);
+        if ($name !== '') {
+            $db->prepare(
+                "INSERT INTO vehicles (id, vehicleName) VALUES (?, ?)
+                 ON CONFLICT(id) DO UPDATE SET vehicleName = excluded.vehicleName"
+            )->execute([$id, $name]);
+        } else {
+            // Ensure row exists with a placeholder; don't overwrite an existing name.
+            $db->prepare(
+                "INSERT OR IGNORE INTO vehicles (id, vehicleName) VALUES (?, ?)"
+            )->execute([$id, 'Køretøj ' . $id]);
+        }
+    }
+
+    public static function insertProvider(PDO $db, string $name): int {
+        $stmt = $db->prepare("INSERT INTO providers (providerName) VALUES (?)");
+        $stmt->execute([trim($name)]);
+        return (int) $db->lastInsertId();
+    }
+
+    public static function updateProvider(PDO $db, int $id, string $name): bool {
+        $stmt = $db->prepare("UPDATE providers SET providerName = ? WHERE id = ?");
+        return $stmt->execute([trim($name), $id]);
+    }
+
+    public static function deleteProvider(PDO $db, int $id): bool {
+        $stmt = $db->prepare("DELETE FROM providers WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
+    public static function providerUsageCount(PDO $db, int $id): int {
+        $stmt = $db->prepare("SELECT COUNT(*) FROM ext_charges WHERE providerId = ?");
+        $stmt->execute([$id]);
+        return (int) $stmt->fetchColumn();
     }
 
     /**

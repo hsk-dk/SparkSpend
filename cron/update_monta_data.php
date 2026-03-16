@@ -123,6 +123,16 @@ function saveChargingData($db, $data) {
         // Find den rigtige bil baseret på kabeltilslutningstidspunktet
         $vehicleId = getVehicleForCharge($charge['cablePluggedInAt']);
 
+        // Keep vehicles table current. Extract name from API response if available
+        // (Monta may return vehicle info in future API versions or under different keys).
+        $vehicleName = trim(
+            $charge['vehicleName']
+            ?? $charge['vehicle']['name']
+            ?? $charge['vehicle']['displayName']
+            ?? ''
+        );
+        QueryBuilder::upsertVehicle($db, $vehicleId, $vehicleName);
+
         // Extract soc percentage with error checking
         $socPercentage = null;
         if (isset($charge['soc']) && is_array($charge['soc']) && isset($charge['soc']['percentage'])) {

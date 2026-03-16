@@ -234,6 +234,9 @@ require 'includes/QueryBuilder.php';
     <button class="sub-nav-btn" data-sub="elbil-sammenligning">
       <i class="fas fa-car"></i> Sammenligning
     </button>
+    <button class="sub-nav-btn ms-auto" id="manageBtn" onclick="elbilApp.openManageModal()">
+      <i class="fas fa-sliders"></i> Administrér
+    </button>
   </nav>
 
   <!-- Sub-section: Ladninger -->
@@ -279,6 +282,7 @@ require 'includes/QueryBuilder.php';
       <tr>
         <th>Dato</th>
         <th>Forbrugt kWh</th>
+        <th>Varighed</th>
         <th>Pris</th>
 		<th>Pris pr kWh</th>
         <th>Bil</th>
@@ -287,7 +291,7 @@ require 'includes/QueryBuilder.php';
       </tr>
     </thead>
     <tbody id="chargeTableBody">
-      <tr><td colspan="7">Indlæser data...</td></tr>
+      <tr><td colspan="8">Indlæser data...</td></tr>
     </tbody>
   </table>
   </div>
@@ -538,6 +542,41 @@ require 'includes/QueryBuilder.php';
 
   </div><!-- /#elbil-sammenligning -->
 
+  <!-- Manage modal: vehicles + providers -->
+  <div class="modal fade" id="manageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-sliders me-2"></i>Administrér</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+
+          <!-- Vehicles -->
+          <h6 class="fw-semibold mb-2"><i class="fas fa-car me-1"></i> Køretøjer</h6>
+          <div id="manageVehiclesList" class="mb-4"></div>
+
+          <hr>
+
+          <!-- Providers -->
+          <h6 class="fw-semibold mb-2"><i class="fas fa-charging-station me-1"></i> Udbydere</h6>
+          <div id="manageProvidersList" class="mb-3"></div>
+
+          <!-- Add provider -->
+          <div class="d-flex gap-2" id="addProviderRow">
+            <input type="text" id="newProviderName" class="form-control form-control-sm"
+                   placeholder="Ny udbyder…" maxlength="80">
+            <button class="btn btn-sm btn-primary text-nowrap" onclick="elbilApp.createProvider()">
+              <i class="fas fa-plus"></i> Tilføj
+            </button>
+          </div>
+          <div id="manageMsg" class="mt-2 small"></div>
+
+        </div>
+      </div>
+    </div>
+  </div><!-- /#manageModal -->
+
 </section><!-- /#elbil-section -->
 
 <section id="jordvarme-section" class="tab-section">
@@ -653,9 +692,9 @@ require 'includes/QueryBuilder.php';
   <script src="includes/app.js?v=20260315"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260314"></script>
-  <script src="includes/dashboard.js?v=20260314"></script>
-  <script src="includes/elbil.js?v=20260311c"></script>
+  <script src="includes/nav.js?v=20260316c"></script>
+  <script src="includes/dashboard.js?v=20260316"></script>
+  <script src="includes/elbil.js?v=20260316b"></script>
   <script src="includes/jordvarme.js?v=20260312b"></script>
   <script src="includes/hus.js?v=20260315"></script>
   <script src="includes/regning.js?v=20260314"></script>

@@ -39,7 +39,7 @@ try {
         SELECT e.vehicleId, e.datetime, e.kwh, e.pris,
                COALESCE(p.providerName, 'Ukendt') AS providerName
         FROM ext_charges e
-        LEFT JOIN provideres p ON e.providerId = p.id
+        LEFT JOIN providers p ON e.providerId = p.id
         WHERE e.kwh > 0
     ");
     $stmt->execute();

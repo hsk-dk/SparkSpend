@@ -70,7 +70,9 @@ try {
             cost AS pris,
             vehicleId,
             NULL AS providerId,
-            'internal' AS source
+            'internal' AS source,
+            startedAt,
+            stoppedAt
         FROM charges
         $internalWhereStr
         UNION ALL
@@ -81,7 +83,9 @@ try {
             pris,
             vehicleId,
             providerId,
-            'external' AS source
+            'external' AS source,
+            NULL AS startedAt,
+            NULL AS stoppedAt
         FROM ext_charges
         $externalWhereStr
         ORDER BY datetime ASC

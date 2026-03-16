@@ -62,11 +62,17 @@ try {
     $cablePluggedInAt = $dt->format("Y-m-d\TH:i:s\Z");
 
     // Store vehicle data
-    $db = DatabaseManager::getChargesDb();
+    $db         = DatabaseManager::getChargesDb();
+    $vehicleId  = (int) $input['vehicleId'];
+    $vehicleName = isset($input['vehicleName']) ? trim((string) $input['vehicleName']) : '';
+
+    // Upsert vehicles table so vehicleName stays current whenever the sender provides it.
+    QueryBuilder::upsertVehicle($db, $vehicleId, $vehicleName);
+
     $result = QueryBuilder::insertVehicleData($db, [
-        'vehicleId' => $input['vehicleId'],
+        'vehicleId' => $vehicleId,
         'timestamp' => $cablePluggedInAt,
-        'odometer' => $input['odometer']
+        'odometer'  => $input['odometer']
     ]);
 
     if ($result) {
