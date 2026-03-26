@@ -111,7 +111,7 @@ try {
                 $sources[] = [
                     'id'             => $id,
                     'label'          => $label,
-                    'last_sync'      => $row['last_sync_timestamp'] ?? $row['updated_at'] ?? null,
+                    'last_sync'      => $row['updated_at'] ?? $row['last_sync_timestamp'] ?? null,
                     'status'         => $hasError ? 'error' : 'ok',
                     'records_synced' => isset($row['last_sync_count']) ? intval($row['last_sync_count']) : null,
                 ];

@@ -193,24 +193,43 @@ function insertRecords(PDO $db, array $records): int {
 }
 
 /**
- * Persist the max logdate from the just-synced batch as the new watermark.
+ * Persist sync state after each run.
+ *
+ * last_sync_timestamp = watermark: max logdate of the last batch with actual records.
+ *   Only updated when count > 0 so the MySQL query bound doesn't advance past real data.
+ *
+ * updated_at = run timestamp: always written so getSyncStatus.php can show when the
+ *   script last executed, even on runs where no new records were found.
  */
 function saveLastSync(PDO $db, int $count, array $records): void {
     try {
-        $maxLogdate = null;
-        foreach ($records as $row) {
-            $ld = $row['logdate'] ?? null;
-            if ($ld && ($maxLogdate === null || $ld > $maxLogdate)) {
-                $maxLogdate = $ld;
-            }
-        }
+        $now = date('Y-m-d H:i:s');
 
-        $now  = date('Y-m-d H:i:s');
-        $stmt = $db->prepare("
-            INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at)
-            VALUES ('housepowerlog', ?, ?, ?)
-        ");
-        $stmt->execute([$maxLogdate ?? $now, $count, $now]);
+        if ($count > 0) {
+            // Advance watermark to the max logdate of the batch just inserted.
+            $maxLogdate = null;
+            foreach ($records as $row) {
+                $ld = $row['logdate'] ?? null;
+                if ($ld && ($maxLogdate === null || $ld > $maxLogdate)) {
+                    $maxLogdate = $ld;
+                }
+            }
+            $stmt = $db->prepare("
+                INSERT OR REPLACE INTO sync_log
+                    (source, last_sync_timestamp, last_sync_count, updated_at)
+                VALUES ('housepowerlog', ?, ?, ?)
+            ");
+            $stmt->execute([$maxLogdate ?? $now, $count, $now]);
+        } else {
+            // No new data: preserve existing watermark (last_sync_timestamp) unchanged,
+            // bump updated_at so the status modal shows this run's time.
+            $stmt = $db->prepare("
+                INSERT INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at)
+                VALUES ('housepowerlog', NULL, 0, ?)
+                ON CONFLICT(source) DO UPDATE SET last_sync_count = 0, updated_at = excluded.updated_at
+            ");
+            $stmt->execute([$now]);
+        }
     } catch (Exception $e) {
         logMsg("Could not update sync timestamp: " . $e->getMessage(), 'WARN');
     }
