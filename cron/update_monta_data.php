@@ -224,5 +224,18 @@ $data = getChargingData($accessToken, $dataEndpoint, $newFromDate, $toDate);
 // Gem data i databasen
 saveChargingData($db, $data);
 
-//echo "Data hentet og gemt i databasen.";
+// ── Skriv sync-status til sync_log (bruges af getSyncStatus.php) ─────────────
+$db->exec("CREATE TABLE IF NOT EXISTS sync_log (
+    source TEXT PRIMARY KEY,
+    last_sync_timestamp TEXT,
+    last_sync_count INTEGER,
+    updated_at TEXT,
+    error_message TEXT
+)");
+$now   = date('Y-m-d H:i:s');
+$count = isset($data['data']) ? count($data['data']) : 0;
+$db->prepare("INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at, error_message)
+              VALUES ('monta', ?, ?, ?, NULL)")
+   ->execute([$now, $count, $now]);
+// ─────────────────────────────────────────────────────────────────────────────
 ?>

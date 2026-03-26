@@ -58,8 +58,11 @@ try {
         logMsg("Fetched {$count} records to sync.");
         $inserted = insertRecords($sqliteDb, $records);
         logMsg("Inserted/updated {$inserted} records.");
-        saveLastSync($sqliteDb, $count, $records);
     }
+
+    // Always update sync_log so getSyncStatus.php reflects when the script last ran,
+    // even on runs where no new records were found.
+    saveLastSync($sqliteDb, $count, $records);
 
     logMsg("House power log sync completed.");
 

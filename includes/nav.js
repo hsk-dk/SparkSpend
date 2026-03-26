@@ -59,15 +59,16 @@ const SparkNav = (() => {
         if (tabId === 'elbil-section') {
             if (!elbilLoaded) {
                 elbilLoaded = true;
-                requestAnimationFrame(() => window.elbilApp?.init());
+                requestAnimationFrame(() => requestAnimationFrame(() => window.elbilApp?.init()));
             }
         }
         if (tabId === 'jordvarme-section') {
             if (!jordvarmeLoaded) {
                 jordvarmeLoaded = true;
-                // Defer one frame so the browser completes layout (display:block) before
-                // Chart.js measures the canvas — prevents intermittent 0-height charts.
-                requestAnimationFrame(() => window.jordvarmeApp?.init());
+                // Double-RAF: first frame lets the browser apply display:block + layout;
+                // second frame lets Chart.js ResizeObserver settle before we create charts.
+                // Prevents the chartjs-plugin-datalabels _listened crash on intermittent loads.
+                requestAnimationFrame(() => requestAnimationFrame(() => window.jordvarmeApp?.init()));
             }
         }
         if (tabId === 'hus-section') {
@@ -78,10 +79,12 @@ const SparkNav = (() => {
         if (tabId === 'aarsrapport-section') {
             if (!aarsrapportLoaded) {
                 aarsrapportLoaded = true;
-                requestAnimationFrame(() => window.annualApp?.init());
-            } else {
-                _resizeSection('aarsrapport-section');
+                // Double-RAF for the same datalabels-compatibility reason as jordvarme above.
+                requestAnimationFrame(() => requestAnimationFrame(() => window.annualApp?.init()));
             }
+            // No _resizeSection on return visits: responsive:true lets Chart.js handle
+            // its own resizing via the internal ResizeObserver. Calling chart.resize()
+            // externally crashes chartjs-plugin-datalabels (beforeUpdate hook).
         }
     }
 
@@ -132,11 +135,11 @@ const SparkNav = (() => {
 
         if (activeSubId === 'hus-forbrug' && !husForbrugLoaded) {
             husForbrugLoaded = true;
-            requestAnimationFrame(() => window.husApp?.init());
+            requestAnimationFrame(() => requestAnimationFrame(() => window.husApp?.init()));
         }
         if (activeSubId === 'hus-regning' && !husRegningLoaded) {
             husRegningLoaded = true;
-            requestAnimationFrame(() => window.regningApp?.init());
+            requestAnimationFrame(() => requestAnimationFrame(() => window.regningApp?.init()));
         }
     }
 

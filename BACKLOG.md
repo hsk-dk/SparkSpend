@@ -25,6 +25,7 @@ Items within each priority tier are ordered by impact.
 - ✅ **ENHANCEMENT — EV opladningssession effekt (kW) + varighed** — `getCharges.php` returnerer nu `startedAt` + `stoppedAt` for interne ladninger. `_renderCharges` beregner varighed og Ø-kW og viser dem i ny "Varighed"-kolonne (`1h 23m` / `Ø 7.2 kW`).
 - ✅ **DEBT — Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php`** — Filbaseret cache i `/tmp`. `getDashboardSummary.php` bruger 60s TTL med daglig cache-nøgle. `getChargeAnalytics.php` bruger 300s TTL med md5-nøgle på alle GET-parametre.
 - ✅ **ENHANCEMENT — Årsrapportvisning** — Nyt topniveau-faneblad "Årsrapport" (`#aarsrapport`). `getAnnualSummary.php` aggregerer EV (intern + ekstern), jordvarme og hus pr. kalenderår. `includes/annual.js` renderer grupperet søjlediagram + tabel med EV ladninger, kWh, pris, VP kWh og Hus total kWh. 1-times filcache.
+- ✅ **ENHANCEMENT — Global sync-statusindikator + "Sync nu"-knap** — `getSyncStatus.php` forespørger `sync_log` (jordvarme/hus) + `MAX(stoppedAt)` (Monta). `triggerSync.php` kører cron-scripts i baggrunden. ⚙-knap i headeren åbner `#syncModal` med OK/Fejl-badge, relativ tid, per-kilde sync-knapper og "Sync alle".
 
 ---
 
@@ -73,13 +74,11 @@ Jordvarme-fanebladet har en `Sammenligning`-tilstand der overlapper flere års m
 Ingen eksportfunktionalitet eksisterer nogen steder i appen. En "Eksporter CSV"-knap på opladningstabellen og en månedlig sammendragseksport på Jordvarme-fanebladet ville opfylde grundlæggende dataportabilitetsforventninger.
 **Filer:** ny `exportCharges.php`, ny `exportHeatpump.php`, `includes/elbil.js`, `includes/jordvarme.js`
 
-### ENHANCEMENT — Global sync-statusindikator
-`cron/cron.log` viser seneste synkroniseringstidspunkt og eventuelle fejl, men er kun læsbar via SSH. En lille sync-statusindikator (seneste synkroniseringstidspunkt + OK/fejl-badge) synlig i settings-modalen eller headeren ville hjælpe brugeren med at diagnosticere forældet data. Hus og Jordvarme viser allerede sync-status per sektion — dette ville samle det ét sted.
-**Filer:** ny `getSyncStatus.php`, `index.php`
+### ~~ENHANCEMENT — Global sync-statusindikator~~ ✅ Rettet
+~~`cron/cron.log` viser seneste synkroniseringstidspunkt og eventuelle fejl, men er kun læsbar via SSH.~~ Ny `getSyncStatus.php` forespørger `sync_log`-tabellen i SQLite (jordvarme/hus) og `MAX(stoppedAt)` fra charges (Monta). ⚙-knap i headeren åbner `#syncModal` med OK/Fejl-badge og relativ tid per kilde.
 
-### ENHANCEMENT — "Sync nu"-knap for Monta og varmepumpe
-Aktuelt opdateres begge datakilder kun via planlagt cron. En settings modal "Sync nu"-knap ville lade brugere trække friske data på bestilling.
-**Filer:** ny `triggerSync.php`, `index.php` (settings modal)
+### ~~ENHANCEMENT — "Sync nu"-knap for Monta og varmepumpe~~ ✅ Rettet
+~~Aktuelt opdateres begge datakilder kun via planlagt cron.~~ Ny `triggerSync.php` kører cron-scripts i baggrunden via `PHP_BINARY exec()`. Samme sync-modal har "Sync alle"-knap + individuelle per-kilde-knapper. Auto-opdaterer status efter 20 sekunder.
 
 ### ~~ENHANCEMENT — Årsrapportvisning~~ ✅ Rettet
 ~~Ingen årsaggregering eksisterer.~~ Nyt topniveau-faneblad med `getAnnualSummary.php` + `includes/annual.js`. Grupperet søjlediagram og tabel viser EV kWh, EV pris, VP kWh og Hus total kWh pr. kalenderår.
@@ -236,6 +235,6 @@ Fokus: **Indsigt + Driftstransparens**
 |---|---|---|---|
 | 1 | **ENHANCEMENT** EV hjemmeladning kr fra spotpris | Medium | ~~Fravalgt — Montas cost-felt er validt~~ |
 | 2 | ~~**ENHANCEMENT** Årsrapportvisning~~ | Medium | ✅ Afsluttet |
-| 3 | **ENHANCEMENT** Global sync-statusindikator | Medium | Åben |
-| 4 | **ENHANCEMENT** "Sync nu"-knap | Medium | Åben |
+| 3 | ~~**ENHANCEMENT** Global sync-statusindikator~~ | Medium | ✅ Afsluttet |
+| 4 | ~~**ENHANCEMENT** "Sync nu"-knap~~ | Medium | ✅ Afsluttet |
 | 5 | **ENHANCEMENT** Sparkline rullende 30-dages vindue | Low | Åben |

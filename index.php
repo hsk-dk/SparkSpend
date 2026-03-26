@@ -63,8 +63,13 @@ require 'includes/QueryBuilder.php';
       </button>
     </nav>
 
-    <!-- Header Right: Filter Button + Create Charge Button -->
+    <!-- Header Right: Sync Status, Filter Button + Create Charge Button -->
     <div class="header-right">
+      <button type="button" class="btn btn-secondary" id="syncStatusBtn"
+              data-bs-toggle="modal" data-bs-target="#syncModal"
+              title="Synkroniseringsstatus">
+        <i class="fas fa-sync-alt"></i>
+      </button>
       <button type="button" class="btn btn-secondary" id="filterToggleBtn" title="Åbn filtre">
         <i class="fas fa-sliders-h"></i>
       </button>
@@ -700,6 +705,29 @@ require 'includes/QueryBuilder.php';
   </div>
 </section><!-- /#aarsrapport-section -->
 
+<!-- ── Sync Status Modal ─────────────────────────────────────────────────── -->
+<div class="modal fade" id="syncModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title mb-0"><i class="fas fa-sync-alt me-2"></i>Synkronisering</h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="syncStatusList" class="px-3 py-2">
+          <p class="text-muted text-center mb-0 py-2">Indlæser…</p>
+        </div>
+      </div>
+      <div class="modal-footer py-2 justify-content-between">
+        <small id="syncModalMsg" class="text-muted"></small>
+        <button class="btn btn-primary btn-sm" id="syncAllBtn">
+          <i class="fas fa-sync-alt me-1"></i> Sync alle
+        </button>
+      </div>
+    </div>
+  </div>
+</div><!-- /#syncModal -->
+
   <!-- App Utilities -->
   <!-- Server configuration for JS modules (area/GLN from .env, never from user input) -->
   <script>window.sparkConfig = {
@@ -711,13 +739,108 @@ require 'includes/QueryBuilder.php';
   <script src="includes/app.js?v=20260315"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260316d"></script>
+  <script src="includes/nav.js?v=20260316e"></script>
   <script src="includes/dashboard.js?v=20260316"></script>
   <script src="includes/elbil.js?v=20260316b"></script>
   <script src="includes/jordvarme.js?v=20260312b"></script>
   <script src="includes/hus.js?v=20260315"></script>
   <script src="includes/regning.js?v=20260314"></script>
   <script src="includes/annual.js?v=20260316"></script>
+
+  <!-- Sync Status Modal JS -->
+  <script>
+  (function () {
+      const modal     = document.getElementById('syncModal');
+      const listEl    = document.getElementById('syncStatusList');
+      const msgEl     = document.getElementById('syncModalMsg');
+      const syncAllBtn= document.getElementById('syncAllBtn');
+      if (!modal) return;
+
+      // Load status whenever modal opens
+      modal.addEventListener('show.bs.modal', _loadStatus);
+
+      // "Sync alle" button
+      syncAllBtn?.addEventListener('click', () => _triggerSync('all'));
+
+      // Per-source sync buttons (event delegation)
+      listEl?.addEventListener('click', e => {
+          const btn = e.target.closest('[data-sync-source]');
+          if (btn) _triggerSync(btn.dataset.syncSource);
+      });
+
+      function _loadStatus() {
+          listEl.innerHTML = '<p class="text-muted text-center mb-0 py-2">Indlæser\u2026</p>';
+          msgEl.textContent = '';
+          fetch('getSyncStatus.php')
+              .then(r => r.json())
+              .then(d => _render(d.sources || []))
+              .catch(() => {
+                  listEl.innerHTML = '<p class="text-danger mb-0 py-2">Fejl ved hentning af status.</p>';
+              });
+      }
+
+      function _render(sources) {
+          if (!sources.length) {
+              listEl.innerHTML = '<p class="text-muted mb-0 py-2">Ingen data.</p>';
+              return;
+          }
+          listEl.innerHTML = sources.map((s, i) => {
+              const isLast = i === sources.length - 1;
+              const badge =
+                  s.status === 'ok'      ? '<span class="badge bg-success">OK</span>' :
+                  s.status === 'error'   ? '<span class="badge bg-danger">Fejl</span>' :
+                                           '<span class="badge bg-secondary">Ukendt</span>';
+              const ago   = s.last_sync ? _relativeTime(s.last_sync) : '—';
+              const extra = s.records_synced != null
+                  ? `<span class="text-muted"> &middot; ${s.records_synced} poster</span>`
+                  : '';
+              return `
+              <div class="d-flex align-items-center justify-content-between py-2${isLast ? '' : ' border-bottom'}">
+                <div>
+                  <div class="fw-semibold small">${s.label}</div>
+                  <small class="text-muted">${ago}${extra}</small>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-3">
+                  ${badge}
+                  <button class="btn btn-outline-secondary btn-sm py-0 px-2"
+                          data-sync-source="${s.id}" title="Sync ${s.label}">
+                    <i class="fas fa-sync-alt fa-xs"></i>
+                  </button>
+                </div>
+              </div>`;
+          }).join('');
+      }
+
+      function _relativeTime(dateStr) {
+          const diff = Math.floor((Date.now() - new Date(dateStr.replace(' ', 'T'))) / 1000);
+          if (diff < 60)    return 'Lige nu';
+          if (diff < 3600)  return Math.floor(diff / 60) + ' min. siden';
+          if (diff < 86400) return Math.floor(diff / 3600) + ' t. siden';
+          return Math.floor(diff / 86400) + ' dage siden';
+      }
+
+      function _triggerSync(source) {
+          if (syncAllBtn) syncAllBtn.disabled = true;
+          msgEl.textContent = 'Starter sync\u2026';
+          fetch('triggerSync.php', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({source}),
+          })
+          .then(r => r.json())
+          .then(d => {
+              if (d.success) {
+                  msgEl.textContent = 'Sync startet — opdaterer om 20 sek.';
+                  setTimeout(() => { _loadStatus(); msgEl.textContent = ''; }, 20000);
+              } else {
+                  msgEl.textContent = d.error || 'Ukendt fejl.';
+              }
+          })
+          .catch(() => { msgEl.textContent = 'Netværksfejl.'; })
+          .finally(() => { if (syncAllBtn) syncAllBtn.disabled = false; });
+      }
+  })();
+  </script>
 
   <!-- Footer -->
   <footer class="site-footer">
