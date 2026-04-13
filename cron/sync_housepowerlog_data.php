@@ -26,6 +26,9 @@ require 'includes/MySQLManager.php';
 $lockFile   = __DIR__ . '/sync_housepowerlog.lock';
 $maxLockAge = 60; // seconds
 
+$runUser = function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? '?') : get_current_user();
+logMsg("Invoked (pid=" . getmypid() . ", user={$runUser})");
+
 if (file_exists($lockFile)) {
     $lockAge = time() - filemtime($lockFile);
     if ($lockAge < $maxLockAge) {
@@ -205,6 +208,17 @@ function saveLastSync(PDO $db, int $count, array $records): void {
     try {
         $now = date('Y-m-d H:i:s');
 
+        // Ensure sync_log table exists (uses INSERT OR REPLACE which requires the table).
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS sync_log (
+                source              TEXT PRIMARY KEY,
+                last_sync_timestamp TEXT,
+                last_sync_count     INTEGER,
+                error_message       TEXT,
+                updated_at          TEXT
+            )
+        ");
+
         if ($count > 0) {
             // Advance watermark to the max logdate of the batch just inserted.
             $maxLogdate = null;
@@ -221,14 +235,20 @@ function saveLastSync(PDO $db, int $count, array $records): void {
             ");
             $stmt->execute([$maxLogdate ?? $now, $count, $now]);
         } else {
-            // No new data: preserve existing watermark (last_sync_timestamp) unchanged,
-            // bump updated_at so the status modal shows this run's time.
+            // No new data: read the existing watermark so we can preserve it with
+            // INSERT OR REPLACE (avoids the ON CONFLICT DO UPDATE syntax that requires
+            // SQLite 3.24+, which is not available on all servers).
+            $existing = $db->prepare("SELECT last_sync_timestamp FROM sync_log WHERE source = 'housepowerlog'");
+            $existing->execute();
+            $row       = $existing->fetch();
+            $watermark = $row ? $row['last_sync_timestamp'] : null;
+
             $stmt = $db->prepare("
-                INSERT INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at)
-                VALUES ('housepowerlog', NULL, 0, ?)
-                ON CONFLICT(source) DO UPDATE SET last_sync_count = 0, updated_at = excluded.updated_at
+                INSERT OR REPLACE INTO sync_log
+                    (source, last_sync_timestamp, last_sync_count, updated_at)
+                VALUES ('housepowerlog', ?, 0, ?)
             ");
-            $stmt->execute([$now]);
+            $stmt->execute([$watermark, $now]);
         }
     } catch (Exception $e) {
         logMsg("Could not update sync timestamp: " . $e->getMessage(), 'WARN');
