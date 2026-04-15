@@ -19,6 +19,7 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
@@ -37,23 +38,31 @@ try {
     $rangeEnd    = date('Y-m-t'); // last day of current month
 
     // =========================================================================
-    // EV — internal charges (consumedKwh + cost) grouped by month
+    // EV — internal charges: raw fetch, proportional midnight-split by month
     // =========================================================================
     $stmtInt = $chargesDb->prepare("
-        SELECT strftime('%Y-%m', createdAt) as month,
-               COALESCE(SUM(consumedKwh), 0) as kwh,
-               COALESCE(SUM(cost), 0)        as cost
+        SELECT startedAt, stoppedAt,
+               COALESCE(consumedKwh, 0) AS kwh,
+               COALESCE(cost, 0) AS cost
         FROM charges
-        WHERE strftime('%Y-%m', createdAt) >= ?
-        GROUP BY month
+        WHERE DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?
     ");
-    $stmtInt->execute([$oldest]);
+    $stmtInt->execute([$rangeEnd, $rangeStart]);
     $internalByMonth = [];
     foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $internalByMonth[$row['month']] = [
-            'kwh'  => floatval($row['kwh']),
-            'cost' => floatval($row['cost']),
-        ];
+        $splits = QueryBuilder::splitChargeByDays(
+            $row['startedAt'], $row['stoppedAt'],
+            floatval($row['kwh']), floatval($row['cost'])
+        );
+        foreach ($splits as $day => $slice) {
+            $month = substr($day, 0, 7);
+            if ($month < $oldest) continue;
+            if (!isset($internalByMonth[$month])) {
+                $internalByMonth[$month] = ['kwh' => 0.0, 'cost' => 0.0];
+            }
+            $internalByMonth[$month]['kwh']  += $slice['kwh'];
+            $internalByMonth[$month]['cost'] += $slice['cost'];
+        }
     }
 
     // =========================================================================

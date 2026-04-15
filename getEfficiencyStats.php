@@ -77,14 +77,14 @@ try {
     // Fetch internal charges (charges table)
     $whereConditions2 = [];
     if ($dateFilters) {
-        $whereConditions2[] = "date(createdAt) >= ?";
-        $whereConditions2[] = "date(createdAt) <= ?";
+        $whereConditions2[] = "date(stoppedAt) >= ?";
+        $whereConditions2[] = "date(stoppedAt) <= ?";
     }
     if ($filter !== 'all') {
         $whereConditions2[] = "vehicleId = ?";
     }
 
-    $query2 = "SELECT vehicleId, createdAt as datetime, consumedKwh as kwh, cost as pris FROM charges";
+    $query2 = "SELECT vehicleId, stoppedAt as datetime, consumedKwh as kwh, cost as pris FROM charges";
     if (!empty($whereConditions2)) {
         $query2 .= " WHERE " . implode(" AND ", $whereConditions2);
     }

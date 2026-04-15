@@ -133,6 +133,61 @@ class QueryBuilder {
     }
 
     /**
+     * Proportionally split a charge session across calendar days.
+     *
+     * A session that runs from 22:00 to 02:00 spans two local calendar days, so
+     * 50 % of kWh and cost belongs to each day. Timestamps are UTC ISO 8601 strings
+     * (e.g. "2026-04-13T22:00:00Z"); PHP uses the app timezone (set via
+     * date_default_timezone_set in configuration.php) for local midnight boundaries.
+     *
+     * Returns: ['Y-m-d' => ['kwh' => float, 'cost' => float, 'count' => int]]
+     *   'count' is 1 on the day charging started, 0 on subsequent continuation days.
+     */
+    public static function splitChargeByDays(
+        string $startedAt,
+        string $stoppedAt,
+        float  $totalKwh,
+        float  $totalCost
+    ): array {
+        $startTs = strtotime($startedAt);
+        $stopTs  = strtotime($stoppedAt);
+
+        // Fallback: assign entirely to the start day
+        if ($startTs === false || $stopTs === false || $stopTs <= $startTs) {
+            $day = date('Y-m-d', $startTs ?: time());
+            return [$day => ['kwh' => $totalKwh, 'cost' => $totalCost, 'count' => 1]];
+        }
+
+        $totalSeconds = $stopTs - $startTs;
+        $result       = [];
+        $cursor       = $startTs;
+        $isFirstDay   = true;
+
+        while ($cursor < $stopTs) {
+            // Local midnight starting the next calendar day
+            $nextMidnight = mktime(0, 0, 0,
+                (int) date('n', $cursor),
+                (int) date('j', $cursor) + 1,
+                (int) date('Y', $cursor)
+            );
+            $sliceEnd = min($nextMidnight, $stopTs);
+            $ratio    = ($sliceEnd - $cursor) / $totalSeconds;
+            $day      = date('Y-m-d', $cursor);
+
+            $result[$day] = [
+                'kwh'   => $totalKwh  * $ratio,
+                'cost'  => $totalCost * $ratio,
+                'count' => $isFirstDay ? 1 : 0,
+            ];
+
+            $isFirstDay = false;
+            $cursor     = $nextMidnight;
+        }
+
+        return $result;
+    }
+
+    /**
      * Get cost trend data (internal + external charges combined)
      *
      * Aggregates charges by time period (day, week, month).
@@ -165,14 +220,11 @@ class QueryBuilder {
         $trends = [];
 
         // ===== INTERNAL CHARGES (charges table) =====
-        // Always group by day in SQL; PHP collapses to week/month below so that
-        // both internal and external charges use the same ISO week key format.
-        $queryInternal = "SELECT
-            strftime('%Y-%m-%d', createdAt) as date,
-            'internal' as source,
-            COUNT(*) as charge_count,
-            COALESCE(SUM(consumedKwh), 0) as total_kwh,
-            COALESCE(SUM(cost), 0) as total_cost
+        // Fetch raw per-session rows so sessions crossing midnight can be split
+        // proportionally. The overlap filter (startedAt <= endDate AND stoppedAt >= startDate)
+        // captures any session touching the range; PHP clips the split slices to
+        // the requested dates so out-of-range fragments are discarded.
+        $queryInternal = "SELECT startedAt, stoppedAt, consumedKwh, cost
         FROM charges
         WHERE 1=1";
 
@@ -184,46 +236,56 @@ class QueryBuilder {
         }
 
         if ($startDate !== null && $endDate !== null) {
-            $queryInternal .= " AND DATE(createdAt) BETWEEN ? AND ?";
-            $paramsInternal[] = $startDate;
+            $queryInternal .= " AND DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?";
             $paramsInternal[] = $endDate;
+            $paramsInternal[] = $startDate;
         }
 
         if (!$showZeroKwh) {
             $queryInternal .= " AND consumedKwh > 0";
         }
 
-        $queryInternal .= " GROUP BY strftime('%Y-%m-%d', createdAt) ORDER BY date ASC";
+        $queryInternal .= " ORDER BY startedAt ASC";
 
         $stmtInternal = $db->prepare($queryInternal);
         $stmtInternal->execute($paramsInternal);
         $chargesInternal = $stmtInternal->fetchAll();
 
-        // Collapse SQL day records into the requested time period.
-        // Using PHP ISO week (format 'o-\WW') for week grouping ensures internal and
-        // external charges land on the same key — SQLite's %W is Sunday-based and can
-        // differ from PHP's ISO (Monday-based) week at year boundaries.
+        // Split each session across the days it spans, then collapse into the
+        // requested time-period bucket (day / ISO week / month).
         $internalGrouped = [];
         foreach ($chargesInternal as $record) {
-            $dateObj = date_create($record['date']);
-            if (!$dateObj) continue;
-            $groupedDate = match($groupBy) {
-                'day'   => $dateObj->format('Y-m-d'),
-                'month' => $dateObj->format('Y-m'),
-                default => $dateObj->format('o-\WW'), // ISO year + ISO week, zero-padded
-            };
-            if (!isset($internalGrouped[$groupedDate])) {
-                $internalGrouped[$groupedDate] = [
-                    'date'         => $groupedDate,
-                    'source'       => 'internal',
-                    'charge_count' => 0,
-                    'total_kwh'    => 0.0,
-                    'total_cost'   => 0.0,
-                ];
+            $days = self::splitChargeByDays(
+                $record['startedAt'],
+                $record['stoppedAt'],
+                floatval($record['consumedKwh']),
+                floatval($record['cost'])
+            );
+            foreach ($days as $day => $vals) {
+                // Discard fragments that fall outside the requested range
+                if ($startDate !== null && ($day < $startDate || $day > $endDate)) {
+                    continue;
+                }
+                $dateObj = date_create($day);
+                if (!$dateObj) continue;
+                $groupedDate = match($groupBy) {
+                    'day'   => $dateObj->format('Y-m-d'),
+                    'month' => $dateObj->format('Y-m'),
+                    default => $dateObj->format('o-\WW'),
+                };
+                if (!isset($internalGrouped[$groupedDate])) {
+                    $internalGrouped[$groupedDate] = [
+                        'date'         => $groupedDate,
+                        'source'       => 'internal',
+                        'charge_count' => 0,
+                        'total_kwh'    => 0.0,
+                        'total_cost'   => 0.0,
+                    ];
+                }
+                $internalGrouped[$groupedDate]['charge_count'] += $vals['count'];
+                $internalGrouped[$groupedDate]['total_kwh']    += $vals['kwh'];
+                $internalGrouped[$groupedDate]['total_cost']   += $vals['cost'];
             }
-            $internalGrouped[$groupedDate]['charge_count'] += intval($record['charge_count']);
-            $internalGrouped[$groupedDate]['total_kwh']    += floatval($record['total_kwh']);
-            $internalGrouped[$groupedDate]['total_cost']   += floatval($record['total_cost']);
         }
 
         // ===== EXTERNAL CHARGES (ext_charges table) =====
@@ -373,9 +435,9 @@ class QueryBuilder {
         }
 
         if ($startDate !== null && $endDate !== null) {
-            $queryInternal .= " AND DATE(createdAt) BETWEEN ? AND ?";
-            $paramsInternal[] = $startDate;
+            $queryInternal .= " AND DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?";
             $paramsInternal[] = $endDate;
+            $paramsInternal[] = $startDate;
         }
 
         if (!$showZeroKwh) {
@@ -543,9 +605,9 @@ class QueryBuilder {
                   FROM charges WHERE consumedKwh > 0";
         $pInt  = [];
         if ($startDate !== null) {
-            $qInt   .= " AND DATE(createdAt) BETWEEN ? AND ?";
-            $pInt[]  = $startDate;
+            $qInt   .= " AND DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?";
             $pInt[]  = $endDate;
+            $pInt[]  = $startDate;
         }
         $qInt .= " GROUP BY vehicleId";
         $stmt  = $db->prepare($qInt);

@@ -18,6 +18,7 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
@@ -107,17 +108,22 @@ try {
             $hpByDay[$row['day']] = floatval($row['kwh']);
         }
 
-        // EV internal
+        // EV internal — proportional midnight-split
         $evByDay = [];
         $stmt = $chargesDb->prepare("
-            SELECT DATE(createdAt) AS day, COALESCE(SUM(consumedKwh), 0) AS kwh
+            SELECT startedAt, stoppedAt, COALESCE(consumedKwh, 0) AS kwh
             FROM charges
-            WHERE DATE(createdAt) >= ? AND DATE(createdAt) <= ?
-            GROUP BY day
+            WHERE DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?
         ");
-        $stmt->execute([$dayStart, $dayEnd]);
+        $stmt->execute([$dayEnd, $dayStart]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $evByDay[$row['day']] = floatval($row['kwh']);
+            $splits = QueryBuilder::splitChargeByDays(
+                $row['startedAt'], $row['stoppedAt'], floatval($row['kwh']), 0.0
+            );
+            foreach ($splits as $day => $slice) {
+                if ($day < $dayStart || $day > $dayEnd) continue;
+                $evByDay[$day] = ($evByDay[$day] ?? 0.0) + $slice['kwh'];
+            }
         }
 
         // EV external
@@ -213,18 +219,23 @@ try {
             $hpByMonth[$row['month']] = floatval($row['kwh']);
         }
 
-        // EV internal monthly
+        // EV internal monthly — proportional midnight-split
         $evByMonth = [];
         $stmt = $chargesDb->prepare("
-            SELECT strftime('%Y-%m', createdAt) AS month,
-                   COALESCE(SUM(consumedKwh), 0) AS kwh
+            SELECT startedAt, stoppedAt, COALESCE(consumedKwh, 0) AS kwh
             FROM charges
-            WHERE strftime('%Y', createdAt) = ?
-            GROUP BY month
+            WHERE DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?
         ");
-        $stmt->execute([$year]);
+        $stmt->execute([$yearEnd, $yearStart]);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $evByMonth[$row['month']] = floatval($row['kwh']);
+            $splits = QueryBuilder::splitChargeByDays(
+                $row['startedAt'], $row['stoppedAt'], floatval($row['kwh']), 0.0
+            );
+            foreach ($splits as $day => $slice) {
+                if ($day < $yearStart || $day > $yearEnd) continue;
+                $month = substr($day, 0, 7);
+                $evByMonth[$month] = ($evByMonth[$month] ?? 0.0) + $slice['kwh'];
+            }
         }
 
         // EV external monthly

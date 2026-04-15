@@ -20,6 +20,7 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
@@ -37,25 +38,40 @@ try {
     $powerlogDb = DatabaseManager::getPowerlogDb();
 
     // =========================================================================
-    // EV — internal charges grouped by year
+    // EV — internal charges: raw fetch, proportional midnight-split by year
     // =========================================================================
     $intByYear = [];
     $rows = $chargesDb->query("
-        SELECT strftime('%Y', createdAt) AS year,
-               COUNT(*) AS cnt,
-               ROUND(SUM(consumedKwh), 2) AS kwh,
-               ROUND(SUM(cost), 2) AS cost
+        SELECT startedAt, stoppedAt,
+               COALESCE(consumedKwh, 0) AS kwh,
+               COALESCE(cost, 0) AS cost
         FROM charges
-        GROUP BY year
-        ORDER BY year
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($rows as $r) {
-        $intByYear[$r['year']] = [
-            'cnt'  => intval($r['cnt']),
-            'kwh'  => floatval($r['kwh']),
-            'cost' => floatval($r['cost']),
-        ];
+    foreach ($rows as $row) {
+        $splits = QueryBuilder::splitChargeByDays(
+            $row['startedAt'], $row['stoppedAt'],
+            floatval($row['kwh']), floatval($row['cost'])
+        );
+        $countedYears = [];
+        foreach ($splits as $day => $slice) {
+            $year = substr($day, 0, 4);
+            if (!isset($intByYear[$year])) {
+                $intByYear[$year] = ['cnt' => 0, 'kwh' => 0.0, 'cost' => 0.0];
+            }
+            $intByYear[$year]['kwh']  += $slice['kwh'];
+            $intByYear[$year]['cost'] += $slice['cost'];
+            if (!in_array($year, $countedYears)) {
+                $intByYear[$year]['cnt']++;
+                $countedYears[] = $year;
+            }
+        }
     }
+    foreach ($intByYear as &$data) {
+        $data['kwh']  = round($data['kwh'], 2);
+        $data['cost'] = round($data['cost'], 2);
+    }
+    unset($data);
+    ksort($intByYear);
 
     // =========================================================================
     // EV — external charges (PHP-side year extraction: ISO 8601 Z-suffix on

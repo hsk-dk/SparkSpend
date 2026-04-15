@@ -7,6 +7,7 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
@@ -33,36 +34,50 @@ try {
     $lastYearEnd   = date('Y-m-d', strtotime('-1 year'));  // same day last year
 
     // =========================================================================
-    // EV — current month totals (internal + external)
+    // EV — internal charges: raw fetch, proportional midnight-split
     // =========================================================================
     $stmtInt = $chargesDb->prepare("
-        SELECT COUNT(*) as cnt,
-               COALESCE(SUM(consumedKwh), 0) as kwh,
-               COALESCE(SUM(cost), 0) as cost
+        SELECT startedAt, stoppedAt,
+               COALESCE(consumedKwh, 0) AS kwh,
+               COALESCE(cost, 0) AS cost
         FROM charges
-        WHERE strftime('%Y-%m', createdAt) = ?
+        WHERE DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?
     ");
-    $stmtInt->execute([$currentMonth]);
-    $intMonth = $stmtInt->fetch(PDO::FETCH_ASSOC);
+    $stmtInt->execute([$today, $lastYearStart]);
 
-    // EV — same period last month (MTD) and same period last year (MTD)
-    $stmtIntPrev = $chargesDb->prepare("
-        SELECT COALESCE(SUM(consumedKwh), 0) as kwh,
-               COALESCE(SUM(cost), 0) as cost
-        FROM charges
-        WHERE DATE(createdAt) BETWEEN ? AND ?
-    ");
-    $stmtIntPrev->execute([$prevStart, $prevEnd]);
-    $intPrev = $stmtIntPrev->fetch(PDO::FETCH_ASSOC);
+    $intMonthCnt  = 0;  $intMonthKwh  = 0.0;  $intMonthCost = 0.0;
+    $intPrevKwh   = 0.0; $intPrevCost  = 0.0;
+    $intLYKwh     = 0.0; $intLYCost    = 0.0;
+    $evByDay      = [];
 
-    $stmtIntLY = $chargesDb->prepare("
-        SELECT COALESCE(SUM(consumedKwh), 0) as kwh,
-               COALESCE(SUM(cost), 0) as cost
-        FROM charges
-        WHERE DATE(createdAt) BETWEEN ? AND ?
-    ");
-    $stmtIntLY->execute([$lastYearStart, $lastYearEnd]);
-    $intLY = $stmtIntLY->fetch(PDO::FETCH_ASSOC);
+    foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $splits = QueryBuilder::splitChargeByDays(
+            $row['startedAt'], $row['stoppedAt'],
+            floatval($row['kwh']), floatval($row['cost'])
+        );
+        $countedForMonth = false;
+        foreach ($splits as $day => $slice) {
+            if ($day >= $sparkStart && $day <= $today) {
+                $evByDay[$day] = ($evByDay[$day] ?? 0) + $slice['kwh'];
+            }
+            if (substr($day, 0, 7) === $currentMonth) {
+                $intMonthKwh  += $slice['kwh'];
+                $intMonthCost += $slice['cost'];
+                if (!$countedForMonth) { $intMonthCnt++; $countedForMonth = true; }
+            }
+            if ($day >= $prevStart && $day <= $prevEnd) {
+                $intPrevKwh  += $slice['kwh'];
+                $intPrevCost += $slice['cost'];
+            }
+            if ($day >= $lastYearStart && $day <= $lastYearEnd) {
+                $intLYKwh  += $slice['kwh'];
+                $intLYCost += $slice['cost'];
+            }
+        }
+    }
+    $intMonth = ['cnt' => $intMonthCnt, 'kwh' => $intMonthKwh, 'cost' => $intMonthCost];
+    $intPrev  = ['kwh' => $intPrevKwh,  'cost' => $intPrevCost];
+    $intLY    = ['kwh' => $intLYKwh,    'cost' => $intLYCost];
 
     // External charges — ISO 8601 Z-suffix prevents SQL date filtering, so we fetch
     // a bounded window (from same month last year onwards) and filter in PHP.
@@ -108,20 +123,8 @@ try {
     $extMonth = ['cnt' => $extMonthCnt, 'kwh' => $extMonthKwh, 'cost' => $extMonthCost];
 
     // =========================================================================
-    // EV — 14-day sparkline (internal via SQL, external merged from PHP above)
+    // EV — sparkline: merge external charges into $evByDay (built above)
     // =========================================================================
-    $stmtSpark = $chargesDb->prepare("
-        SELECT date(createdAt) as day, SUM(consumedKwh) as kwh
-        FROM charges
-        WHERE date(createdAt) BETWEEN ? AND ?
-        GROUP BY day
-    ");
-    $stmtSpark->execute([$sparkStart, $today]);
-
-    $evByDay = [];
-    foreach ($stmtSpark->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $evByDay[$row['day']] = floatval($row['kwh']);
-    }
     foreach ($extByDay as $day => $kwh) {
         $evByDay[$day] = ($evByDay[$day] ?? 0) + $kwh;
     }

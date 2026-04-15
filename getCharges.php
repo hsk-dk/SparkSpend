@@ -53,7 +53,7 @@ try {
     }
 
     if ($dateFilters) {
-        $internalWhere[] = "date(createdAt) BETWEEN ? AND ?";
+        $internalWhere[] = "date(stoppedAt) BETWEEN ? AND ?";
         $externalWhere[] = "date(datetime) BETWEEN ? AND ?";
     }
 
@@ -65,7 +65,7 @@ try {
     $query = "
         SELECT
             id,
-            strftime('%Y-%m-%dT%H:%M:%S', createdAt) AS datetime,
+            strftime('%Y-%m-%dT%H:%M:%S', stoppedAt) AS datetime,
             consumedKwh AS kwh,
             cost AS pris,
             vehicleId,

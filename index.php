@@ -10,6 +10,14 @@ require 'includes/QueryBuilder.php';
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SparkSpend</title>
   <link rel="icon" type="image/svg+xml" href="includes/favicon.svg">
+  <!-- PWA -->
+  <meta name="description" content="Energiforbrug og EV-opladningsoverblik">
+  <meta name="theme-color" content="#1a2635">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SparkSpend">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/images/icon-192.png">
   <!-- Material Symbols -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">  
   <!-- Font Awesome -->
@@ -851,5 +859,11 @@ require 'includes/QueryBuilder.php';
       </div>
     </div>
   </footer>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+  </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # SparkSpend — Product Backlog
 
-Generated: 2026-03-11 · Last updated: 2026-03-16
+Generated: 2026-03-11 · Last updated: 2026-04-14
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.
 
@@ -26,6 +26,8 @@ Items within each priority tier are ordered by impact.
 - ✅ **DEBT — Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php`** — Filbaseret cache i `/tmp`. `getDashboardSummary.php` bruger 60s TTL med daglig cache-nøgle. `getChargeAnalytics.php` bruger 300s TTL med md5-nøgle på alle GET-parametre.
 - ✅ **ENHANCEMENT — Årsrapportvisning** — Nyt topniveau-faneblad "Årsrapport" (`#aarsrapport`). `getAnnualSummary.php` aggregerer EV (intern + ekstern), jordvarme og hus pr. kalenderår. `includes/annual.js` renderer grupperet søjlediagram + tabel med EV ladninger, kWh, pris, VP kWh og Hus total kWh. 1-times filcache.
 - ✅ **ENHANCEMENT — Global sync-statusindikator + "Sync nu"-knap** — `getSyncStatus.php` forespørger `sync_log` (jordvarme/hus) + `MAX(stoppedAt)` (Monta). `triggerSync.php` kører cron-scripts i baggrunden. ⚙-knap i headeren åbner `#syncModal` med OK/Fejl-badge, relativ tid, per-kilde sync-knapper og "Sync alle".
+- ✅ **ENHANCEMENT — Progressive Web App (PWA)** — `manifest.json` + `sw.js` (network-first API, stale-while-revalidate statiske assets, cache-first CDN, offline fallback). `cron/generate_icons.php` genererer 192/512px PNG-ikoner via GD. PWA-metatags + SW-registrering i `index.php`.
+- ✅ **BUG — EV opladninger tildelt forkert dag (planlagt tidspunkt vs. afsluttettidspunkt + midnatskryds)** — Opladninger brugte `createdAt` (planlægningstidspunkt) i stedet for `stoppedAt`. Derudover: sessioner der krydser midnat fik al kWh/pris tildelt én dag. Fix: `QueryBuilder::splitChargeByDays()` fordeler kWh og pris proportionalt over hver kalenderdag en session dækker. Alle aggregeringsfiler opdateret (`getDashboardSummary.php`, `getAnnualSummary.php`, `getHousePowerData.php`, `getMonthlyBillData.php`, `getCharges.php`, `getEfficiencyStats.php`) til overlap-filter + PHP-splitting.
 
 ---
 
@@ -115,9 +117,8 @@ Ingen tastaturgenveje eksisterer. `O`, `E`, `J`, `H` for Oversigt/Elbil/Jordvarm
 CSS'en har kun en enkelt `@media (prefers-color-scheme: dark)` tilsidesætning for `.dashboard-card`. Diagrammer, tabeller, modaler og skæbelågen bevarer lyse baggrunde i mørk tilstand.
 **Filer:** `includes/style.css`
 
-### ENHANCEMENT — Progressive Web App (PWA)
-Appen har en `favicon.svg` og `robots.txt` men intet `manifest.json` eller service worker. Tilføjelse af et web app-manifest og grundlæggende service worker caching af statiske aktiver ville tillade installation på startskærmen.
-**Filer:** ny `manifest.json`, ny `sw.js`, `index.php`
+### ~~ENHANCEMENT — Progressive Web App (PWA)~~ ✅ Rettet
+~~Appen har en `favicon.svg` og `robots.txt` men intet `manifest.json` eller service worker.~~ `manifest.json` tilføjet med navn, farver og 192/512-PNG-ikoner. `sw.js` implementerer network-first (API), stale-while-revalidate (statiske assets) og cache-first (CDN). Offline-fallback til senest cachede app-shell. `cron/generate_icons.php` genererer PNG-ikonerne via GD. SW-registrering og 7 PWA-metatags tilføjet til `index.php`.
 
 ### ENHANCEMENT — Varmepumpe COP-estimering
 Med udendørstemperaturdata (allerede hentet fra Open-Meteo til GD) og forbrugt kWh kan et groft COP-estimat udledes. At vise "Estimeret leveret varme: X kWh (COP ≈ Y)" i Jordvarme-statistikboksen ville give indsigt i varmesystemets ydeevne.
