@@ -13,6 +13,7 @@ Items within each priority tier are ordered by impact.
 - ✅ **FEATURE — Hus synkronisering** — `cron/sync_housepowerlog_data.php` synkroniserer MySQL `powerloghus` → SQLite med Wh→kWh normalisering.
 - ✅ **FEATURE — Hus-kort på Oversigt** — Tredje dashboard-kort med sparkline, kWh/dag, forventet forbrug og trend-badges.
 - ✅ **ENHANCEMENT — Session-timeout → automatisk login-redirect** — Global `fetch`-interceptor i `app.js` detekterer 401/403.
+- ✅ **ENHANCEMENT — Sparkline x-akse viser rullende 30 dage i stedet for måned-til-dato** — `$sparkWindowStart = today − 29 days` i `getDashboardSummary.php`; HP/Hus `lagDelta` queries udvidet tilsvarende; alle tre sparklines er nu altid 30 elementer. `dashboard.js` bruger rolling start-dato til tooltip-labels.
 - ✅ **ENHANCEMENT — Konsekvente farver på tværs af sektioner** — Grøn (Jordvarme), blå (El-bil), amber (Restforbrug).
 - ✅ **BUG — `ext_charges.datetime` gemt som pseudo-UTC** — `createExCharge.php` og `updateExtCharge.php` gemmer nu ægte UTC.
 - ✅ **ENHANCEMENT — Jordvarme estimeret kr-pris (alle 4 tilstande)** — `activeCostMap` + `fetchElCosts()` i `jordvarme.js`.
@@ -60,10 +61,6 @@ Items within each priority tier are ordered by impact.
 Tillad bruger at sætte et månedligt EV-opladningsbudget (kr) og et varmepumpe-kWh-mål. Vis en fremdriftsbjælke på dashboard-kortene. Ingen backend-ændringer nødvendige — mål gemt i `localStorage`.
 **Filer:** `index.php`, `includes/dashboard.js`
 
-### ENHANCEMENT — Sparkline x-akse viser rullende 30 dage i stedet for måned-til-dato
-Den 1. i måneden viser begge sparklines én søjle. Et rullende 30-dages vindue giver konstant visuel konsistens.
-**Filer:** `getDashboardSummary.php`, `includes/dashboard.js`
-
 ### ENHANCEMENT — Varmepumpe COP-estimering
 Med udendørstemperaturdata (allerede hentet fra Open-Meteo) og forbrugt kWh kan et COP-estimat udledes: `leveret_varme ≈ COP × el_kWh`. Vis "Estimeret leveret varme: X kWh (COP ≈ Y)" i Jordvarme-statistikboksen.
 **Filer:** `includes/jordvarme.js`, `getWeatherData.php`
@@ -103,9 +100,6 @@ Tilføjelse af et simpelt Leaflet.js-kort over besøgte offentlige opladningsste
 ---
 
 ## New Feature Ideas
-
-### FEATURE — Solcelle / PV-produktionsoverlay
-Integrer en PV-produktions-API for at overlappe solproduktion mod EV-opladningsbehov og varmepumpeforbrug. Vis "selvforbrugsprocent".
 
 ### FEATURE — Time-of-use elpriskort
 Render en ugentlig heatmap (time × ugedag) med gennemsnitlig elspot-pris pr. celle. Overlej faktiske ladningssessioner som prikker.
@@ -302,9 +296,6 @@ Ingen retry-logik eller 429-håndtering. En rate-grænse kunne lydløst afkorte 
 ---
 
 ## New Feature Ideas
-
-### FEATURE — Solcelle / PV-produktionsoverlay
-Integrer en PV-produktions-API for at overlappe solproduktion mod EV-opladningsbehov og varmepumpeforbrug. Vis "selvforbrugsprocent": hvor meget af hjemmeladningen blev dækket af solenergi.
 
 ### FEATURE — Time-of-use elpriskort
 Render en ugentlig heatmap (time × ugedag) der viser gennemsnitlig elspot-pris pr. celle. Overlej faktiske ladningssessioner som prikker.

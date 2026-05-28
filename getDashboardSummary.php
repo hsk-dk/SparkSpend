@@ -39,10 +39,11 @@ try {
         $lastYearPeriodEndDt = $lastYearMonthEndDt;
     }
 
-    $currentMonth  = $todayDt->format('Y-m');
-    $today         = $todayDt->format('Y-m-d');
-    $sparkStart    = $currentStartDt->format('Y-m-d');
-    $prevStart     = $prevStartDt->format('Y-m-d');
+    $currentMonth       = $todayDt->format('Y-m');
+    $today              = $todayDt->format('Y-m-d');
+    $sparkStart         = $currentStartDt->format('Y-m-d');        // first day of current month
+    $sparkWindowStart   = $todayDt->modify('-29 days')->format('Y-m-d'); // rolling 30-day sparkline start
+    $prevStart          = $prevStartDt->format('Y-m-d');
     $prevEnd       = $prevEndDt->format('Y-m-d');
     $lastYearPeriodStart = $lastYearPeriodStartDt->format('Y-m-d');
     $lastYearPeriodEnd   = $lastYearPeriodEndDt->format('Y-m-d');
@@ -73,7 +74,7 @@ try {
         );
         $countedForMonth = false;
         foreach ($splits as $day => $slice) {
-            if ($day >= $sparkStart && $day <= $today) {
+            if ($day >= $sparkWindowStart && $day <= $today) {
                 $evByDay[$day] = ($evByDay[$day] ?? 0) + $slice['kwh'];
             }
             if ($day >= $sparkStart && $day <= $today) {
@@ -100,9 +101,10 @@ try {
     $stmtExt = $chargesDb->prepare("SELECT datetime, kwh, pris FROM ext_charges WHERE datetime >= ?");
     $stmtExt->execute([$lastYearMonthStart]);
 
-    $sparkStartTs  = strtotime($sparkStart);
-    $todayEndTs    = strtotime($today . ' 23:59:59');
-    $prevStartTs   = strtotime($prevStart);
+    $sparkStartTs       = strtotime($sparkStart);
+    $sparkWindowStartTs = strtotime($sparkWindowStart);
+    $todayEndTs         = strtotime($today . ' 23:59:59');
+    $prevStartTs        = strtotime($prevStart);
     $prevEndTs     = strtotime($prevEnd . ' 23:59:59');
     $lyStartTs     = strtotime($lastYearPeriodStart);
     $lyEndTs       = strtotime($lastYearPeriodEnd . ' 23:59:59');
@@ -132,7 +134,7 @@ try {
             $extLYKwh  += floatval($row['kwh']);
             $extLYCost += floatval($row['pris']);
         }
-        if ($t >= $sparkStartTs && $t <= $todayEndTs) {
+        if ($t >= $sparkWindowStartTs && $t <= $todayEndTs) {
             $extByDay[$day] = ($extByDay[$day] ?? 0) + floatval($row['kwh']);
         }
     }
@@ -144,9 +146,9 @@ try {
     foreach ($extByDay as $day => $kwh) {
         $evByDay[$day] = ($evByDay[$day] ?? 0) + $kwh;
     }
-    $evSparkline = [];
     $daysThisMonth = (int)date('d');
-    for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
+    $evSparkline   = [];
+    for ($i = 29; $i >= 0; $i--) {
         $day = date('Y-m-d', strtotime("-{$i} days"));
         $evSparkline[] = round($evByDay[$day] ?? 0, 2);
     }
@@ -154,8 +156,10 @@ try {
     // =========================================================================
     // Heatpump — current and previous month totals + sparkline
     // =========================================================================
-    $hpDailyMap       = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $sparkStart, $today);
-    $hpCurrent        = round(array_sum($hpDailyMap), 2);
+    $hpDailyMap = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $sparkWindowStart, $today);
+    $hpCurrent  = round(array_sum(array_filter($hpDailyMap, function($v, $k) use ($sparkStart) {
+        return $k >= $sparkStart;
+    }, ARRAY_FILTER_USE_BOTH)), 2);
 
     $hpPrevMap        = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevEnd);
     $hpPrev           = round(array_sum($hpPrevMap), 2);
@@ -174,12 +178,11 @@ try {
         ? round(($hpCurrent - $hpLastYearPeriod) / $hpLastYearPeriod * 100, 1)
         : null;
 
-    // Sparkline (already fetched above in $hpDailyMap)
-    $hpByDay     = $hpDailyMap;
+    // Sparkline: rolling 30-day window (already fetched above in $hpDailyMap)
     $hpSparkline = [];
-    for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
+    for ($i = 29; $i >= 0; $i--) {
         $day = date('Y-m-d', strtotime("-{$i} days"));
-        $hpSparkline[] = round($hpByDay[$day] ?? 0, 2);
+        $hpSparkline[] = round($hpDailyMap[$day] ?? 0, 2);
     }
 
     // =========================================================================
@@ -192,8 +195,10 @@ try {
     $husSparkline  = null;
 
     try {
-        $husDailyMap    = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $sparkStart, $today);
-        $husCurrentKwh  = round(array_sum($husDailyMap), 2);
+        $husDailyMap   = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $sparkWindowStart, $today);
+        $husCurrentKwh = round(array_sum(array_filter($husDailyMap, function($v, $k) use ($sparkStart) {
+            return $k >= $sparkStart;
+        }, ARRAY_FILTER_USE_BOTH)), 2);
 
         $husPrevMap     = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevEnd);
         $husPrevKwh     = round(array_sum($husPrevMap), 2);
@@ -201,9 +206,9 @@ try {
         $husLYMap       = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearPeriodStart, $lastYearPeriodEnd);
         $husLastYearKwh = round(array_sum($husLYMap), 2);
 
-        // Sparkline (reuse $husDailyMap)
+        // Sparkline: rolling 30-day window (reuse $husDailyMap)
         $husSparkline = [];
-        for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
+        for ($i = 29; $i >= 0; $i--) {
             $day = date('Y-m-d', strtotime("-{$i} days"));
             $husSparkline[] = round($husDailyMap[$day] ?? 0, 2);
         }

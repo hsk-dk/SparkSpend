@@ -81,8 +81,8 @@ function renderEvCard(ev) {
         trendEl.innerHTML = html;
     }
 
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    _evSparkChart = _renderSparkline('ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart, monthStart);
+    const evSparkStart = new Date(); evSparkStart.setDate(evSparkStart.getDate() - 29); evSparkStart.setHours(0,0,0,0);
+    _evSparkChart = _renderSparkline('ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart);
 }
 
 function renderHeatpumpCard(hp) {
@@ -116,8 +116,8 @@ function renderHeatpumpCard(hp) {
         trendEl.className = 'dash-trend';
     }
 
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, monthStart);
+    const hpSparkStart = new Date(); hpSparkStart.setDate(hpSparkStart.getDate() - 29); hpSparkStart.setHours(0,0,0,0);
+    _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, hpSparkStart);
 
     // Enrich with weather-normalised year-over-year trend (async, non-blocking)
     _enrichHpWithWeather(card, hp);
@@ -154,8 +154,8 @@ function renderHusCard(hus) {
         trendEl.className = 'dash-trend';
     }
 
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    _husSparkChart = _renderSparkline('hus-sparkline', hus.sparkline, '#f59e0b', _husSparkChart, monthStart);
+    const husSparkStart = new Date(); husSparkStart.setDate(husSparkStart.getDate() - 29); husSparkStart.setHours(0,0,0,0);
+    _husSparkChart = _renderSparkline('hus-sparkline', hus.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
 }
 
 async function _enrichHpWithWeather(card, hp) {
