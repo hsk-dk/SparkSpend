@@ -1,5 +1,166 @@
 # SparkSpend — Product Backlog
 
+Generated: 2026-03-11 · Rebuilt from code analysis: 2026-05-28
+Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
+Items within each priority tier are ordered by impact.
+
+---
+
+## Afsluttet
+
+- ✅ **BUG — April/Juli 2025 husforbrug viste ~33M / ~36M kWh** — Datalogger gemte Wh i stedet for kWh. Fix: LAG-baseret daglig delta (i stedet for MAX-MIN) i alle kumulerede måler-queries. Wh→kWh normalisering under sync.
+- ✅ **FEATURE — Hus-sektion** — Nyt topniveau-faneblad med to under-faner: *Forbrug* (stablet søjlediagram) og *Regning* (månedlig fakturaoversigt).
+- ✅ **FEATURE — Hus synkronisering** — `cron/sync_housepowerlog_data.php` synkroniserer MySQL `powerloghus` → SQLite med Wh→kWh normalisering.
+- ✅ **FEATURE — Hus-kort på Oversigt** — Tredje dashboard-kort med sparkline, kWh/dag, forventet forbrug og trend-badges.
+- ✅ **ENHANCEMENT — Session-timeout → automatisk login-redirect** — Global `fetch`-interceptor i `app.js` detekterer 401/403.
+- ✅ **ENHANCEMENT — Konsekvente farver på tværs af sektioner** — Grøn (Jordvarme), blå (El-bil), amber (Restforbrug).
+- ✅ **BUG — `ext_charges.datetime` gemt som pseudo-UTC** — `createExCharge.php` og `updateExtCharge.php` gemmer nu ægte UTC.
+- ✅ **ENHANCEMENT — Jordvarme estimeret kr-pris (alle 4 tilstande)** — `activeCostMap` + `fetchElCosts()` i `jordvarme.js`.
+- ✅ **BUG — `provideres` tabel/filnavn-typo** — Omdøbt til `providers` via migration.
+- ✅ **ENHANCEMENT — Dashboard lazy-init + chart.resize** — `nav.js` initialiserer moduler ved første besøg.
+- ✅ **BUG — `_enrichHpWithWeather` brugte localStorage** — Rettet til `window.sparkConfig`.
+- ✅ **ENHANCEMENT — Vehicle management UI** — Inline omdøbning i "Administrér"-modal.
+- ✅ **ENHANCEMENT — Provider management UI** — Fuld CRUD i "Administrér"-modal.
+- ✅ **DEBT — Monta vehicleName auto-opdatering** — `QueryBuilder::upsertVehicle()` tilføjet.
+- ✅ **ENHANCEMENT — EV opladningssession effekt (kW) + varighed** — "Varighed"-kolonne i opladningstabellen.
+- ✅ **DEBT — Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php`** — Filbaseret cache i `/tmp`.
+- ✅ **ENHANCEMENT — Årsrapportvisning** — `getAnnualSummary.php` + `includes/annual.js`. 1-times filcache.
+- ✅ **ENHANCEMENT — Global sync-statusindikator + "Sync nu"-knap** — `getSyncStatus.php` + `triggerSync.php`.
+- ✅ **ENHANCEMENT — Progressive Web App (PWA)** — `manifest.json` + `sw.js` + ikoner via GD.
+- ✅ **BUG — EV opladninger tildelt forkert dag** — `QueryBuilder::splitChargeByDays()` fordeler kWh proportionalt over midnat.
+- ✅ **ENHANCEMENT — EV flerårigt sammenligningsvisning** — `getChargeCompare.php` + "År-over-år forbrug"-kort med linjediagram og år-chips.
+- ✅ **DEBT — Input validation i `createExCharge.php`, `updateExtCharge.php`, `updateInternalCharge.php`** — Validering af required felter og ranges.
+- ✅ **DEBT — `getProvideres.php` slettet** — Duplikat-endpoint fjernet.
+- ✅ **DEBT — `QueryBuilder::lagDelta/lagDeltaByMonth/lagDeltaByYear`** — Centrale LAG-delta hjælpere tilføjet.
+- ✅ **DEBT — `QueryBuilder::fileCacheRead/fileCacheWrite`** — Fælles filcache-mønster tilføjet.
+- ✅ **DEBT — `parseDateRange` konsistens i `getProviderStats.php`** — Bruger nu `QueryBuilder::parseDateRange`.
+- ✅ **DEBT — Cache på 5 endpoints** — `getHeatpumpData`, `getHousePowerData`, `getMonthlyBillData`, `getProviderStats`, `getEfficiencyStats` caches 1-5 min.
+- ✅ **DEBT — Debug-filer flyttet til `/dev/`** — `check_data_integrity.php` og `debug_dashboard.*` under `/dev/`.
+- ✅ **DEBT — JSON-fejlformat standardiseret** — Alle endpoints returnerer `{"error": "..."}`.
+- ✅ **BUG — `catch (Exception $e)` fangede ikke PHP TypeError** — Alle 22 produktions-endpoints ændret til `catch (\Throwable $e)`. `getChargeCompare.php` og `getAnnualSummary.php` fik desuden `WHERE startedAt IS NOT NULL AND stoppedAt IS NOT NULL`.
+- ✅ **BUG — Cache ikke invalideret ved datamutationer** — `QueryBuilder::fileCacheInvalidatePattern()` tilføjet. Kaldet i `createExCharge`, `updateExtCharge`, `deleteExtCharge`, `updateInternalCharge` (alle cache-præfikser) og `createProvider`, `updateProvider`, `deleteProvider` (`providerstats_`).
+- ✅ **BUG — `getChargeAnalytics.php` brugte eget cache-mønster** — Erstattet med `QueryBuilder::fileCacheRead/fileCacheWrite` (nøgle `analytics_*`). Duplicate `catch (PDOException)` fjernet.
+- ✅ **BUG — `getVehicleComparison.php` ingen caching + double-catch** — 5-minutters filcache tilføjet (`vehicle_compare_*`). Redundant `catch (PDOException)` og afsluttende `?>` fjernet.
+
+---
+
+## Priority: High — Technical Debt
+
+### DEBT — Service worker cache-version bumpes ikke ved deployment
+`sw.js` bruger en hard-coded `const CACHE = 'sparkspend-v2'`. Når JS/CSS-filer opdateres bumpes cache-versionen ikke automatisk, så brugere kan modtage forældet kode fra SW-cachen. I dag kræver en opdatering en manuel ændring af konstanten.
+**Fix:** Indsæt `CACHE_VERSION` konstant i `sw.js` og bump den ved release. Overvej at bygge versionen ind som PHP-genereret JS-variabel fra `index.php`.
+**Filer:** `sw.js`, `index.php`
+
+### DEBT — JS-modulversioner (`?v=`) er forældet i `index.php`
+`jordvarme.js?v=20260312b`, `hus.js?v=20260315`, `regning.js?v=20260314`, `annual.js?v=20260316`, `app.js?v=20260315` er ikke opdateret siden de pågældende filer sidst blev ændret. Det kan betyde at browsere og SW-cachen serverer forældet kode.
+**Fix:** Opdat alle versionsstrenge til `20260528` (eller brug `filemtime()`-baseret auto-versioning i `index.php`).
+**Filer:** `index.php`
+
+### DEBT — Ingen inputvalidering på `receive_vehicle_data.php`
+`vehicleId` kontrolleres ikke mod `vehicles`-tabellen (eksistens-check). `odometer` valideres ikke som positivt tal. En skadelig POST kan indsætte rækker med ukendt `vehicleId` i `vehicle_charges`.
+**Fix:** Tilføj eksistens-check og range-validering (odometer > 0, < 2.000.000).
+**Filer:** `receive_vehicle_data.php`
+
+### DEBT — `cron/update_monta_data.php` bruger `die()` til fejlhåndtering og har ingen rate-limit-logik
+Scriptet kalder `die()` ved API-fejl i stedet for at logge og afslutte pænt. Der er ingen 429-håndtering eller retry-logik. En Monta rate-limit ville afkorte importkørslen lydløst.
+**Fix:** Erstat `die()` med `error_log()` + `exit(1)`. Tilføj HTTP 429-check med eksponentiel backoff eller simpel re-schedule (script registrerer fejlen i `sync_log` og afslutter).
+**Filer:** `cron/update_monta_data.php`
+
+### DEBT — Cache-dir `/tmp` er flygtig på visse hosts
+`QueryBuilder::fileCacheRead/fileCacheWrite`, `getElspotPrices.php` og `getWeatherData.php` skriver alle til `sys_get_temp_dir()`. På systemer der rydder `/tmp` ved reboot (eller under load) mistes cachen hyppigere end forventet. Elprisdata og vejrdata er dyre at genhente.
+**Fix:** Tilføj `CACHE_DIR` env-variabel (standard: `sys_get_temp_dir()`). Brug i `QueryBuilder::fileCacheRead/fileCacheWrite`, `getElspotPrices.php` og `getWeatherData.php`. Dokumenter i `.env.example`.
+**Filer:** `includes/QueryBuilder.php`, `getElspotPrices.php`, `getWeatherData.php`, `includes/configuration.php`, `.env.example`
+
+### DEBT — `getVehicleComparison.php` har separat `PDOException`-catch der er ureachable
+Endpoint'et har to catch-blokke: `catch (PDOException $e)` efterfulgt af `catch (\Throwable $e)`. Fordi `PDOException` er en subklasse af `\Throwable` og den anden catch er bredere, ville den første aldrig fange noget der ikke allerede fanges af `\Throwable`. Dessuden hænger en `?>` afslutning, der kan lækage whitespace.
+**Fix:** Saml til én `catch (\Throwable $e)`. Fjern afsluttende `?>`.
+**Filer:** `getVehicleComparison.php`
+
+### DEBT — README.md er tom
+**Filer:** `README.md`
+
+### DEBT — Ingen CHANGELOG
+**Filer:** ny `CHANGELOG.md`
+
+### DEBT — `check_data_integrity.php` dækker kun `powerlogjord`
+`charges.db` (tabellerne `charges`, `ext_charges`, `vehicles`, `providers`, `vehicle_charges`) har ingen tilsvarende integritetstjek.
+**Filer:** `dev/check_data_integrity.php`
+
+### DEBT — CDN-afhængigheder indlæst uden versionspinning
+Chart.js, Bootstrap og ApexCharts indlæses fra CDN uden fast versionsnummer. En brudende major-release ville lydløst bryde alle diagrammer.
+**Filer:** `index.php`
+
+---
+
+## Priority: Medium — Enhancements
+
+### ENHANCEMENT — Budget / månedligt forbrugsmål
+Tillad bruger at sætte et månedligt EV-opladningsbudget (kr) og et varmepumpe-kWh-mål. Vis en fremdriftsbjælke på dashboard-kortene. Ingen backend-ændringer nødvendige — mål gemt i `localStorage`.
+**Filer:** `index.php`, `includes/dashboard.js`
+
+### ENHANCEMENT — Sparkline x-akse viser rullende 30 dage i stedet for måned-til-dato
+Den 1. i måneden viser begge sparklines én søjle. Et rullende 30-dages vindue giver konstant visuel konsistens.
+**Filer:** `getDashboardSummary.php`, `includes/dashboard.js`
+
+### ENHANCEMENT — Varmepumpe COP-estimering
+Med udendørstemperaturdata (allerede hentet fra Open-Meteo) og forbrugt kWh kan et COP-estimat udledes: `leveret_varme ≈ COP × el_kWh`. Vis "Estimeret leveret varme: X kWh (COP ≈ Y)" i Jordvarme-statistikboksen.
+**Filer:** `includes/jordvarme.js`, `getWeatherData.php`
+
+### ENHANCEMENT — Opladningstabel kolonne for sessionstilstand
+Monta API leverer `state` og `stopReason` (f.eks. `completed`, `stopped_by_user`, `error`). Gemt i `charges`-tabellen men aldrig vist i UI.
+**Filer:** `getCharges.php`, `includes/elbil.js`
+
+### ENHANCEMENT — State-of-charge (SoC) sporing
+`charges`-tabellen gemmer `socPercentage` og `socLimit` fra Monta men viser dem aldrig. En SoC-kolonne eller tooltip i opladningstabellen ville give indsigt i batteriudnyttelse.
+**Filer:** `getCharges.php`, `includes/elbil.js`
+
+### ENHANCEMENT — Fejllog-visning i sync-modal
+`cron/trigger.log` er SSH-eksklusiv. En sammenklappelig "Systemlog"-sektion i sync-modalen der viser de seneste 50 linjer ville hjælpe med at diagnosticere sync-fejl uden SSH-adgang.
+**Filer:** ny `getSystemLog.php`, `index.php`
+
+---
+
+## Priority: Low — Enhancements
+
+### ENHANCEMENT — URL-hash inkluderer datointervalfilter
+Datointervalfilteret er aldrig kodet i URL-hashen. At vælge "Dette år" og bogmærke giver en URL der åbner med standardfilteret "Denne måned".
+**Filer:** `includes/nav.js`, `includes/elbil.js`
+
+### ENHANCEMENT — Tastaturgenveje til navigation
+Ingen tastaturgenveje eksisterer. `O`, `E`, `J`, `H` for Oversigt/Elbil/Jordvarme/Hus, `Escape` til at lukke modaler og filter-drawer.
+**Filer:** `includes/nav.js`, `includes/app.js`
+
+### ENHANCEMENT — Komplet mørkt tema
+CSS'en har kun en `@media (prefers-color-scheme: dark)` tilsidesætning for fire CSS-variabler. Chart.js-diagrammer, tabeller, modaler, cards og filter-draweren bruger alle stadig lyse baggrunde i mørk tilstand.
+**Filer:** `includes/style.css`
+
+### ENHANCEMENT — Opladningskort / stedssporing
+Tilføjelse af et simpelt Leaflet.js-kort over besøgte offentlige opladningssteder (fra `ext_charges` provider-kobling) ville give en geografisk dimension.
+**Filer:** `includes/elbil.js`, `index.php`
+
+---
+
+## New Feature Ideas
+
+### FEATURE — Solcelle / PV-produktionsoverlay
+Integrer en PV-produktions-API for at overlappe solproduktion mod EV-opladningsbehov og varmepumpeforbrug. Vis "selvforbrugsprocent".
+
+### FEATURE — Time-of-use elpriskort
+Render en ugentlig heatmap (time × ugedag) med gennemsnitlig elspot-pris pr. celle. Overlej faktiske ladningssessioner som prikker.
+
+### FEATURE — Elprisforecast-widget
+Brug den 24-timers Energi Data Service spot-prisforecast til at vise morgendagens priskurve og fremhæve det billigste opladningsvindue.
+
+### FEATURE — Månedlig rapport email/PDF
+Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) og send det via email.
+
+### FEATURE — Anomali-detektionsadvarsler
+Sammenlign daglige aflæsninger mod en rullende baseline for EV og varmepumpe. Vis et badge på fanebladet og en advarselliste i headeren.
+
+### FEATURE — Integration med Tibber / Nordpool live-pris
+Tibber eksponerer en realtids el-pris websocket. Tilslutning ville muliggøre live kr/kWh-visning på Oversigt-kortet.
+
+
 Generated: 2026-03-11 · Last updated: 2026-04-14
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.

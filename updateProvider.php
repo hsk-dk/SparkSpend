@@ -18,6 +18,7 @@ if ($id <= 0 || $name === '') {
 try {
     $db = DatabaseManager::getChargesDb();
     QueryBuilder::updateProvider($db, $id, $name);
+    QueryBuilder::fileCacheInvalidatePattern('providerstats_');
     echo json_encode(['success' => true]);
 } catch (\Throwable $e) {
     http_response_code(500);

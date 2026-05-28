@@ -879,5 +879,20 @@ class QueryBuilder {
         $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
         @file_put_contents($file, $json);
     }
+
+    /**
+     * Delete all cache files whose key starts with the given prefix.
+     *
+     * Call this from mutation endpoints (create/update/delete) to ensure
+     * dependent read endpoints don't serve stale data.
+     *
+     * @param string $prefix The key prefix to match (e.g. 'dashboard_').
+     */
+    public static function fileCacheInvalidatePattern(string $prefix): void {
+        $pattern = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $prefix . '*.json';
+        foreach (glob($pattern) ?: [] as $file) {
+            @unlink($file);
+        }
+    }
 }
 ?>

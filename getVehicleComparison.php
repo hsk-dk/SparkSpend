@@ -40,7 +40,13 @@ try {
         $filters['dateRange'] = $dateRange;
     }
 
-    // Get vehicle comparison data
+    // ─── 5-minute file cache ──────────────────────────────────────────────────
+    $_cacheKey = 'vehicle_compare_' . md5($dateRange . '|' . $sortBy);
+    $_cached   = QueryBuilder::fileCacheRead($_cacheKey, 300);
+    if ($_cached !== null) {
+        echo $_cached;
+        exit;
+    }
     $vehicleComparison = QueryBuilder::getVehicleCostComparison($db, $filters);
 
     // Sort data based on sortBy parameter
@@ -53,7 +59,7 @@ try {
         return ($valA > $valB) ? -1 : 1;
     });
 
-    echo json_encode([
+    $response = json_encode([
         'vehicles' => $vehicleComparison,
         'meta' => [
             'dateRange' => $dateRange,
@@ -61,14 +67,11 @@ try {
             'count' => count($vehicleComparison)
         ]
     ]);
+    QueryBuilder::fileCacheWrite($_cacheKey, $response);
+    echo $response;
 
-} catch (PDOException $e) {
-    http_response_code(500);
-    error_log("Database error in getVehicleComparison.php: " . $e->getMessage());
-    echo json_encode(['error' => 'Database error occurred']);
 } catch (\Throwable $e) {
-    http_response_code(400);
+    http_response_code(500);
     error_log("Error in getVehicleComparison.php: " . $e->getMessage());
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['error' => 'Database error occurred']);
 }
-?>

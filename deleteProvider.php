@@ -23,6 +23,7 @@ try {
         exit;
     }
     QueryBuilder::deleteProvider($db, $id);
+    QueryBuilder::fileCacheInvalidatePattern('providerstats_');
     echo json_encode(['success' => true]);
 } catch (\Throwable $e) {
     http_response_code(500);

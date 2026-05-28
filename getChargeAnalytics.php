@@ -33,10 +33,10 @@ try {
     $showZeroKwh = (isset($_GET['showZeroKwh']) && $_GET['showZeroKwh'] === 'true') ? true : false;
 
     // ─── 5-minute file cache ──────────────────────────────────────────────────
-    $_analyticsCacheKey  = md5($filter . '|' . $dateRange . '|' . $groupBy . '|' . ($showZeroKwh ? '1' : '0'));
-    $_analyticsCacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_analytics_' . $_analyticsCacheKey . '.json';
-    if (file_exists($_analyticsCacheFile) && (time() - filemtime($_analyticsCacheFile)) < 300) {
-        echo file_get_contents($_analyticsCacheFile);
+    $_analyticsCacheKey = 'analytics_' . md5($filter . '|' . $dateRange . '|' . $groupBy . '|' . ($showZeroKwh ? '1' : '0'));
+    $_cached = QueryBuilder::fileCacheRead($_analyticsCacheKey, 300);
+    if ($_cached !== null) {
+        echo $_cached;
         exit;
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -131,16 +131,12 @@ try {
             'groupBy' => $groupBy
         ]
     ]);
-    @file_put_contents($_analyticsCacheFile, $response);
+    QueryBuilder::fileCacheWrite($_analyticsCacheKey, $response);
     echo $response;
 
-} catch (PDOException $e) {
-    http_response_code(500);
-    error_log("Database error in getChargeAnalytics.php: " . $e->getMessage());
-    echo json_encode(['error' => 'Database error occurred']);
 } catch (\Throwable $e) {
-    http_response_code(400);
+    http_response_code(500);
     error_log("Error in getChargeAnalytics.php: " . $e->getMessage());
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['error' => 'Database error occurred']);
 }
 ?>
