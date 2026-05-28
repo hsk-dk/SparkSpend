@@ -58,15 +58,25 @@ function renderEvCard(ev) {
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
+        if (showTrends && ev.pct_change_kwh !== null) {
+            const up = ev.pct_change_kwh >= 0;
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_kwh)}% kWh vs. samme periode sidst måned</div>`;
+        }
         if (showTrends && ev.pct_change_cost !== null) {
             const up = ev.pct_change_cost >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_cost)}% vs. samme periode sidst måned</div>`;
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_cost)}% pris vs. samme periode sidst måned</div>`;
+        }
+        if (showTrends && ev.pct_change_year_kwh !== null) {
+            const up = ev.pct_change_year_kwh >= 0;
+            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_kwh)}% kWh vs. samme måned sidste år</div>`;
         }
         if (showTrends && ev.pct_change_year_cost !== null) {
             const up = ev.pct_change_year_cost >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_cost)}% vs. samme måned sidste år</div>`;
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_cost)}% pris vs. samme måned sidste år</div>`;
         }
         trendEl.innerHTML = html;
     }
@@ -151,8 +161,7 @@ function renderHusCard(hus) {
 async function _enrichHpWithWeather(card, hp) {
     const lat = window.sparkConfig?.weatherLat || '';
     const lon = window.sparkConfig?.weatherLon || '';
-    // Use last_year_month_kwh exposed directly by getDashboardSummary.php
-    const lastYearKwh = hp.last_year_month_kwh ?? null;
+    const lastYearKwh = hp.last_year_period_kwh ?? null;
     if (!lat || !lon || hp.month_kwh === null || lastYearKwh === null || lastYearKwh <= 0) return;
 
     const now       = new Date();

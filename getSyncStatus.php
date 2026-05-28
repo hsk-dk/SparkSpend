@@ -23,15 +23,13 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
 // ─── 30-second cache ──────────────────────────────────────────────────────────
-$_cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_syncstatus.json';
-if (file_exists($_cacheFile) && (time() - filemtime($_cacheFile)) < 30) {
-    echo file_get_contents($_cacheFile);
-    exit;
-}
+$_cached = QueryBuilder::fileCacheRead('syncstatus', 30);
+if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 
 $sources = [];
@@ -148,6 +146,6 @@ try {
 }
 
 $response = json_encode(['sources' => $sources]);
-@file_put_contents($_cacheFile, $response);
+QueryBuilder::fileCacheWrite('syncstatus', $response);
 echo $response;
 ?>

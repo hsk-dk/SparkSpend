@@ -25,12 +25,9 @@ require 'includes/QueryBuilder.php';
 header('Content-Type: application/json');
 
 // ─── 1-hour file cache ────────────────────────────────────────────────────────
-// Key includes today's date so cache resets at midnight automatically.
-$_cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_annual_' . date('Y-m-d') . '.json';
-if (file_exists($_cacheFile) && (time() - filemtime($_cacheFile)) < 3600) {
-    echo file_get_contents($_cacheFile);
-    exit;
-}
+$_annualCacheKey = 'annual_' . date('Y-m-d');
+$_cached = QueryBuilder::fileCacheRead($_annualCacheKey, 3600);
+if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 
 try {
@@ -93,56 +90,18 @@ try {
     // =========================================================================
     // Heatpump — LAG-based daily delta, summed by year
     // =========================================================================
-    $hpByYear = [];
-    $hpRows = $powerlogDb->query("
-        WITH daily_max AS (
-            SELECT DATE(logdate) AS day,
-                   MAX(kwh)      AS max_kwh
-            FROM powerlogjord
-            GROUP BY DATE(logdate)
-        ),
-        daily_delta AS (
-            SELECT day,
-                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-            FROM daily_max
-        )
-        SELECT strftime('%Y', day) AS year,
-               ROUND(SUM(delta_kwh), 2) AS kwh
-        FROM daily_delta
-        GROUP BY strftime('%Y', day)
-        ORDER BY year
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($hpRows as $r) {
-        $hpByYear[$r['year']] = floatval($r['kwh']);
-    }
+    // Using lagDeltaByYear over all available data (start date predates any readings)
+    $allDataStart = '2000-01-01';
+    $allDataEnd   = date('Y-m-d');
+
+    $hpByYear = QueryBuilder::lagDeltaByYear($powerlogDb, 'powerlogjord', $allDataStart, $allDataEnd);
 
     // =========================================================================
     // House — same pattern, wrapped in try/catch (table may not exist yet)
     // =========================================================================
     $husByYear = null;
     try {
-        $husByYear = [];
-        $husRows = $powerlogDb->query("
-            WITH daily_max AS (
-                SELECT DATE(logdate) AS day,
-                       MAX(kwh)      AS max_kwh
-                FROM powerloghus
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
-            )
-            SELECT strftime('%Y', day) AS year,
-                   ROUND(SUM(delta_kwh), 2) AS kwh
-            FROM daily_delta
-            GROUP BY strftime('%Y', day)
-            ORDER BY year
-        ")->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($husRows as $r) {
-            $husByYear[$r['year']] = floatval($r['kwh']);
-        }
+        $husByYear = QueryBuilder::lagDeltaByYear($powerlogDb, 'powerloghus', $allDataStart, $allDataEnd);
     } catch (Exception $husEx) {
         $husByYear = null;
         error_log('getAnnualSummary: house query failed — ' . $husEx->getMessage());
@@ -180,7 +139,7 @@ try {
     }
 
     $response = json_encode(['years' => $years]);
-    @file_put_contents($_cacheFile, $response);
+    QueryBuilder::fileCacheWrite($_annualCacheKey, $response);
     echo $response;
 
 } catch (Exception $e) {

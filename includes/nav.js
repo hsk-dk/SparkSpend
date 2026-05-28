@@ -104,6 +104,7 @@ const SparkNav = (() => {
         const btn = elbilSection.querySelector(`.sub-nav-btn[data-sub="${subId}"]`);
         if (btn) btn.classList.add('active');
 
+        window.elbilApp?.onSubTab(subId);
         updateHash();
     }
 

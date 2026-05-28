@@ -35,7 +35,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260311">
+  <link rel="stylesheet" href="includes/style.css?v=20260528">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
@@ -526,6 +526,24 @@ require 'includes/QueryBuilder.php';
   <!-- Sub-section: Sammenligning -->
   <div id="elbil-sammenligning" class="sub-section">
 
+    <!-- År-over-år forbrug -->
+    <div class="card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h3 class="mb-0">År-over-år forbrug</h3>
+        <div class="hp-mode-nav">
+          <button class="hp-mode-btn active" id="evCompareKwhBtn">kWh</button>
+          <button class="hp-mode-btn" id="evCompareCostBtn">kr</button>
+        </div>
+      </div>
+      <div id="evYearToggleContainer" class="year-chip-bar mb-3" style="display:none"></div>
+      <div style="position:relative; min-height:220px">
+        <canvas id="evYearCompareChart"></canvas>
+        <div id="evYearCompareNoData" class="text-muted text-center py-4" style="display:none">Ingen data at vise.</div>
+        <div id="evYearCompareError" class="text-danger text-center py-4" style="display:none">Kunne ikke indlæse data.</div>
+      </div>
+      <div id="evYearCompareStats" class="mt-3"></div>
+    </div>
+
     <!-- Vehicle Comparison Card -->
     <div class="card p-4 mt-4">
       <h3>Bilsammenligning</h3>
@@ -747,9 +765,9 @@ require 'includes/QueryBuilder.php';
   <script src="includes/app.js?v=20260315"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260316e"></script>
-  <script src="includes/dashboard.js?v=20260316"></script>
-  <script src="includes/elbil.js?v=20260316b"></script>
+  <script src="includes/nav.js?v=20260528"></script>
+  <script src="includes/dashboard.js?v=20260528"></script>
+  <script src="includes/elbil.js?v=20260528"></script>
   <script src="includes/jordvarme.js?v=20260312b"></script>
   <script src="includes/hus.js?v=20260315"></script>
   <script src="includes/regning.js?v=20260314"></script>

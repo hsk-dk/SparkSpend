@@ -21,13 +21,26 @@ try {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    if (!$data || !isset($data['id']) || !isset($data['vehicleId']) || !isset($data['providerId']) ||
-        !isset($data['datetime']) || !isset($data['kwh']) || !isset($data['pris'])) {
+    // Extract and type-cast parameters
+    $id         = intval($data['id']         ?? 0);
+    $vehicleId  = intval($data['vehicleId']  ?? 0);
+    $providerId = intval($data['providerId'] ?? 0);
+    $kwh        = floatval($data['kwh']      ?? 0);
+    $pris       = floatval($data['pris']     ?? 0);
+
+    if (!$data || $id <= 0 || $vehicleId <= 0 || !isset($data['datetime'])) {
         http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'error' => 'Missing required fields'
-        ]);
+        echo json_encode(['error' => 'Missing required fields']);
+        exit;
+    }
+    if (!is_numeric($data['kwh'] ?? '') || $kwh <= 0 || $kwh > 1000) {
+        http_response_code(400);
+        echo json_encode(['error' => 'kwh skal være et tal mellem 0 og 1000']);
+        exit;
+    }
+    if (!is_numeric($data['pris'] ?? '') || $pris <= 0 || $pris > 50000) {
+        http_response_code(400);
+        echo json_encode(['error' => 'pris skal være et tal mellem 0 og 50000']);
         exit;
     }
 
@@ -38,20 +51,17 @@ try {
         $dateTime = $dateTime->format('Y-m-d\TH:i:00\Z');
     } catch (Exception $e) {
         http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'error' => 'Invalid date format'
-        ]);
+        echo json_encode(['error' => 'Invalid date format']);
         exit;
     }
 
     $db = DatabaseManager::getChargesDb();
     $result = QueryBuilder::updateExternalCharge($db, [
-        'id' => $data['id'],
-        'vehicleId' => $data['vehicleId'],
-        'providerId' => $data['providerId'],
-        'kwh' => $data['kwh'],
-        'cost' => $data['pris'],
+        'id'         => $id,
+        'vehicleId'  => $vehicleId,
+        'providerId' => $providerId,
+        'kwh'        => $kwh,
+        'cost'       => $pris,
         'chargeDate' => $dateTime,
     ]);
 

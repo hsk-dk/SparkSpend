@@ -17,6 +17,12 @@ require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
+// ─── 5-minute file cache ─────────────────────────────────────────────────────────────
+$_effCacheKey = 'efficiency_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
+$_cached = QueryBuilder::fileCacheRead($_effCacheKey, 300);
+if ($_cached !== null) { echo $_cached; exit; }
+// ─────────────────────────────────────────────────────────────────────────────
+
 try {
     $db = DatabaseManager::getChargesDb();
 
@@ -269,7 +275,9 @@ try {
         }
     }
 
-    echo json_encode($results);
+    $json = json_encode($results);
+    QueryBuilder::fileCacheWrite($_effCacheKey, $json);
+    echo $json;
 
 } catch (PDOException $e) {
     http_response_code(500);

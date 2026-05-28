@@ -13,8 +13,15 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
+
+// ─── 5-minute file cache ─────────────────────────────────────────────────────────────
+$_provCacheKey = 'providerstats_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
+$_cached = QueryBuilder::fileCacheRead($_provCacheKey, 300);
+if ($_cached !== null) { echo $_cached; exit; }
+// ─────────────────────────────────────────────────────────────────────────────
 
 try {
     $db = DatabaseManager::getChargesDb();
@@ -26,10 +33,12 @@ try {
     $startTs = null;
     $endTs   = null;
     if (!empty($dateRange)) {
-        $parts = preg_split('/\s+til\s+/', $dateRange);
-        if (count($parts) === 2) {
-            $startTs = strtotime(trim($parts[0]));
-            $endTs   = strtotime(trim($parts[1]) . ' 23:59:59');
+        try {
+            $parsed  = QueryBuilder::parseDateRange($dateRange);
+            $startTs = strtotime($parsed['start']);
+            $endTs   = strtotime($parsed['end'] . ' 23:59:59');
+        } catch (Exception $parseEx) {
+            // Invalid format — ignore filter, return all data
         }
     }
 
@@ -90,7 +99,9 @@ try {
     usort($result, fn($a, $b) => $a['avg_cost_per_kwh'] <=> $b['avg_cost_per_kwh']);
 
     http_response_code(200);
-    echo json_encode($result);
+    $json = json_encode($result);
+    QueryBuilder::fileCacheWrite($_provCacheKey, $json);
+    echo $json;
 
 } catch (PDOException $e) {
     http_response_code(500);

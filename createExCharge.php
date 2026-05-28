@@ -17,19 +17,28 @@ require 'includes/QueryBuilder.php';
 header('Content-Type: application/json');
 
 try {
-    // Validate required fields
-    $vehicleId = isset($_POST['vehicleId']) ? $_POST['vehicleId'] : '';
-    $providerId = isset($_POST['providerId']) ? $_POST['providerId'] : '';
-    $chargeDateTime = isset($_POST['chargeDateTime']) ? $_POST['chargeDateTime'] : '';
-    $kwh = isset($_POST['kwh']) ? $_POST['kwh'] : '';
-    $pris = isset($_POST['pris']) ? $_POST['pris'] : '';
+    // Extract and type-cast parameters
+    $vehicleId      = intval($_POST['vehicleId']    ?? 0);
+    $providerId     = intval($_POST['providerId']   ?? 0);
+    $chargeDateTime = trim($_POST['chargeDateTime'] ?? '');
+    $kwh            = floatval($_POST['kwh']        ?? 0);
+    $pris           = floatval($_POST['pris']       ?? 0);
 
-    if (!$vehicleId || !$providerId || !$chargeDateTime || !$kwh || !$pris) {
+    // Presence check
+    if ($vehicleId <= 0 || $providerId <= 0 || $chargeDateTime === '') {
         http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'error' => 'Missing required fields: vehicleId, providerId, chargeDateTime, kwh, pris'
-        ]);
+        echo json_encode(['error' => 'Missing required fields: vehicleId, providerId, chargeDateTime']);
+        exit;
+    }
+    // Numeric bounds
+    if (!is_numeric($_POST['kwh'] ?? '') || $kwh <= 0 || $kwh > 1000) {
+        http_response_code(400);
+        echo json_encode(['error' => 'kwh skal være et tal mellem 0 og 1000']);
+        exit;
+    }
+    if (!is_numeric($_POST['pris'] ?? '') || $pris <= 0 || $pris > 50000) {
+        http_response_code(400);
+        echo json_encode(['error' => 'pris skal være et tal mellem 0 og 50000']);
         exit;
     }
 
@@ -40,10 +49,7 @@ try {
         $chargeDate = $chargeDate->format('Y-m-d\TH:i:00\Z');
     } catch (Exception $e) {
         http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'error' => 'Invalid charge date format'
-        ]);
+        echo json_encode(['error' => 'Invalid charge date format']);
         exit;
     }
 

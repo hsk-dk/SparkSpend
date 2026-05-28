@@ -14,8 +14,17 @@
 
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
+
+// ─── 1-hour file cache (skip sync_status mode — changes frequently) ───────────────
+$_hpCacheKey = 'heatpump_' . md5($_SERVER['QUERY_STRING'] ?? '');
+if (($_GET['mode'] ?? '') !== 'sync_status') {
+    $_cached = QueryBuilder::fileCacheRead($_hpCacheKey, 3600);
+    if ($_cached !== null) { echo $_cached; exit; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 try {
     $db = DatabaseManager::getPowerlogDb();
@@ -30,31 +39,13 @@ try {
             echo json_encode(['error' => 'Invalid month format. Use YYYY-MM.']);
             exit;
         }
-        // Inter-day LAG deltas: resistant to mid-day meter resets.
-        // Extend window one day back so the first day of the month gets a
-        // valid prior-day baseline.
-        $stmt = $db->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate)  AS day,
-                       MAX(kwh)       AS max_kwh
-                FROM powerlogjord
-                WHERE DATE(logdate) >= DATE(?||'-01', '-1 day')
-                  AND DATE(logdate) <= DATE(?||'-01', '+1 month', '-1 day')
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS total_kwh
-                FROM daily_max
-            )
-            SELECT day,
-                   ROUND(total_kwh, 2) AS total_kwh
-            FROM daily_delta
-            WHERE strftime('%Y-%m', day) = ?
-            ORDER BY day
-        ");
-        $stmt->execute([$month, $month, $month]);
-        $response = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
+        $dayStart = $month . '-01';
+        $dayEnd   = date('Y-m-t', strtotime($dayStart));
+        $daily    = QueryBuilder::lagDelta($db, 'powerlogjord', $dayStart, $dayEnd);
+        $response = [];
+        foreach ($daily as $day => $kwh) {
+            $response[] = ['day' => $day, 'total_kwh' => $kwh];
+        }
 
     } elseif ($mode === 'monthly' && isset($_GET['year'])) {
         $year = $_GET['year']; // Format: YYYY
@@ -64,31 +55,13 @@ try {
             exit;
         }
         // Same LAG-delta strategy as daily mode, now aggregated to monthly.
-        // Extend window one day before Jan 1 so January gets a valid prior-day baseline.
-        $stmt = $db->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate)  AS day,
-                       MAX(kwh)       AS max_kwh
-                FROM powerlogjord
-                WHERE DATE(logdate) >= DATE(?||'-01-01', '-1 day')
-                  AND DATE(logdate) <= ?||'-12-31'
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       strftime('%Y-%m', day)                              AS month,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
-            )
-            SELECT month,
-                   ROUND(SUM(delta_kwh), 2) AS total_kwh
-            FROM daily_delta
-            WHERE strftime('%Y', day) = ?
-            GROUP BY month
-            ORDER BY month
-        ");
-        $stmt->execute([$year, $year, $year]);
-        $response = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
+        $yearStart = $year . '-01-01';
+        $yearEnd   = $year . '-12-31';
+        $monthly   = QueryBuilder::lagDeltaByMonth($db, 'powerlogjord', $yearStart, $yearEnd);
+        $response  = [];
+        foreach ($monthly as $month => $kwh) {
+            $response[] = ['month' => $month, 'total_kwh' => $kwh];
+        }
 
     } elseif ($mode === 'compare') {
         // Compare monthly consumption across years.
@@ -167,12 +140,16 @@ try {
     // Return empty array if no data found
     if (empty($response)) {
         http_response_code(200);
-        echo json_encode([]);
+        $json = json_encode([]);
+        QueryBuilder::fileCacheWrite($_hpCacheKey, $json);
+        echo $json;
         exit;
     }
 
     http_response_code(200);
-    echo json_encode($response);
+    $json = json_encode($response);
+    QueryBuilder::fileCacheWrite($_hpCacheKey, $json);
+    echo $json;
 } catch (PDOException $e) {
     http_response_code(500);
     error_log("Database error in getHeatpumpData.php: " . $e->getMessage());

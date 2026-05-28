@@ -6,8 +6,8 @@
  * Usage: php check_data_integrity.php
  */
 
-require 'includes/configuration.php';
-require 'includes/DatabaseManager.php';
+require dirname(__DIR__) . '/includes/configuration.php';
+require dirname(__DIR__) . '/includes/DatabaseManager.php';
 
 echo "=== SparkSpend SQLite Data Integrity Check ===\n\n";
 

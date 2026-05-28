@@ -23,8 +23,15 @@ require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
+// ─── 5-minute file cache (keyed by numMonths + date) ───────────────────────────
+$_billNumMonths = max(1, min(60, intval($_GET['months'] ?? 24)));
+$_billCacheKey  = 'bill_' . $_billNumMonths . '_' . date('Y-m-d');
+$_cached = QueryBuilder::fileCacheRead($_billCacheKey, 300);
+if ($_cached !== null) { echo $_cached; exit; }
+// ─────────────────────────────────────────────────────────────────────────────
+
 try {
-    $numMonths  = max(1, min(60, intval($_GET['months'] ?? 24)));
+    $numMonths  = $_billNumMonths;
     $chargesDb  = DatabaseManager::getChargesDb();
     $powerlogDb = DatabaseManager::getPowerlogDb();
 
@@ -95,30 +102,10 @@ try {
     // The WITH query starts one day before $rangeStart so the first day of the
     // oldest month gets a valid prior-day reading for its delta.
     // =========================================================================
-    $stmtHP = $powerlogDb->prepare("
-        WITH daily_max AS (
-            SELECT DATE(logdate)  AS day,
-                   MAX(kwh)       AS max_kwh
-            FROM powerlogjord
-            WHERE DATE(logdate) >= DATE(?, '-1 day')
-            GROUP BY DATE(logdate)
-        ),
-        daily_delta AS (
-            SELECT day,
-                   strftime('%Y-%m', day) AS month,
-                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-            FROM daily_max
-        )
-        SELECT month,
-               ROUND(SUM(delta_kwh), 2) AS total_kwh
-        FROM daily_delta
-        WHERE month >= ?
-        GROUP BY month
-    ");
-    $stmtHP->execute([$rangeStart, $oldest]);
+    $hpDeltaByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerlogjord', $rangeStart, $rangeEnd);
     $hpByMonth = [];
-    foreach ($stmtHP->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $hpByMonth[$row['month']] = ['kwh' => round(floatval($row['total_kwh']), 2)];
+    foreach ($hpDeltaByMonth as $month => $kwh) {
+        $hpByMonth[$month] = ['kwh' => $kwh];
     }
 
     // =========================================================================
@@ -129,29 +116,9 @@ try {
     // =========================================================================
     $husByMonth = [];
     try {
-        $stmtHus = $powerlogDb->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate)  AS day,
-                       MAX(kwh)       AS max_kwh
-                FROM powerloghus
-                WHERE DATE(logdate) >= DATE(?, '-1 day')
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       strftime('%Y-%m', day)                              AS month,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
-            )
-            SELECT month,
-                   ROUND(SUM(delta_kwh), 2) AS total_kwh
-            FROM daily_delta
-            WHERE month >= ?
-            GROUP BY month
-        ");
-        $stmtHus->execute([$rangeStart, $oldest]);
-        foreach ($stmtHus->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $husByMonth[$row['month']] = ['kwh' => round(floatval($row['total_kwh']), 2)];
+        $husDeltaByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerloghus', $rangeStart, $rangeEnd);
+        foreach ($husDeltaByMonth as $month => $kwh) {
+            $husByMonth[$month] = ['kwh' => $kwh];
         }
     } catch (Exception $husEx) {
         // powerloghus table not yet created / synced — hus data will be empty
@@ -175,13 +142,15 @@ try {
         ];
     }
 
-    echo json_encode([
+    $json = json_encode([
         'months' => $months,
         'ev'     => $evByMonth,
         'hp'     => $hpByMonth,
         'hus'    => $husByMonth,
         'range'  => ['start' => $rangeStart, 'end' => $rangeEnd],
     ]);
+    QueryBuilder::fileCacheWrite($_billCacheKey, $json);
+    echo $json;
 
 } catch (Exception $e) {
     http_response_code(500);

@@ -17,7 +17,10 @@ try {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    if (!$data || !isset($data['id']) || !isset($data['vehicleId'])) {
+    $id        = intval($data['id']        ?? 0);
+    $vehicleId = intval($data['vehicleId'] ?? 0);
+
+    if (!$data || $id <= 0 || $vehicleId <= 0) {
         http_response_code(400);
         echo json_encode([
             'success' => false,
@@ -28,10 +31,10 @@ try {
 
     $db = DatabaseManager::getChargesDb();
     $result = QueryBuilder::updateInternalCharge($db, [
-        'id' => $data['id'],
-        'vehicleId' => $data['vehicleId'],
+        'id'          => $id,
+        'vehicleId'   => $vehicleId,
         'consumedKwh' => 0,  // Not updated in this endpoint
-        'cost' => 0           // Not updated in this endpoint
+        'cost'        => 0   // Not updated in this endpoint
     ]);
 
     if ($result) {

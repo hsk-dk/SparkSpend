@@ -750,5 +750,134 @@ class QueryBuilder {
             $data['odometer']
         ]);
     }
+
+    /**
+     * Compute daily kWh deltas from a cumulative-meter table using a LAG window function.
+     *
+     * The meter is expected to only go up (e.g. powerlogjord, powerloghus).
+     * Negative deltas (meter resets) are clamped to 0.
+     * The query fetches one extra day before $from so the first day in the range
+     * gets a valid prior-day baseline.
+     *
+     * @param PDO    $db    SQLite connection (powerlog database)
+     * @param string $table Table name — must be 'powerlogjord' or 'powerloghus' (whitelisted)
+     * @param string $from  Start date YYYY-MM-DD (inclusive)
+     * @param string $to    End date   YYYY-MM-DD (inclusive)
+     * @return array  Associative array keyed by 'YYYY-MM-DD' => float kWh delta
+     * @throws InvalidArgumentException if table name is not whitelisted
+     */
+    public static function lagDelta(PDO $db, string $table, string $from, string $to): array {
+        static $allowed = ['powerlogjord', 'powerloghus'];
+        if (!in_array($table, $allowed, true)) {
+            throw new \InvalidArgumentException("lagDelta: table '$table' is not whitelisted");
+        }
+
+        $sql = "
+            WITH daily_max AS (
+                SELECT DATE(logdate) AS day,
+                       MAX(kwh)      AS max_kwh
+                FROM $table
+                WHERE DATE(logdate) >= DATE(?, '-1 day')
+                  AND DATE(logdate) <= ?
+                GROUP BY DATE(logdate)
+            ),
+            daily_delta AS (
+                SELECT day,
+                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
+                FROM daily_max
+            )
+            SELECT day, ROUND(delta_kwh, 2) AS kwh
+            FROM daily_delta
+            WHERE DATE(day) BETWEEN ? AND ?
+            ORDER BY day
+        ";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$from, $to, $from, $to]);
+
+        $result = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $result[$row['day']] = floatval($row['kwh']);
+        }
+        return $result;
+    }
+
+    /**
+     * Sum lagDelta results by month (YYYY-MM).
+     *
+     * @param PDO    $db    SQLite connection
+     * @param string $table Table name (whitelisted by lagDelta)
+     * @param string $from  Start date YYYY-MM-DD
+     * @param string $to    End date   YYYY-MM-DD
+     * @return array  Associative array keyed by 'YYYY-MM' => float total kWh
+     */
+    public static function lagDeltaByMonth(PDO $db, string $table, string $from, string $to): array {
+        $daily = self::lagDelta($db, $table, $from, $to);
+        $byMonth = [];
+        foreach ($daily as $day => $kwh) {
+            $month = substr($day, 0, 7);
+            $byMonth[$month] = round(($byMonth[$month] ?? 0.0) + $kwh, 4);
+        }
+        // Round final values
+        foreach ($byMonth as $m => $v) {
+            $byMonth[$m] = round($v, 2);
+        }
+        return $byMonth;
+    }
+
+    /**
+     * Sum lagDelta results by year (YYYY).
+     *
+     * @param PDO    $db    SQLite connection
+     * @param string $table Table name (whitelisted by lagDelta)
+     * @param string $from  Start date YYYY-MM-DD
+     * @param string $to    End date   YYYY-MM-DD
+     * @return array  Associative array keyed by 'YYYY' => float total kWh
+     */
+    public static function lagDeltaByYear(PDO $db, string $table, string $from, string $to): array {
+        $daily = self::lagDelta($db, $table, $from, $to);
+        $byYear = [];
+        foreach ($daily as $day => $kwh) {
+            $year = substr($day, 0, 4);
+            $byYear[$year] = round(($byYear[$year] ?? 0.0) + $kwh, 4);
+        }
+        foreach ($byYear as $y => $v) {
+            $byYear[$y] = round($v, 2);
+        }
+        return $byYear;
+    }
+
+    /**
+     * Read from the shared JSON file cache.
+     *
+     * Cache files are stored in the system temp dir with the prefix "sparkspend_".
+     * Returns the cached string when the file exists and is younger than $ttl seconds;
+     * otherwise returns null.
+     *
+     * @param string $key  Cache identifier (e.g. 'dashboard_2025-07-12').  Must not
+     *                     contain path separators.
+     * @param int    $ttl  Maximum age in seconds.
+     * @return string|null Cached JSON string, or null on cache miss.
+     */
+    public static function fileCacheRead(string $key, int $ttl): ?string {
+        $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
+        if (file_exists($file) && (time() - filemtime($file)) < $ttl) {
+            $content = file_get_contents($file);
+            return $content !== false ? $content : null;
+        }
+        return null;
+    }
+
+    /**
+     * Write a JSON string to the shared file cache.
+     *
+     * Failures are silently suppressed (temp dir may be read-only in some envs).
+     *
+     * @param string $key  Cache identifier — same key used in fileCacheRead().
+     * @param string $json The JSON string to cache.
+     */
+    public static function fileCacheWrite(string $key, string $json): void {
+        $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
+        @file_put_contents($file, $json);
+    }
 }
 ?>

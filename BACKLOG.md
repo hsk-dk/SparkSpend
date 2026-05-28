@@ -65,9 +65,9 @@ Items within each priority tier are ordered by impact.
 Aktuelt tages EV-hjemmeladningsomkostninger direkte fra Monta API's `cost`-felt. Monta's pris kan afspejle en fast tarif eller en unøjagtig sats. Den eksisterende `getElspotPrices.php`-infrastruktur kunne i stedet beregne den reelle elomkostning for hjemmeladningssessioner (spot + tariffer), hvilket giver brugeren nøjagtig og transparent prissætning — samme metodologi som varmepumpen.
 **Filer:** `getCharges.php` eller ny `getHomeChargeCost.php`, `includes/elbil.js`
 
-### ENHANCEMENT — EV flerårigt sammenligningsvisning (spejler Jordvarme)
-Jordvarme-fanebladet har en `Sammenligning`-tilstand der overlapper flere års månedlige forbrug på ét diagram. EV-fanebladet har køretøjssammenligning men ingen tilsvarende år-over-år oversigt over opladningsmønstre på tværs af kalenderår.
-**Filer:** `includes/elbil.js`, ny `getChargesByYear.php` eller udvid `getChargeAnalytics.php`
+### ~~ENHANCEMENT — EV flerårigt sammenligningsvisning (spejler Jordvarme)~~ ✅ Rettet
+~~Jordvarme-fanebladet har en `Sammenligning`-tilstand der overlapper flere års månedlige forbrug på ét diagram. EV-fanebladet har køretøjssammenligning men ingen tilsvarende år-over-år oversigt over opladningsmønstre på tværs af kalenderår.~~
+Ny `getChargeCompare.php` returnerer månedlig kWh + kr per år. Nyt "År-over-år forbrug"-kort i `elbil-sammenligning` med linjediagram, år-chips til synlighedstoggle, kWh/kr-skifte og statistiktabel per år. Spejler Jordvarme `Sammenligning`-visningens mønster.
 
 ### ~~ENHANCEMENT — Opladningssession effekt (kW) og varighed~~ ✅ Rettet
 ~~Monta API sender `cablePluggedInAt`, `startedAt` og `stoppedAt`. Sessionvarighed og gennemsnitlig effekt beregnes aldrig.~~ Ny "Varighed"-kolonne i opladningstabellen viser `1h 23m` og `Ø X.X kW` for interne ladninger; externe ladninger viser `—`.

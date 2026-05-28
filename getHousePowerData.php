@@ -37,6 +37,14 @@ function _extEvByKey(PDO $chargesDb, string $from, string $to, string $keyFmt): 
     return $result;
 }
 
+// ─── 1-hour file cache (skip sync_status mode — changes frequently) ───────────────
+$_hwCacheKey = 'housepower_' . md5($_SERVER['QUERY_STRING'] ?? '');
+if (($_GET['mode'] ?? '') !== 'sync_status') {
+    $_cached = QueryBuilder::fileCacheRead($_hwCacheKey, 3600);
+    if ($_cached !== null) { echo $_cached; exit; }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 try {
     $powerlogDb = DatabaseManager::getPowerlogDb();
     $chargesDb  = DatabaseManager::getChargesDb();
@@ -59,54 +67,13 @@ try {
         // House meter
         $husByDay = [];
         try {
-            $stmt = $powerlogDb->prepare("
-                WITH daily_max AS (
-                    SELECT DATE(logdate) AS day, MAX(kwh) AS max_kwh
-                    FROM powerloghus
-                    WHERE DATE(logdate) >= DATE(?||'-01', '-1 day')
-                      AND DATE(logdate) <= DATE(?||'-01', '+1 month', '-1 day')
-                    GROUP BY DATE(logdate)
-                ),
-                daily_delta AS (
-                    SELECT day, MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS kwh
-                    FROM daily_max
-                )
-                SELECT day, ROUND(kwh, 2) AS kwh
-                FROM daily_delta
-                WHERE strftime('%Y-%m', day) = ?
-                ORDER BY day
-            ");
-            $stmt->execute([$month, $month, $month]);
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                $husByDay[$row['day']] = floatval($row['kwh']);
-            }
+            $husByDay = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $dayStart, $dayEnd);
         } catch (Exception $e) {
             error_log('getHousePowerData house daily: ' . $e->getMessage());
         }
 
         // HP meter
-        $hpByDay = [];
-        $stmt = $powerlogDb->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate) AS day, MAX(kwh) AS max_kwh
-                FROM powerlogjord
-                WHERE DATE(logdate) >= DATE(?||'-01', '-1 day')
-                  AND DATE(logdate) <= DATE(?||'-01', '+1 month', '-1 day')
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day, MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS kwh
-                FROM daily_max
-            )
-            SELECT day, ROUND(kwh, 2) AS kwh
-            FROM daily_delta
-            WHERE strftime('%Y-%m', day) = ?
-            ORDER BY day
-        ");
-        $stmt->execute([$month, $month, $month]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $hpByDay[$row['day']] = floatval($row['kwh']);
-        }
+        $hpByDay = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $dayStart, $dayEnd);
 
         // EV internal — proportional midnight-split
         $evByDay = [];
@@ -146,7 +113,9 @@ try {
             $days[] = ['day' => $day, 'hus' => round($hus, 2), 'ev' => $ev, 'hp' => $hp, 'rest' => $rest];
         }
 
-        echo json_encode(['mode' => 'daily', 'days' => $days]);
+        $json = json_encode(['mode' => 'daily', 'days' => $days]);
+        QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
+        echo $json;
 
     // =========================================================================
     // MONTHLY — per-month breakdown for a single year
@@ -164,60 +133,13 @@ try {
         // House meter
         $husByMonth = [];
         try {
-            $stmt = $powerlogDb->prepare("
-                WITH daily_max AS (
-                    SELECT DATE(logdate) AS day, MAX(kwh) AS max_kwh
-                    FROM powerloghus
-                    WHERE DATE(logdate) >= DATE(?||'-01-01', '-1 day')
-                      AND DATE(logdate) <= ?||'-12-31'
-                    GROUP BY DATE(logdate)
-                ),
-                daily_delta AS (
-                    SELECT day,
-                           strftime('%Y-%m', day)                              AS month,
-                           MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                    FROM daily_max
-                )
-                SELECT month, ROUND(SUM(delta_kwh), 2) AS kwh
-                FROM daily_delta
-                WHERE strftime('%Y', day) = ?
-                GROUP BY month
-                ORDER BY month
-            ");
-            $stmt->execute([$year, $year, $year]);
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                $husByMonth[$row['month']] = floatval($row['kwh']);
-            }
+            $husByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerloghus', $yearStart, $yearEnd);
         } catch (Exception $e) {
             error_log('getHousePowerData house monthly: ' . $e->getMessage());
         }
 
         // HP meter
-        $hpByMonth = [];
-        $stmt = $powerlogDb->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate) AS day, MAX(kwh) AS max_kwh
-                FROM powerlogjord
-                WHERE DATE(logdate) >= DATE(?||'-01-01', '-1 day')
-                  AND DATE(logdate) <= ?||'-12-31'
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       strftime('%Y-%m', day)                              AS month,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
-            )
-            SELECT month, ROUND(SUM(delta_kwh), 2) AS kwh
-            FROM daily_delta
-            WHERE strftime('%Y', day) = ?
-            GROUP BY month
-            ORDER BY month
-        ");
-        $stmt->execute([$year, $year, $year]);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $hpByMonth[$row['month']] = floatval($row['kwh']);
-        }
+        $hpByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerlogjord', $yearStart, $yearEnd);
 
         // EV internal monthly — proportional midnight-split
         $evByMonth = [];
@@ -256,7 +178,9 @@ try {
             }
         }
 
-        echo json_encode(['mode' => 'monthly', 'months' => $months]);
+        $json = json_encode(['mode' => 'monthly', 'months' => $months]);
+        QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
+        echo $json;
 
     // =========================================================================
     // COMPARE — house meter monthly totals across all years
@@ -291,7 +215,9 @@ try {
         } catch (Exception $e) {
             error_log('getHousePowerData compare: ' . $e->getMessage());
         }
-        echo json_encode(['mode' => 'compare', 'data' => $data]);
+        $json = json_encode(['mode' => 'compare', 'data' => $data]);
+        QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
+        echo $json;
 
     // =========================================================================
     // YTD — house meter daily totals per year, Jan 1 through today's day-of-year
@@ -323,7 +249,9 @@ try {
         } catch (Exception $e) {
             error_log('getHousePowerData ytd: ' . $e->getMessage());
         }
-        echo json_encode(['mode' => 'ytd', 'data' => $data]);
+        $json = json_encode(['mode' => 'ytd', 'data' => $data]);
+        QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
+        echo $json;
 
     // =========================================================================
     // SYNC STATUS

@@ -12,26 +12,42 @@ require 'includes/QueryBuilder.php';
 header('Content-Type: application/json');
 
 // ─── 60-second file cache ─────────────────────────────────────────────────────
-// Key includes today's date so it resets at midnight automatically.
-$_dashCacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR
-                . 'sparkspend_dashboard_' . date('Y-m-d') . '.json';
-if (file_exists($_dashCacheFile) && (time() - filemtime($_dashCacheFile)) < 60) {
-    echo file_get_contents($_dashCacheFile);
-    exit;
-}
+$_dashCacheKey = 'dashboard_' . date('Y-m-d');
+$_cached = QueryBuilder::fileCacheRead($_dashCacheKey, 60);
+if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 
 try {
     $chargesDb = DatabaseManager::getChargesDb();
     $powerlogDb = DatabaseManager::getPowerlogDb();
 
-    $currentMonth  = date('Y-m');
-    $today         = date('Y-m-d');
-    $sparkStart    = date('Y-m-01');        // first of current month
-    $prevStart     = date('Y-m-01', strtotime('first day of last month'));
-    $prevEnd       = date('Y-m-d', strtotime('-1 month')); // same day last month
-    $lastYearStart = date('Y-m-01', strtotime('-1 year')); // first of same month last year
-    $lastYearEnd   = date('Y-m-d', strtotime('-1 year'));  // same day last year
+    $todayDt       = new DateTimeImmutable('today');
+    $currentStartDt = $todayDt->modify('first day of this month');
+    $currentDayIdx = (int)$todayDt->format('j') - 1;
+
+    $prevStartDt   = $todayDt->modify('first day of last month');
+    $prevEndDt     = $prevStartDt->modify("+{$currentDayIdx} days");
+    $prevMonthEndDt = $prevStartDt->modify('last day of this month');
+    if ($prevEndDt > $prevMonthEndDt) {
+        $prevEndDt = $prevMonthEndDt;
+    }
+
+    $lastYearPeriodStartDt = $currentStartDt->modify('-1 year');
+    $lastYearPeriodEndDt   = $lastYearPeriodStartDt->modify("+{$currentDayIdx} days");
+    $lastYearMonthEndDt = $lastYearPeriodStartDt->modify('last day of this month');
+    if ($lastYearPeriodEndDt > $lastYearMonthEndDt) {
+        $lastYearPeriodEndDt = $lastYearMonthEndDt;
+    }
+
+    $currentMonth  = $todayDt->format('Y-m');
+    $today         = $todayDt->format('Y-m-d');
+    $sparkStart    = $currentStartDt->format('Y-m-d');
+    $prevStart     = $prevStartDt->format('Y-m-d');
+    $prevEnd       = $prevEndDt->format('Y-m-d');
+    $lastYearPeriodStart = $lastYearPeriodStartDt->format('Y-m-d');
+    $lastYearPeriodEnd   = $lastYearPeriodEndDt->format('Y-m-d');
+    $lastYearMonthStart  = $lastYearPeriodStart;
+    $lastYearMonthEnd    = $lastYearMonthEndDt->format('Y-m-d');
 
     // =========================================================================
     // EV — internal charges: raw fetch, proportional midnight-split
@@ -43,7 +59,7 @@ try {
         FROM charges
         WHERE DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?
     ");
-    $stmtInt->execute([$today, $lastYearStart]);
+    $stmtInt->execute([$today, $lastYearMonthStart]);
 
     $intMonthCnt  = 0;  $intMonthKwh  = 0.0;  $intMonthCost = 0.0;
     $intPrevKwh   = 0.0; $intPrevCost  = 0.0;
@@ -60,7 +76,7 @@ try {
             if ($day >= $sparkStart && $day <= $today) {
                 $evByDay[$day] = ($evByDay[$day] ?? 0) + $slice['kwh'];
             }
-            if (substr($day, 0, 7) === $currentMonth) {
+            if ($day >= $sparkStart && $day <= $today) {
                 $intMonthKwh  += $slice['kwh'];
                 $intMonthCost += $slice['cost'];
                 if (!$countedForMonth) { $intMonthCnt++; $countedForMonth = true; }
@@ -69,7 +85,7 @@ try {
                 $intPrevKwh  += $slice['kwh'];
                 $intPrevCost += $slice['cost'];
             }
-            if ($day >= $lastYearStart && $day <= $lastYearEnd) {
+            if ($day >= $lastYearPeriodStart && $day <= $lastYearPeriodEnd) {
                 $intLYKwh  += $slice['kwh'];
                 $intLYCost += $slice['cost'];
             }
@@ -82,14 +98,14 @@ try {
     // External charges — ISO 8601 Z-suffix prevents SQL date filtering, so we fetch
     // a bounded window (from same month last year onwards) and filter in PHP.
     $stmtExt = $chargesDb->prepare("SELECT datetime, kwh, pris FROM ext_charges WHERE datetime >= ?");
-    $stmtExt->execute([$lastYearStart]);
+    $stmtExt->execute([$lastYearMonthStart]);
 
     $sparkStartTs  = strtotime($sparkStart);
     $todayEndTs    = strtotime($today . ' 23:59:59');
     $prevStartTs   = strtotime($prevStart);
     $prevEndTs     = strtotime($prevEnd . ' 23:59:59');
-    $lyStartTs     = strtotime($lastYearStart);
-    $lyEndTs       = strtotime($lastYearEnd . ' 23:59:59');
+    $lyStartTs     = strtotime($lastYearPeriodStart);
+    $lyEndTs       = strtotime($lastYearPeriodEnd . ' 23:59:59');
 
     $extMonthCnt   = 0;
     $extMonthKwh   = 0.0;
@@ -103,7 +119,7 @@ try {
     foreach ($stmtExt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $t   = strtotime($row['datetime']);
         $day = date('Y-m-d', $t);
-        if (date('Y-m', $t) === $currentMonth) {
+        if ($t >= $sparkStartTs && $t <= $todayEndTs) {
             $extMonthCnt++;
             $extMonthKwh  += floatval($row['kwh']);
             $extMonthCost += floatval($row['pris']);
@@ -136,107 +152,30 @@ try {
     }
 
     // =========================================================================
-    // Heatpump — current and previous month totals
+    // Heatpump — current and previous month totals + sparkline
     // =========================================================================
-    $stmtHP = $powerlogDb->prepare("
-        WITH daily_max AS (
-            SELECT DATE(logdate)  AS day,
-                   MAX(kwh)       AS max_kwh
-            FROM powerlogjord
-            WHERE DATE(logdate) >= DATE(?, '-1 day')
-              AND DATE(logdate) <= ?
-            GROUP BY DATE(logdate)
-        ),
-        daily_delta AS (
-            SELECT day,
-                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-            FROM daily_max
-        )
-        SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
-        FROM daily_delta
-        WHERE strftime('%Y-%m', day) = ?
-    ");
-    $stmtHP->execute([$sparkStart, $today, $currentMonth]);
-    $hpCurrent = floatval($stmtHP->fetchColumn());
+    $hpDailyMap       = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $sparkStart, $today);
+    $hpCurrent        = round(array_sum($hpDailyMap), 2);
 
-    $stmtHPPrev = $powerlogDb->prepare("
-        WITH daily_max AS (
-            SELECT DATE(logdate)  AS day,
-                   MAX(kwh)       AS max_kwh
-            FROM powerlogjord
-            WHERE DATE(logdate) >= DATE(?, '-1 day')
-              AND DATE(logdate) <= ?
-            GROUP BY DATE(logdate)
-        ),
-        daily_delta AS (
-            SELECT day,
-                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-            FROM daily_max
-        )
-        SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
-        FROM daily_delta
-        WHERE DATE(day) BETWEEN ? AND ?
-    ");
-    $stmtHPPrev->execute([$prevStart, $prevEnd, $prevStart, $prevEnd]);
-    $hpPrev = floatval($stmtHPPrev->fetchColumn());
+    $hpPrevMap        = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevEnd);
+    $hpPrev           = round(array_sum($hpPrevMap), 2);
 
-    $hpPctChange = $hpPrev > 0
+    $hpLastYearMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lastYearMonthStart, $lastYearMonthEnd);
+    $hpLastYear       = round(array_sum($hpLastYearMap), 2);
+
+    $hpLYPeriodMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lastYearPeriodStart, $lastYearPeriodEnd);
+    $hpLastYearPeriod = round(array_sum($hpLYPeriodMap), 2);
+
+    $hpPctChange     = $hpPrev > 0
         ? round(($hpCurrent - $hpPrev) / $hpPrev * 100, 1)
         : null;
-
-    $stmtHPYear = $powerlogDb->prepare("
-        WITH daily_max AS (
-            SELECT DATE(logdate)  AS day,
-                   MAX(kwh)       AS max_kwh
-            FROM powerlogjord
-            WHERE DATE(logdate) >= DATE(?, '-1 day')
-              AND DATE(logdate) <= ?
-            GROUP BY DATE(logdate)
-        ),
-        daily_delta AS (
-            SELECT day,
-                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-            FROM daily_max
-        )
-        SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
-        FROM daily_delta
-        WHERE DATE(day) BETWEEN ? AND ?
-    ");
-    $stmtHPYear->execute([$lastYearStart, $lastYearEnd, $lastYearStart, $lastYearEnd]);
-    $hpLastYear = floatval($stmtHPYear->fetchColumn());
-
-    $hpPctChangeYear = $hpLastYear > 0
-        ? round(($hpCurrent - $hpLastYear) / $hpLastYear * 100, 1)
+    // Year-over-year: MTD-to-MTD for a fair same-days comparison
+    $hpPctChangeYear = $hpLastYearPeriod > 0
+        ? round(($hpCurrent - $hpLastYearPeriod) / $hpLastYearPeriod * 100, 1)
         : null;
 
-    // =========================================================================
-    // Heatpump — 14-day sparkline
-    // =========================================================================
-    $stmtHPSpark = $powerlogDb->prepare("
-        WITH daily_max AS (
-            SELECT DATE(logdate)  AS day,
-                   MAX(kwh)       AS max_kwh
-            FROM powerlogjord
-            WHERE DATE(logdate) >= DATE(?, '-1 day')
-              AND DATE(logdate) <= ?
-            GROUP BY DATE(logdate)
-        ),
-        daily_delta AS (
-            SELECT day,
-                   MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS kwh
-            FROM daily_max
-        )
-        SELECT day, ROUND(kwh, 2) AS kwh
-        FROM daily_delta
-        WHERE DATE(day) BETWEEN ? AND ?
-        ORDER BY day
-    ");
-    $stmtHPSpark->execute([$sparkStart, $today, $sparkStart, $today]);
-
-    $hpByDay = [];
-    foreach ($stmtHPSpark->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $hpByDay[$row['day']] = floatval($row['kwh']);
-    }
+    // Sparkline (already fetched above in $hpDailyMap)
+    $hpByDay     = $hpDailyMap;
     $hpSparkline = [];
     for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
         $day = date('Y-m-d', strtotime("-{$i} days"));
@@ -253,98 +192,20 @@ try {
     $husSparkline  = null;
 
     try {
-        $stmtHus = $powerlogDb->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate)  AS day,
-                       MAX(kwh)       AS max_kwh
-                FROM powerloghus
-                WHERE DATE(logdate) >= DATE(?, '-1 day')
-                  AND DATE(logdate) <= ?
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
-            )
-            SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
-            FROM daily_delta
-            WHERE strftime('%Y-%m', day) = ?
-        ");
-        $stmtHus->execute([$sparkStart, $today, $currentMonth]);
-        $husCurrentKwh = floatval($stmtHus->fetchColumn());
+        $husDailyMap    = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $sparkStart, $today);
+        $husCurrentKwh  = round(array_sum($husDailyMap), 2);
 
-        $stmtHusPrev = $powerlogDb->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate)  AS day,
-                       MAX(kwh)       AS max_kwh
-                FROM powerloghus
-                WHERE DATE(logdate) >= DATE(?, '-1 day')
-                  AND DATE(logdate) <= ?
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
-            )
-            SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
-            FROM daily_delta
-            WHERE DATE(day) BETWEEN ? AND ?
-        ");
-        $stmtHusPrev->execute([$prevStart, $prevEnd, $prevStart, $prevEnd]);
-        $husPrevKwh = floatval($stmtHusPrev->fetchColumn());
+        $husPrevMap     = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevEnd);
+        $husPrevKwh     = round(array_sum($husPrevMap), 2);
 
-        $stmtHusYear = $powerlogDb->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate)  AS day,
-                       MAX(kwh)       AS max_kwh
-                FROM powerloghus
-                WHERE DATE(logdate) >= DATE(?, '-1 day')
-                  AND DATE(logdate) <= ?
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
-            )
-            SELECT ROUND(SUM(delta_kwh), 2) AS total_kwh
-            FROM daily_delta
-            WHERE DATE(day) BETWEEN ? AND ?
-        ");
-        $stmtHusYear->execute([$lastYearStart, $lastYearEnd, $lastYearStart, $lastYearEnd]);
-        $husLastYearKwh = floatval($stmtHusYear->fetchColumn());
+        $husLYMap       = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearPeriodStart, $lastYearPeriodEnd);
+        $husLastYearKwh = round(array_sum($husLYMap), 2);
 
-        $stmtHusSpark = $powerlogDb->prepare("
-            WITH daily_max AS (
-                SELECT DATE(logdate)  AS day,
-                       MAX(kwh)       AS max_kwh
-                FROM powerloghus
-                WHERE DATE(logdate) >= DATE(?, '-1 day')
-                  AND DATE(logdate) <= ?
-                GROUP BY DATE(logdate)
-            ),
-            daily_delta AS (
-                SELECT day,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS kwh
-                FROM daily_max
-            )
-            SELECT day, ROUND(kwh, 2) AS kwh
-            FROM daily_delta
-            WHERE DATE(day) BETWEEN ? AND ?
-            ORDER BY day
-        ");
-        $stmtHusSpark->execute([$sparkStart, $today, $sparkStart, $today]);
-
-        $husByDay = [];
-        foreach ($stmtHusSpark->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $husByDay[$row['day']] = floatval($row['kwh']);
-        }
+        // Sparkline (reuse $husDailyMap)
         $husSparkline = [];
         for ($i = $daysThisMonth - 1; $i >= 0; $i--) {
             $day = date('Y-m-d', strtotime("-{$i} days"));
-            $husSparkline[] = round($husByDay[$day] ?? 0, 2);
+            $husSparkline[] = round($husDailyMap[$day] ?? 0, 2);
         }
     } catch (Exception $husEx) {
         // powerloghus not yet synced — hus fields remain null
@@ -360,10 +221,14 @@ try {
 
     $prevTotalCost = floatval($intPrev['cost']) + $extPrevCost;
     $lyTotalCost   = floatval($intLY['cost'])   + $extLYCost;
+    $prevTotalKwh  = floatval($intPrev['kwh'])  + $extPrevKwh;
+    $lyTotalKwh    = floatval($intLY['kwh'])    + $extLYKwh;
 
     $evCostPerKwh        = $totalKwh > 0      ? round($totalCost / $totalKwh, 3) : null;
     $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
     $evProjected         = $daysThisMonth > 0 ? round($totalCost / $daysThisMonth * $daysInMonth) : null;
+    $evPctChangeKwh      = $prevTotalKwh  > 0 ? round(($totalKwh - $prevTotalKwh) / $prevTotalKwh * 100, 1) : null;
+    $evPctChangeKwhYear  = $lyTotalKwh    > 0 ? round(($totalKwh - $lyTotalKwh)   / $lyTotalKwh   * 100, 1) : null;
     $evPctChangeCost     = $prevTotalCost > 0 ? round(($totalCost - $prevTotalCost) / $prevTotalCost * 100, 1) : null;
     $evPctChangeCostYear = $lyTotalCost   > 0 ? round(($totalCost - $lyTotalCost)   / $lyTotalCost   * 100, 1) : null;
 
@@ -387,6 +252,8 @@ try {
             'cost_per_kwh'         => $evCostPerKwh,
             'home_kwh_pct'         => $evHomePct,
             'projected_cost'       => $evProjected,
+            'pct_change_kwh'       => $evPctChangeKwh,
+            'pct_change_year_kwh'  => $evPctChangeKwhYear,
             'pct_change_cost'      => $evPctChangeCost,
             'pct_change_year_cost' => $evPctChangeCostYear,
             'sparkline'            => $evSparkline,
@@ -395,6 +262,7 @@ try {
             'month_kwh'           => round($hpCurrent, 2),
             'prev_month_kwh'      => round($hpPrev, 2),
             'last_year_month_kwh' => round($hpLastYear, 2),
+            'last_year_period_kwh'=> round($hpLastYearPeriod, 2),
             'pct_change'          => $hpPctChange,
             'pct_change_year'     => $hpPctChangeYear,
             'daily_avg_kwh'       => $hpDailyAvg,
@@ -410,7 +278,7 @@ try {
             'sparkline'       => $husSparkline,
         ] : null,
     ]);
-    @file_put_contents($_dashCacheFile, $response);
+    QueryBuilder::fileCacheWrite($_dashCacheKey, $response);
     echo $response;
 
 } catch (Exception $e) {
