@@ -859,7 +859,8 @@ class QueryBuilder {
      * @return string|null Cached JSON string, or null on cache miss.
      */
     public static function fileCacheRead(string $key, int $ttl): ?string {
-        $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
+        $dir  = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+        $file = $dir . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
         if (file_exists($file) && (time() - filemtime($file)) < $ttl) {
             $content = file_get_contents($file);
             return $content !== false ? $content : null;
@@ -876,7 +877,8 @@ class QueryBuilder {
      * @param string $json The JSON string to cache.
      */
     public static function fileCacheWrite(string $key, string $json): void {
-        $file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
+        $dir  = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+        $file = $dir . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
         @file_put_contents($file, $json);
     }
 
@@ -889,7 +891,8 @@ class QueryBuilder {
      * @param string $prefix The key prefix to match (e.g. 'dashboard_').
      */
     public static function fileCacheInvalidatePattern(string $prefix): void {
-        $pattern = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_' . $prefix . '*.json';
+        $dir     = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+        $pattern = $dir . DIRECTORY_SEPARATOR . 'sparkspend_' . $prefix . '*.json';
         foreach (glob($pattern) ?: [] as $file) {
             @unlink($file);
         }

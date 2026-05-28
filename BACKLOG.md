@@ -41,54 +41,16 @@ Items within each priority tier are ordered by impact.
 - ✅ **BUG — Cache ikke invalideret ved datamutationer** — `QueryBuilder::fileCacheInvalidatePattern()` tilføjet. Kaldet i `createExCharge`, `updateExtCharge`, `deleteExtCharge`, `updateInternalCharge` (alle cache-præfikser) og `createProvider`, `updateProvider`, `deleteProvider` (`providerstats_`).
 - ✅ **BUG — `getChargeAnalytics.php` brugte eget cache-mønster** — Erstattet med `QueryBuilder::fileCacheRead/fileCacheWrite` (nøgle `analytics_*`). Duplicate `catch (PDOException)` fjernet.
 - ✅ **BUG — `getVehicleComparison.php` ingen caching + double-catch** — 5-minutters filcache tilføjet (`vehicle_compare_*`). Redundant `catch (PDOException)` og afsluttende `?>` fjernet.
-
----
-
-## Priority: High — Technical Debt
-
-### DEBT — Service worker cache-version bumpes ikke ved deployment
-`sw.js` bruger en hard-coded `const CACHE = 'sparkspend-v2'`. Når JS/CSS-filer opdateres bumpes cache-versionen ikke automatisk, så brugere kan modtage forældet kode fra SW-cachen. I dag kræver en opdatering en manuel ændring af konstanten.
-**Fix:** Indsæt `CACHE_VERSION` konstant i `sw.js` og bump den ved release. Overvej at bygge versionen ind som PHP-genereret JS-variabel fra `index.php`.
-**Filer:** `sw.js`, `index.php`
-
-### DEBT — JS-modulversioner (`?v=`) er forældet i `index.php`
-`jordvarme.js?v=20260312b`, `hus.js?v=20260315`, `regning.js?v=20260314`, `annual.js?v=20260316`, `app.js?v=20260315` er ikke opdateret siden de pågældende filer sidst blev ændret. Det kan betyde at browsere og SW-cachen serverer forældet kode.
-**Fix:** Opdat alle versionsstrenge til `20260528` (eller brug `filemtime()`-baseret auto-versioning i `index.php`).
-**Filer:** `index.php`
-
-### DEBT — Ingen inputvalidering på `receive_vehicle_data.php`
-`vehicleId` kontrolleres ikke mod `vehicles`-tabellen (eksistens-check). `odometer` valideres ikke som positivt tal. En skadelig POST kan indsætte rækker med ukendt `vehicleId` i `vehicle_charges`.
-**Fix:** Tilføj eksistens-check og range-validering (odometer > 0, < 2.000.000).
-**Filer:** `receive_vehicle_data.php`
-
-### DEBT — `cron/update_monta_data.php` bruger `die()` til fejlhåndtering og har ingen rate-limit-logik
-Scriptet kalder `die()` ved API-fejl i stedet for at logge og afslutte pænt. Der er ingen 429-håndtering eller retry-logik. En Monta rate-limit ville afkorte importkørslen lydløst.
-**Fix:** Erstat `die()` med `error_log()` + `exit(1)`. Tilføj HTTP 429-check med eksponentiel backoff eller simpel re-schedule (script registrerer fejlen i `sync_log` og afslutter).
-**Filer:** `cron/update_monta_data.php`
-
-### DEBT — Cache-dir `/tmp` er flygtig på visse hosts
-`QueryBuilder::fileCacheRead/fileCacheWrite`, `getElspotPrices.php` og `getWeatherData.php` skriver alle til `sys_get_temp_dir()`. På systemer der rydder `/tmp` ved reboot (eller under load) mistes cachen hyppigere end forventet. Elprisdata og vejrdata er dyre at genhente.
-**Fix:** Tilføj `CACHE_DIR` env-variabel (standard: `sys_get_temp_dir()`). Brug i `QueryBuilder::fileCacheRead/fileCacheWrite`, `getElspotPrices.php` og `getWeatherData.php`. Dokumenter i `.env.example`.
-**Filer:** `includes/QueryBuilder.php`, `getElspotPrices.php`, `getWeatherData.php`, `includes/configuration.php`, `.env.example`
-
-### DEBT — `getVehicleComparison.php` har separat `PDOException`-catch der er ureachable
-Endpoint'et har to catch-blokke: `catch (PDOException $e)` efterfulgt af `catch (\Throwable $e)`. Fordi `PDOException` er en subklasse af `\Throwable` og den anden catch er bredere, ville den første aldrig fange noget der ikke allerede fanges af `\Throwable`. Dessuden hænger en `?>` afslutning, der kan lækage whitespace.
-**Fix:** Saml til én `catch (\Throwable $e)`. Fjern afsluttende `?>`.
-**Filer:** `getVehicleComparison.php`
-
-### DEBT — README.md er tom
-**Filer:** `README.md`
-
-### DEBT — Ingen CHANGELOG
-**Filer:** ny `CHANGELOG.md`
-
-### DEBT — `check_data_integrity.php` dækker kun `powerlogjord`
-`charges.db` (tabellerne `charges`, `ext_charges`, `vehicles`, `providers`, `vehicle_charges`) har ingen tilsvarende integritetstjek.
-**Filer:** `dev/check_data_integrity.php`
-
-### DEBT — CDN-afhængigheder indlæst uden versionspinning
-Chart.js, Bootstrap og ApexCharts indlæses fra CDN uden fast versionsnummer. En brudende major-release ville lydløst bryde alle diagrammer.
-**Filer:** `index.php`
+- ✅ **DEBT — Service worker cache-version bumpes ikke ved deployment** — `sw.js` bumped til `sparkspend-v3`.
+- ✅ **DEBT — JS-modulversioner (`?v=`) er forældet i `index.php`** — Alle strenge opdateret til `20260528`.
+- ✅ **DEBT — Ingen inputvalidering på `receive_vehicle_data.php`** — vehicleId eksistenstjek og odometer range-validering (> 0, < 2 000 000) tilføjet.
+- ✅ **DEBT — `cron/update_monta_data.php` bruger `die()` og ingen rate-limit-logik** — Alle `die()` erstattet med `error_log()` + `exit(1)`. HTTP 429 returnerer `null` og skrives til `sync_log` før ren exit.
+- ✅ **DEBT — Cache-dir `/tmp` er flygtig** — `CACHE_DIR` env-variabel tilføjet i `configuration.php`. Brugt i `QueryBuilder`, `getElspotPrices.php` og `getWeatherData.php`.
+- ✅ **DEBT — `getVehicleComparison.php` double-catch** — (se BUG ovenfor, løst samtidigt).
+- ✅ **DEBT — README.md er tom** — README skrevet med funktionsoversigt, opsætningsvejledning, cron-eksempler og .env-reference.
+- ✅ **DEBT — Ingen CHANGELOG** — `CHANGELOG.md` oprettet med historik fra denne og tidligere sessioner.
+- ✅ **DEBT — `check_data_integrity.php` dækker kun `powerlogjord`** — Nyt afsnit tilføjet for `charges`, `ext_charges`, `vehicles`, `providers` og `vehicle_charges`.
+- ✅ **DEBT — CDN-afhængigheder uden versionspinning** — Chart.js@4.4.6, chartjs-plugin-datalabels@2.2.0, chartjs-adapter-date-fns@3.0.0, flatpickr@4.6.13, ApexCharts@3.54.0 pinnet i `index.php`.
 
 ---
 

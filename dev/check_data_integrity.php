@@ -168,4 +168,81 @@ echo "  \"\n\n";
 
 echo "Check the database after cleanup:\n";
 echo "  php check_data_integrity.php\n";
+
+// ─── charges.db ──────────────────────────────────────────────────────────────
+echo "\n\n=== charges.db Integrity Check ===\n\n";
+
+try {
+    $cdb = DatabaseManager::getChargesDb();
+
+    // ── charges table ─────────────────────────────────────────────────────────
+    echo "Checking charges table...\n";
+    $chargesTotal = $cdb->query("SELECT COUNT(*) FROM charges")->fetchColumn();
+    echo "✓ Total records: $chargesTotal\n";
+
+    $nullStart = $cdb->query("SELECT COUNT(*) FROM charges WHERE startedAt IS NULL")->fetchColumn();
+    $nullStop  = $cdb->query("SELECT COUNT(*) FROM charges WHERE stoppedAt  IS NULL")->fetchColumn();
+    $nullKwh   = $cdb->query("SELECT COUNT(*) FROM charges WHERE consumedKwh IS NULL OR consumedKwh < 0")->fetchColumn();
+    $orphaned  = $cdb->query("SELECT COUNT(*) FROM charges c LEFT JOIN vehicles v ON c.vehicleId = v.id WHERE v.id IS NULL")->fetchColumn();
+
+    echo ($nullStart  > 0 ? "⚠ $nullStart records with NULL startedAt\n"  : "✓ No NULL startedAt\n");
+    echo ($nullStop   > 0 ? "⚠ $nullStop records with NULL stoppedAt\n"   : "✓ No NULL stoppedAt\n");
+    echo ($nullKwh    > 0 ? "⚠ $nullKwh records with NULL/negative consumedKwh\n" : "✓ All consumedKwh valid\n");
+    echo ($orphaned   > 0 ? "⚠ $orphaned charges reference non-existent vehicleId\n" : "✓ All charge vehicleIds exist\n");
+
+    $oldestCharge = $cdb->query("SELECT MIN(startedAt) FROM charges WHERE startedAt IS NOT NULL")->fetchColumn();
+    $newestCharge = $cdb->query("SELECT MAX(stoppedAt) FROM charges WHERE stoppedAt IS NOT NULL")->fetchColumn();
+    echo "✓ Date range: $oldestCharge → $newestCharge\n\n";
+
+    // ── ext_charges table ─────────────────────────────────────────────────────
+    echo "Checking ext_charges table...\n";
+    $extTotal = $cdb->query("SELECT COUNT(*) FROM ext_charges")->fetchColumn();
+    echo "✓ Total records: $extTotal\n";
+
+    $extNullDate = $cdb->query("SELECT COUNT(*) FROM ext_charges WHERE datetime IS NULL OR datetime = ''")->fetchColumn();
+    $extNullKwh  = $cdb->query("SELECT COUNT(*) FROM ext_charges WHERE kwh IS NULL OR kwh <= 0")->fetchColumn();
+    $extOrphaned = $cdb->query("SELECT COUNT(*) FROM ext_charges e LEFT JOIN vehicles v ON e.vehicleId = v.id WHERE v.id IS NULL")->fetchColumn();
+    $extOrphanProv = $cdb->query("SELECT COUNT(*) FROM ext_charges e LEFT JOIN providers p ON e.providerId = p.id WHERE p.id IS NULL")->fetchColumn();
+
+    echo ($extNullDate    > 0 ? "⚠ $extNullDate ext_charges with NULL/empty datetime\n"  : "✓ All datetimes set\n");
+    echo ($extNullKwh     > 0 ? "⚠ $extNullKwh ext_charges with NULL/zero kwh\n"          : "✓ All kwh valid\n");
+    echo ($extOrphaned    > 0 ? "⚠ $extOrphaned ext_charges reference non-existent vehicleId\n" : "✓ All ext_charge vehicleIds exist\n");
+    echo ($extOrphanProv  > 0 ? "⚠ $extOrphanProv ext_charges reference non-existent providerId\n" : "✓ All ext_charge providerIds exist\n");
+    echo "\n";
+
+    // ── vehicles table ────────────────────────────────────────────────────────
+    echo "Checking vehicles table...\n";
+    $vTotal = $cdb->query("SELECT COUNT(*) FROM vehicles")->fetchColumn();
+    $vEmpty = $cdb->query("SELECT COUNT(*) FROM vehicles WHERE vehicleName IS NULL OR vehicleName = ''")->fetchColumn();
+    echo "✓ Total vehicles: $vTotal\n";
+    echo ($vEmpty > 0 ? "⚠ $vEmpty vehicles with empty name\n" : "✓ All vehicles have names\n");
+    echo "\n";
+
+    // ── providers table ───────────────────────────────────────────────────────
+    echo "Checking providers table...\n";
+    $pTotal = $cdb->query("SELECT COUNT(*) FROM providers")->fetchColumn();
+    $pEmpty = $cdb->query("SELECT COUNT(*) FROM providers WHERE providerName IS NULL OR providerName = ''")->fetchColumn();
+    echo "✓ Total providers: $pTotal\n";
+    echo ($pEmpty > 0 ? "⚠ $pEmpty providers with empty name\n" : "✓ All providers have names\n");
+    echo "\n";
+
+    // ── vehicle_charges table ─────────────────────────────────────────────────
+    echo "Checking vehicle_charges table...\n";
+    $vcTotal  = $cdb->query("SELECT COUNT(*) FROM vehicle_charges")->fetchColumn();
+    $vcNullTs = $cdb->query("SELECT COUNT(*) FROM vehicle_charges WHERE cablePluggedInAt IS NULL OR cablePluggedInAt = ''")->fetchColumn();
+    $vcOrphan = $cdb->query("SELECT COUNT(*) FROM vehicle_charges vc LEFT JOIN vehicles v ON vc.vehicleId = v.id WHERE v.id IS NULL")->fetchColumn();
+    echo "✓ Total records: $vcTotal\n";
+    echo ($vcNullTs > 0 ? "⚠ $vcNullTs vehicle_charges with NULL timestamp\n" : "✓ All timestamps set\n");
+    echo ($vcOrphan > 0 ? "⚠ $vcOrphan vehicle_charges reference non-existent vehicleId\n" : "✓ All vehicleIds exist\n");
+    echo "\n";
+
+    $chargesIssues = $nullStart + $nullStop + $nullKwh + $orphaned
+                   + $extNullDate + $extNullKwh + $extOrphaned + $extOrphanProv
+                   + $vEmpty + $pEmpty + $vcNullTs + $vcOrphan;
+    echo "=== charges.db Report: " . ($chargesIssues === 0 ? "✓ NO ISSUES" : "⚠ $chargesIssues issue(s) found") . " ===\n";
+
+} catch (Exception $e) {
+    echo "✗ charges.db Error: " . $e->getMessage() . "\n";
+    exit(1);
+}
 ?>

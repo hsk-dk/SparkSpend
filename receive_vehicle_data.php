@@ -57,14 +57,36 @@ try {
         exit;
     }
 
+    $vehicleId = (int) $input['vehicleId'];
+    $odometer  = $input['odometer'];
+
+    if ($vehicleId <= 0) {
+        http_response_code(400);
+        echo json_encode(["status" => "error", "message" => "vehicleId must be a positive integer"]);
+        exit;
+    }
+
+    if (!is_numeric($odometer) || (float)$odometer <= 0 || (float)$odometer >= 2000000) {
+        http_response_code(400);
+        echo json_encode(["status" => "error", "message" => "odometer must be a number between 0 and 2,000,000"]);
+        exit;
+    }
+
     // Generate current timestamp in UTC (Z-suffix is reliably parsed by SQLite strftime)
     $dt = new DateTime("now", new DateTimeZone("UTC"));
     $cablePluggedInAt = $dt->format("Y-m-d\TH:i:s\Z");
 
     // Store vehicle data
-    $db         = DatabaseManager::getChargesDb();
-    $vehicleId  = (int) $input['vehicleId'];
+    $db          = DatabaseManager::getChargesDb();
     $vehicleName = isset($input['vehicleName']) ? trim((string) $input['vehicleName']) : '';
+
+    // Verify vehicleId exists in vehicles table
+    $existing = QueryBuilder::selectVehicleById($db, $vehicleId);
+    if ($existing === null && $vehicleName === '') {
+        http_response_code(422);
+        echo json_encode(["status" => "error", "message" => "Unknown vehicleId and no vehicleName provided to create it"]);
+        exit;
+    }
 
     // Upsert vehicles table so vehicleName stays current whenever the sender provides it.
     QueryBuilder::upsertVehicle($db, $vehicleId, $vehicleName);

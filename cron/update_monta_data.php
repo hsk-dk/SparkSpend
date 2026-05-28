@@ -6,7 +6,8 @@ require __DIR__ . '/../includes/QueryBuilder.php';
 try {
     $db = DatabaseManager::getChargesDb();
 } catch (PDOException $e) {
-    die("Databaseforbindelse fejlede: " . $e->getMessage());
+    error_log("update_monta_data.php: Databaseforbindelse fejlede: " . $e->getMessage());
+    exit(1);
 }
 
 // Udregn den nye fromDate baseret på den nyeste stoppedAt-værdi i databasen
@@ -43,14 +44,16 @@ function getAccessToken($clientId, $clientSecret, $authEndpoint) {
     curl_close($ch);
 
     if ($httpCode !== 200) {
-        die("Fejl ved hentning af adgangstoken: HTTP statuskode " . $httpCode);
+        error_log("update_monta_data.php: Fejl ved hentning af adgangstoken: HTTP statuskode " . $httpCode);
+        exit(1);
     }
 
     $data = json_decode($response, true);
     if (isset($data["accessToken"])) {
         return $data["accessToken"];
     } else {
-        die("Fejl ved hentning af adgangstoken: " . json_encode($data));
+        error_log("update_monta_data.php: Adgangstoken mangler i svar: " . json_encode($data));
+        exit(1);
     }
 }
 
@@ -73,8 +76,15 @@ function getChargingData($accessToken, $dataEndpoint, $fromDate, $toDate) {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
+    if ($httpCode === 429) {
+        // Rate-limited: log and return null so the caller can record the error in sync_log
+        error_log("update_monta_data.php: Monta API rate-limit (429) — afventer næste kørsel.");
+        return null;
+    }
+
     if ($httpCode !== 200) {
-        die("Fejl ved hentning af data: HTTP statuskode " . $httpCode);
+        error_log("update_monta_data.php: Fejl ved hentning af data: HTTP statuskode " . $httpCode);
+        exit(1);
     }
 
     return json_decode($response, true);
@@ -215,16 +225,7 @@ function saveChargingData($db, $data) {
     }
 }
 
-// Hent adgangstoken
-$accessToken = getAccessToken($clientId, $clientSecret, $authEndpoint);
-
-// Hent data fra Monta API med den udregnede fromDate og toDate
-$data = getChargingData($accessToken, $dataEndpoint, $newFromDate, $toDate);
-
-// Gem data i databasen
-saveChargingData($db, $data);
-
-// ── Skriv sync-status til sync_log (bruges af getSyncStatus.php) ─────────────
+// ── Ensure sync_log table exists ─────────────────────────────────────────────
 $db->exec("CREATE TABLE IF NOT EXISTS sync_log (
     source TEXT PRIMARY KEY,
     last_sync_timestamp TEXT,
@@ -232,10 +233,29 @@ $db->exec("CREATE TABLE IF NOT EXISTS sync_log (
     updated_at TEXT,
     error_message TEXT
 )");
+
+// Hent adgangstoken
+$accessToken = getAccessToken($clientId, $clientSecret, $authEndpoint);
+
+// Hent data fra Monta API med den udregnede fromDate og toDate
+$data = getChargingData($accessToken, $dataEndpoint, $newFromDate, $toDate);
+
+if ($data === null) {
+    // 429 already logged in getChargingData; record the error in sync_log and stop
+    $now = date('Y-m-d H:i:s');
+    $db->prepare("INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at, error_message)
+                  VALUES ('monta', ?, 0, ?, 'Rate-limited (429) — retry næste kørsel')")
+       ->execute([$now, $now]);
+    exit(2);
+}
+
+// Gem data i databasen
+saveChargingData($db, $data);
+
+// ── Skriv sync-status til sync_log ───────────────────────────────────────────
 $now   = date('Y-m-d H:i:s');
 $count = isset($data['data']) ? count($data['data']) : 0;
 $db->prepare("INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at, error_message)
               VALUES ('monta', ?, ?, ?, NULL)")
    ->execute([$now, $count, $now]);
 // ─────────────────────────────────────────────────────────────────────────────
-?>

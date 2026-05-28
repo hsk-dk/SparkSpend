@@ -24,20 +24,20 @@ require 'includes/QueryBuilder.php';
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
   <!-- Flatpickr CSS og JS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/da.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/da.js"></script>
   
   <!-- Bootstrap CSS og JS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
    <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"></script>
   <link rel="stylesheet" href="includes/style.css?v=20260528">
 
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0"></script>
 
 </head>
 <body>
@@ -762,16 +762,16 @@ require 'includes/QueryBuilder.php';
     weatherLat: '<?= htmlspecialchars($GLOBALS['weatherLat'] ?? '', ENT_QUOTES) ?>',
     weatherLon: '<?= htmlspecialchars($GLOBALS['weatherLon'] ?? '', ENT_QUOTES) ?>'
   };</script>
-  <script src="includes/app.js?v=20260315"></script>
+  <script src="includes/app.js?v=20260528"></script>
 
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260528"></script>
   <script src="includes/dashboard.js?v=20260528"></script>
   <script src="includes/elbil.js?v=20260528"></script>
-  <script src="includes/jordvarme.js?v=20260312b"></script>
-  <script src="includes/hus.js?v=20260315"></script>
-  <script src="includes/regning.js?v=20260314"></script>
-  <script src="includes/annual.js?v=20260316"></script>
+  <script src="includes/jordvarme.js?v=20260528"></script>
+  <script src="includes/hus.js?v=20260528"></script>
+  <script src="includes/regning.js?v=20260528"></script>
+  <script src="includes/annual.js?v=20260528"></script>
 
   <!-- Sync Status Modal JS -->
   <script>

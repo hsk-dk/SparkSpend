@@ -48,6 +48,9 @@ $GLOBALS['weatherLon'] = env('WEATHER_LON', '');
 $timezone = env('TIMEZONE', 'Europe/Copenhagen');
 date_default_timezone_set($timezone);
 
+// Cache directory — override with CACHE_DIR in .env if /tmp is volatile on your host
+$GLOBALS['cacheDir'] = rtrim(env('CACHE_DIR', sys_get_temp_dir()), '/\\');
+
 // Debug Mode
 $debugMode = env('DEBUG', 'false') === 'true';
 

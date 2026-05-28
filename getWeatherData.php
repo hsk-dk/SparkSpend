@@ -57,7 +57,8 @@ $lon = (float)$lon;
 // ─── File cache ──────────────────────────────────────────────────────────────
 
 $cacheKey  = md5($start . '|' . $end . '|' . round($lat, 4) . '|' . round($lon, 4) . '|v' . CACHE_VERSION);
-$cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_weather_' . $cacheKey . '.json';
+$_cacheDir = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+$cacheFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_weather_' . $cacheKey . '.json';
 
 if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < CACHE_TTL_SECONDS) {
     echo file_get_contents($cacheFile);
