@@ -18,7 +18,7 @@ try {
     $db  = DatabaseManager::getChargesDb();
     $id  = QueryBuilder::insertProvider($db, $name);
     echo json_encode(['success' => true, 'id' => $id, 'providerName' => $name]);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(500);
     error_log('createProvider.php: ' . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);

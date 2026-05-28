@@ -47,7 +47,7 @@ try {
         $chargeDate = new DateTime($chargeDateTime);
         $chargeDate->setTimezone(new DateTimeZone('UTC'));
         $chargeDate = $chargeDate->format('Y-m-d\TH:i:00\Z');
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid charge date format']);
         exit;
@@ -86,7 +86,7 @@ try {
         'success' => false,
         'error' => 'Database error occurred'
     ]);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(400);
     error_log("Error in createExCharge.php: " . $e->getMessage());
     echo json_encode([

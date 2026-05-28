@@ -152,7 +152,7 @@ try {
     QueryBuilder::fileCacheWrite($_billCacheKey, $json);
     echo $json;
 
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(500);
     error_log('getMonthlyBillData error: ' . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);

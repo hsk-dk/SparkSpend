@@ -58,7 +58,7 @@ try {
         'success' => false,
         'error' => 'Database error occurred'
     ]);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(400);
     error_log("Error in updateInternalCharge.php: " . $e->getMessage());
     echo json_encode([

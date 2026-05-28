@@ -68,7 +68,7 @@ try {
         $husByDay = [];
         try {
             $husByDay = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $dayStart, $dayEnd);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('getHousePowerData house daily: ' . $e->getMessage());
         }
 
@@ -134,7 +134,7 @@ try {
         $husByMonth = [];
         try {
             $husByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerloghus', $yearStart, $yearEnd);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('getHousePowerData house monthly: ' . $e->getMessage());
         }
 
@@ -212,7 +212,7 @@ try {
             ");
             $stmt->execute([]);
             $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('getHousePowerData compare: ' . $e->getMessage());
         }
         $json = json_encode(['mode' => 'compare', 'data' => $data]);
@@ -246,7 +246,7 @@ try {
             ");
             $stmt->execute([$todayMd]);
             $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('getHousePowerData ytd: ' . $e->getMessage());
         }
         $json = json_encode(['mode' => 'ytd', 'data' => $data]);
@@ -273,7 +273,7 @@ try {
     http_response_code(500);
     error_log('getHousePowerData PDO: ' . $e->getMessage());
     echo json_encode(['error' => 'Database error occurred']);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(400);
     error_log('getHousePowerData: ' . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);

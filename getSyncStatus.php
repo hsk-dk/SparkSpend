@@ -74,7 +74,7 @@ try {
             'records_synced' => null,
         ];
     }
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     $sources[] = [
         'id'             => 'monta',
         'label'          => 'El-bil (Monta)',
@@ -132,7 +132,7 @@ try {
             ];
         }
     }
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     foreach ($syncSources as [$id, $label]) {
         $sources[] = [
             'id'             => $id,

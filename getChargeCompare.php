@@ -40,6 +40,7 @@ try {
                COALESCE(consumedKwh, 0) AS kwh,
                COALESCE(cost, 0)        AS cost
         FROM charges
+        WHERE startedAt IS NOT NULL AND stoppedAt IS NOT NULL
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($rows as $row) {
@@ -98,7 +99,7 @@ try {
     QueryBuilder::fileCacheWrite($_compareCacheKey, $response);
     echo $response;
 
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(500);
     error_log('getChargeCompare error: ' . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);

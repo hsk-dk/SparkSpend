@@ -46,7 +46,7 @@ try {
     if ($dateRange) {
         try {
             $dateFilters = QueryBuilder::parseDateRange($dateRange);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             // Invalid date range, ignore filter
             error_log("Invalid date range: " . $e->getMessage());
         }
@@ -130,7 +130,7 @@ try {
     http_response_code(500);
     error_log("Database error in getCharges.php: " . $e->getMessage());
     echo json_encode(['error' => 'Database error occurred']);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(400);
     error_log("Error in getCharges.php: " . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);

@@ -49,7 +49,7 @@ try {
         $dateTime = new DateTime($data['datetime']);
         $dateTime->setTimezone(new DateTimeZone('UTC'));
         $dateTime = $dateTime->format('Y-m-d\TH:i:00\Z');
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid date format']);
         exit;
@@ -86,7 +86,7 @@ try {
         'success' => false,
         'error' => 'Database error occurred'
     ]);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(400);
     error_log("Error in updateExtCharge.php: " . $e->getMessage());
     echo json_encode([

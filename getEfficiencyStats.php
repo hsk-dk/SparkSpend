@@ -35,7 +35,7 @@ try {
     if ($dateRange) {
         try {
             $dateFilters = QueryBuilder::parseDateRange($dateRange);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Invalid date range in getEfficiencyStats: " . $e->getMessage());
             $dateFilters = null;
         }
@@ -283,7 +283,7 @@ try {
     http_response_code(500);
     error_log("Database error in getEfficiencyStats.php: " . $e->getMessage());
     echo json_encode(['error' => 'Database error occurred']);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(400);
     error_log("Error in getEfficiencyStats.php: " . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);

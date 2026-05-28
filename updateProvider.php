@@ -19,7 +19,7 @@ try {
     $db = DatabaseManager::getChargesDb();
     QueryBuilder::updateProvider($db, $id, $name);
     echo json_encode(['success' => true]);
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     http_response_code(500);
     error_log('updateProvider.php: ' . $e->getMessage());
     echo json_encode(['error' => $e->getMessage()]);
