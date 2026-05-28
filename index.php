@@ -399,12 +399,6 @@ require 'includes/QueryBuilder.php';
               <label for="internalVehicleId" class="form-label">Bil:</label>
               <select id="internalVehicleId" name="vehicleId" class="form-select" required>
                 <option value="">Vælg bil</option>
-                <?php
-                  $vehicles = QueryBuilder::selectAllVehicles($db);
-                  foreach ($vehicles as $row) {
-                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['vehicleName']) . '</option>';
-                  }
-                ?>
               </select>
             </div>
             <button type="submit" class="btn btn-primary">Gem ændringer</button>
@@ -430,24 +424,12 @@ require 'includes/QueryBuilder.php';
               <label for="externalVehicleId" class="form-label">Bil:</label>
               <select id="externalVehicleId" name="vehicleId" class="form-select" required>
                 <option value="">Vælg bil</option>
-                <?php
-                  $vehicles = QueryBuilder::selectAllVehicles($db);
-                  foreach ($vehicles as $row) {
-                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['vehicleName']) . '</option>';
-                  }
-                ?>
               </select>
             </div>
             <div class="mb-3">
               <label for="externalProviderId" class="form-label">Udbyder:</label>
               <select id="externalProviderId" name="providerId" class="form-select" required>
                 <option value="">Vælg udbyder</option>
-                <?php
-                  $providers = QueryBuilder::selectAllProviders($db);
-                  foreach ($providers as $row) {
-                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['providerName']) . '</option>';
-                  }
-                ?>
               </select>
             </div>
             <div class="mb-3">
