@@ -72,7 +72,11 @@ try {
             NULL AS providerId,
             'internal' AS source,
             startedAt,
-            stoppedAt
+            stoppedAt,
+            state,
+            stopReason,
+            socPercentage,
+            socLimit
         FROM charges
         $internalWhereStr
         UNION ALL
@@ -85,7 +89,11 @@ try {
             providerId,
             'external' AS source,
             NULL AS startedAt,
-            NULL AS stoppedAt
+            NULL AS stoppedAt,
+            NULL AS state,
+            NULL AS stopReason,
+            NULL AS socPercentage,
+            NULL AS socLimit
         FROM ext_charges
         $externalWhereStr
         ORDER BY datetime ASC

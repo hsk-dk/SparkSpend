@@ -1469,6 +1469,35 @@ header {
   margin-bottom: 4px;
 }
 
+/* Budget / goal progress bars */
+.dash-progress {
+  margin-top: 6px;
+}
+
+.dash-progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.dash-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  max-width: 100%;
+}
+
+.dash-progress-fill.under { background: #22c55e; }
+.dash-progress-fill.near  { background: #f59e0b; }
+.dash-progress-fill.over  { background: #ef4444; }
+
+.dash-progress-label {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 3px;
+}
+
 .dash-projected {
   font-style: italic;
 }

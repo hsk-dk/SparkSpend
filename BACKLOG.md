@@ -6,72 +6,11 @@ Items within each priority tier are ordered by impact.
 
 ---
 
-## Afsluttet
-
-- ✅ **BUG — April/Juli 2025 husforbrug viste ~33M / ~36M kWh** — Datalogger gemte Wh i stedet for kWh. Fix: LAG-baseret daglig delta (i stedet for MAX-MIN) i alle kumulerede måler-queries. Wh→kWh normalisering under sync.
-- ✅ **FEATURE — Hus-sektion** — Nyt topniveau-faneblad med to under-faner: *Forbrug* (stablet søjlediagram) og *Regning* (månedlig fakturaoversigt).
-- ✅ **FEATURE — Hus synkronisering** — `cron/sync_housepowerlog_data.php` synkroniserer MySQL `powerloghus` → SQLite med Wh→kWh normalisering.
-- ✅ **FEATURE — Hus-kort på Oversigt** — Tredje dashboard-kort med sparkline, kWh/dag, forventet forbrug og trend-badges.
-- ✅ **ENHANCEMENT — Session-timeout → automatisk login-redirect** — Global `fetch`-interceptor i `app.js` detekterer 401/403.
-- ✅ **ENHANCEMENT — Sparkline x-akse viser rullende 30 dage i stedet for måned-til-dato** — `$sparkWindowStart = today − 29 days` i `getDashboardSummary.php`; HP/Hus `lagDelta` queries udvidet tilsvarende; alle tre sparklines er nu altid 30 elementer. `dashboard.js` bruger rolling start-dato til tooltip-labels.
-- ✅ **ENHANCEMENT — Konsekvente farver på tværs af sektioner** — Grøn (Jordvarme), blå (El-bil), amber (Restforbrug).
-- ✅ **BUG — `ext_charges.datetime` gemt som pseudo-UTC** — `createExCharge.php` og `updateExtCharge.php` gemmer nu ægte UTC.
-- ✅ **ENHANCEMENT — Jordvarme estimeret kr-pris (alle 4 tilstande)** — `activeCostMap` + `fetchElCosts()` i `jordvarme.js`.
-- ✅ **BUG — `provideres` tabel/filnavn-typo** — Omdøbt til `providers` via migration.
-- ✅ **ENHANCEMENT — Dashboard lazy-init + chart.resize** — `nav.js` initialiserer moduler ved første besøg.
-- ✅ **BUG — `_enrichHpWithWeather` brugte localStorage** — Rettet til `window.sparkConfig`.
-- ✅ **ENHANCEMENT — Vehicle management UI** — Inline omdøbning i "Administrér"-modal.
-- ✅ **ENHANCEMENT — Provider management UI** — Fuld CRUD i "Administrér"-modal.
-- ✅ **DEBT — Monta vehicleName auto-opdatering** — `QueryBuilder::upsertVehicle()` tilføjet.
-- ✅ **ENHANCEMENT — EV opladningssession effekt (kW) + varighed** — "Varighed"-kolonne i opladningstabellen.
-- ✅ **DEBT — Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php`** — Filbaseret cache i `/tmp`.
-- ✅ **ENHANCEMENT — Årsrapportvisning** — `getAnnualSummary.php` + `includes/annual.js`. 1-times filcache.
-- ✅ **ENHANCEMENT — Global sync-statusindikator + "Sync nu"-knap** — `getSyncStatus.php` + `triggerSync.php`.
-- ✅ **ENHANCEMENT — Progressive Web App (PWA)** — `manifest.json` + `sw.js` + ikoner via GD.
-- ✅ **BUG — EV opladninger tildelt forkert dag** — `QueryBuilder::splitChargeByDays()` fordeler kWh proportionalt over midnat.
-- ✅ **ENHANCEMENT — EV flerårigt sammenligningsvisning** — `getChargeCompare.php` + "År-over-år forbrug"-kort med linjediagram og år-chips.
-- ✅ **DEBT — Input validation i `createExCharge.php`, `updateExtCharge.php`, `updateInternalCharge.php`** — Validering af required felter og ranges.
-- ✅ **DEBT — `getProvideres.php` slettet** — Duplikat-endpoint fjernet.
-- ✅ **DEBT — `QueryBuilder::lagDelta/lagDeltaByMonth/lagDeltaByYear`** — Centrale LAG-delta hjælpere tilføjet.
-- ✅ **DEBT — `QueryBuilder::fileCacheRead/fileCacheWrite`** — Fælles filcache-mønster tilføjet.
-- ✅ **DEBT — `parseDateRange` konsistens i `getProviderStats.php`** — Bruger nu `QueryBuilder::parseDateRange`.
-- ✅ **DEBT — Cache på 5 endpoints** — `getHeatpumpData`, `getHousePowerData`, `getMonthlyBillData`, `getProviderStats`, `getEfficiencyStats` caches 1-5 min.
-- ✅ **DEBT — Debug-filer flyttet til `/dev/`** — `check_data_integrity.php` og `debug_dashboard.*` under `/dev/`.
-- ✅ **DEBT — JSON-fejlformat standardiseret** — Alle endpoints returnerer `{"error": "..."}`.
-- ✅ **BUG — `catch (Exception $e)` fangede ikke PHP TypeError** — Alle 22 produktions-endpoints ændret til `catch (\Throwable $e)`. `getChargeCompare.php` og `getAnnualSummary.php` fik desuden `WHERE startedAt IS NOT NULL AND stoppedAt IS NOT NULL`.
-- ✅ **BUG — Cache ikke invalideret ved datamutationer** — `QueryBuilder::fileCacheInvalidatePattern()` tilføjet. Kaldet i `createExCharge`, `updateExtCharge`, `deleteExtCharge`, `updateInternalCharge` (alle cache-præfikser) og `createProvider`, `updateProvider`, `deleteProvider` (`providerstats_`).
-- ✅ **BUG — `getChargeAnalytics.php` brugte eget cache-mønster** — Erstattet med `QueryBuilder::fileCacheRead/fileCacheWrite` (nøgle `analytics_*`). Duplicate `catch (PDOException)` fjernet.
-- ✅ **BUG — `getVehicleComparison.php` ingen caching + double-catch** — 5-minutters filcache tilføjet (`vehicle_compare_*`). Redundant `catch (PDOException)` og afsluttende `?>` fjernet.
-- ✅ **DEBT — Service worker cache-version bumpes ikke ved deployment** — `sw.js` bumped til `sparkspend-v3`.
-- ✅ **DEBT — JS-modulversioner (`?v=`) er forældet i `index.php`** — Alle strenge opdateret til `20260528`.
-- ✅ **DEBT — Ingen inputvalidering på `receive_vehicle_data.php`** — vehicleId eksistenstjek og odometer range-validering (> 0, < 2 000 000) tilføjet.
-- ✅ **DEBT — `cron/update_monta_data.php` bruger `die()` og ingen rate-limit-logik** — Alle `die()` erstattet med `error_log()` + `exit(1)`. HTTP 429 returnerer `null` og skrives til `sync_log` før ren exit.
-- ✅ **DEBT — Cache-dir `/tmp` er flygtig** — `CACHE_DIR` env-variabel tilføjet i `configuration.php`. Brugt i `QueryBuilder`, `getElspotPrices.php` og `getWeatherData.php`.
-- ✅ **DEBT — `getVehicleComparison.php` double-catch** — (se BUG ovenfor, løst samtidigt).
-- ✅ **DEBT — README.md er tom** — README skrevet med funktionsoversigt, opsætningsvejledning, cron-eksempler og .env-reference.
-- ✅ **DEBT — Ingen CHANGELOG** — `CHANGELOG.md` oprettet med historik fra denne og tidligere sessioner.
-- ✅ **DEBT — `check_data_integrity.php` dækker kun `powerlogjord`** — Nyt afsnit tilføjet for `charges`, `ext_charges`, `vehicles`, `providers` og `vehicle_charges`.
-- ✅ **DEBT — CDN-afhængigheder uden versionspinning** — Chart.js@4.4.6, chartjs-plugin-datalabels@2.2.0, chartjs-adapter-date-fns@3.0.0, flatpickr@4.6.13, ApexCharts@3.54.0 pinnet i `index.php`.
-
----
-
 ## Priority: Medium — Enhancements
-
-### ENHANCEMENT — Budget / månedligt forbrugsmål
-Tillad bruger at sætte et månedligt EV-opladningsbudget (kr) og et varmepumpe-kWh-mål. Vis en fremdriftsbjælke på dashboard-kortene. Ingen backend-ændringer nødvendige — mål gemt i `localStorage`.
-**Filer:** `index.php`, `includes/dashboard.js`
 
 ### ENHANCEMENT — Varmepumpe COP-estimering
 Med udendørstemperaturdata (allerede hentet fra Open-Meteo) og forbrugt kWh kan et COP-estimat udledes: `leveret_varme ≈ COP × el_kWh`. Vis "Estimeret leveret varme: X kWh (COP ≈ Y)" i Jordvarme-statistikboksen.
 **Filer:** `includes/jordvarme.js`, `getWeatherData.php`
-
-### ENHANCEMENT — Opladningstabel kolonne for sessionstilstand
-Monta API leverer `state` og `stopReason` (f.eks. `completed`, `stopped_by_user`, `error`). Gemt i `charges`-tabellen men aldrig vist i UI.
-**Filer:** `getCharges.php`, `includes/elbil.js`
-
-### ENHANCEMENT — State-of-charge (SoC) sporing
-`charges`-tabellen gemmer `socPercentage` og `socLimit` fra Monta men viser dem aldrig. En SoC-kolonne eller tooltip i opladningstabellen ville give indsigt i batteriudnyttelse.
-**Filer:** `getCharges.php`, `includes/elbil.js`
 
 ### ENHANCEMENT — Fejllog-visning i sync-modal
 `cron/trigger.log` er SSH-eksklusiv. En sammenklappelig "Systemlog"-sektion i sync-modalen der viser de seneste 50 linjer ville hjælpe med at diagnosticere sync-fejl uden SSH-adgang.
@@ -116,6 +55,59 @@ Sammenlign daglige aflæsninger mod en rullende baseline for EV og varmepumpe. V
 ### FEATURE — Integration med Tibber / Nordpool live-pris
 Tibber eksponerer en realtids el-pris websocket. Tilslutning ville muliggøre live kr/kWh-visning på Oversigt-kortet.
 
+---
+
+## Afsluttet
+
+- ✅ **BUG — April/Juli 2025 husforbrug viste ~33M / ~36M kWh** — Datalogger gemte Wh i stedet for kWh. Fix: LAG-baseret daglig delta (i stedet for MAX-MIN) i alle kumulerede måler-queries. Wh→kWh normalisering under sync.
+- ✅ **FEATURE — Hus-sektion** — Nyt topniveau-faneblad med to under-faner: *Forbrug* (stablet søjlediagram) og *Regning* (månedlig fakturaoversigt).
+- ✅ **FEATURE — Hus synkronisering** — `cron/sync_housepowerlog_data.php` synkroniserer MySQL `powerloghus` → SQLite med Wh→kWh normalisering.
+- ✅ **FEATURE — Hus-kort på Oversigt** — Tredje dashboard-kort med sparkline, kWh/dag, forventet forbrug og trend-badges.
+- ✅ **ENHANCEMENT — Session-timeout → automatisk login-redirect** — Global `fetch`-interceptor i `app.js` detekterer 401/403.
+- ✅ **ENHANCEMENT — Opladningstabel kolonne for sessionstilstand** — `state` og `stopReason` fra `charges`-tabellen tilføjet til `getCharges.php` SELECT (NULL for ext_charges). `_renderCharges` i `elbil.js` viser farvekodet badge under type-ikonet: grøn "Afsluttet", amber "Stoppet", rød "Fejl". `stopReason` vises som tooltip på badget.
+- ✅ **ENHANCEMENT — State-of-charge (SoC) sporing** — `socPercentage` og `socLimit` returneres nu fra `getCharges.php`. `_renderCharges` viser "SoC: X% / Y%" (eller "SoC: X%" hvis ingen grænse) under varighed/effekt i sessionskolonnen.
+- ✅ **ENHANCEMENT — Sparkline x-akse viser rullende 30 dage i stedet for måned-til-dato** — `$sparkWindowStart = today − 29 days` i `getDashboardSummary.php`; HP/Hus `lagDelta` queries udvidet tilsvarende; alle tre sparklines er nu altid 30 elementer. `dashboard.js` bruger rolling start-dato til tooltip-labels.
+- ✅ **ENHANCEMENT — Budget / månedligt forbrugsmål** — Nyt `budgetModal` med inputs for EV-budget (kr) og Jordvarme-mål (kWh), gemt i `localStorage`. `_renderProgress()` i `dashboard.js` viser en farvekoderet fremdriftsbjælke under sparkline på EV- og Jordvarme-kortene (grøn < 85%, amber 85–99%, rød ≥ 100%). Bullseye-knap i headeren åbner modalen.
+- ✅ **ENHANCEMENT — Konsekvente farver på tværs af sektioner** — Grøn (Jordvarme), blå (El-bil), amber (Restforbrug).
+- ✅ **BUG — `ext_charges.datetime` gemt som pseudo-UTC** — `createExCharge.php` og `updateExtCharge.php` gemmer nu ægte UTC.
+- ✅ **ENHANCEMENT — Jordvarme estimeret kr-pris (alle 4 tilstande)** — `activeCostMap` + `fetchElCosts()` i `jordvarme.js`.
+- ✅ **BUG — `provideres` tabel/filnavn-typo** — Omdøbt til `providers` via migration.
+- ✅ **ENHANCEMENT — Dashboard lazy-init + chart.resize** — `nav.js` initialiserer moduler ved første besøg.
+- ✅ **BUG — `_enrichHpWithWeather` brugte localStorage** — Rettet til `window.sparkConfig`.
+- ✅ **ENHANCEMENT — Vehicle management UI** — Inline omdøbning i "Administrér"-modal.
+- ✅ **ENHANCEMENT — Provider management UI** — Fuld CRUD i "Administrér"-modal.
+- ✅ **DEBT — Monta vehicleName auto-opdatering** — `QueryBuilder::upsertVehicle()` tilføjet.
+- ✅ **ENHANCEMENT — EV opladningssession effekt (kW) + varighed** — "Varighed"-kolonne i opladningstabellen.
+- ✅ **DEBT — Output-caching på `getDashboardSummary.php` + `getChargeAnalytics.php`** — Filbaseret cache i `/tmp`.
+- ✅ **ENHANCEMENT — Årsrapportvisning** — `getAnnualSummary.php` + `includes/annual.js`. 1-times filcache.
+- ✅ **ENHANCEMENT — Global sync-statusindikator + "Sync nu"-knap** — `getSyncStatus.php` + `triggerSync.php`.
+- ✅ **ENHANCEMENT — Progressive Web App (PWA)** — `manifest.json` + `sw.js` + ikoner via GD.
+- ✅ **BUG — EV opladninger tildelt forkert dag** — `QueryBuilder::splitChargeByDays()` fordeler kWh proportionalt over midnat.
+- ✅ **ENHANCEMENT — EV flerårigt sammenligningsvisning** — `getChargeCompare.php` + "År-over-år forbrug"-kort med linjediagram og år-chips.
+- ✅ **DEBT — Input validation i `createExCharge.php`, `updateExtCharge.php`, `updateInternalCharge.php`** — Validering af required felter og ranges.
+- ✅ **DEBT — `getProvideres.php` slettet** — Duplikat-endpoint fjernet.
+- ✅ **DEBT — `QueryBuilder::lagDelta/lagDeltaByMonth/lagDeltaByYear`** — Centrale LAG-delta hjælpere tilføjet.
+- ✅ **DEBT — `QueryBuilder::fileCacheRead/fileCacheWrite`** — Fælles filcache-mønster tilføjet.
+- ✅ **DEBT — `parseDateRange` konsistens i `getProviderStats.php`** — Bruger nu `QueryBuilder::parseDateRange`.
+- ✅ **DEBT — Cache på 5 endpoints** — `getHeatpumpData`, `getHousePowerData`, `getMonthlyBillData`, `getProviderStats`, `getEfficiencyStats` caches 1-5 min.
+- ✅ **DEBT — Debug-filer flyttet til `/dev/`** — `check_data_integrity.php` og `debug_dashboard.*` under `/dev/`.
+- ✅ **DEBT — JSON-fejlformat standardiseret** — Alle endpoints returnerer `{"error": "..."}`.
+- ✅ **BUG — `catch (Exception $e)` fangede ikke PHP TypeError** — Alle 22 produktions-endpoints ændret til `catch (\Throwable $e)`. `getChargeCompare.php` og `getAnnualSummary.php` fik desuden `WHERE startedAt IS NOT NULL AND stoppedAt IS NOT NULL`.
+- ✅ **BUG — Cache ikke invalideret ved datamutationer** — `QueryBuilder::fileCacheInvalidatePattern()` tilføjet. Kaldet i `createExCharge`, `updateExtCharge`, `deleteExtCharge`, `updateInternalCharge` (alle cache-præfikser) og `createProvider`, `updateProvider`, `deleteProvider` (`providerstats_`).
+- ✅ **BUG — `getChargeAnalytics.php` brugte eget cache-mønster** — Erstattet med `QueryBuilder::fileCacheRead/fileCacheWrite` (nøgle `analytics_*`). Duplicate `catch (PDOException)` fjernet.
+- ✅ **BUG — `getVehicleComparison.php` ingen caching + double-catch** — 5-minutters filcache tilføjet (`vehicle_compare_*`). Redundant `catch (PDOException)` og afsluttende `?>` fjernet.
+- ✅ **DEBT — Service worker cache-version bumpes ikke ved deployment** — `sw.js` bumped til `sparkspend-v3`.
+- ✅ **DEBT — JS-modulversioner (`?v=`) er forældet i `index.php`** — Alle strenge opdateret til `20260528`.
+- ✅ **DEBT — Ingen inputvalidering på `receive_vehicle_data.php`** — vehicleId eksistenstjek og odometer range-validering (> 0, < 2 000 000) tilføjet.
+- ✅ **DEBT — `cron/update_monta_data.php` bruger `die()` og ingen rate-limit-logik** — Alle `die()` erstattet med `error_log()` + `exit(1)`. HTTP 429 returnerer `null` og skrives til `sync_log` før ren exit.
+- ✅ **DEBT — Cache-dir `/tmp` er flygtig** — `CACHE_DIR` env-variabel tilføjet i `configuration.php`. Brugt i `QueryBuilder`, `getElspotPrices.php` og `getWeatherData.php`.
+- ✅ **DEBT — `getVehicleComparison.php` double-catch** — (se BUG ovenfor, løst samtidigt).
+- ✅ **DEBT — README.md er tom** — README skrevet med funktionsoversigt, opsætningsvejledning, cron-eksempler og .env-reference.
+- ✅ **DEBT — Ingen CHANGELOG** — `CHANGELOG.md` oprettet med historik fra denne og tidligere sessioner.
+- ✅ **DEBT — `check_data_integrity.php` dækker kun `powerlogjord`** — Nyt afsnit tilføjet for `charges`, `ext_charges`, `vehicles`, `providers` og `vehicle_charges`.
+- ✅ **DEBT — CDN-afhængigheder uden versionspinning** — Chart.js@4.4.6, chartjs-plugin-datalabels@2.2.0, chartjs-adapter-date-fns@3.0.0, flatpickr@4.6.13, ApexCharts@3.54.0 pinnet i `index.php`.
+
+---
 
 Generated: 2026-03-11 · Last updated: 2026-04-14
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.

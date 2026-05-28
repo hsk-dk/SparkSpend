@@ -302,7 +302,7 @@ const elbilApp = (() => {
             _renderCharges(data);
         } catch (e) {
             chargeTableBodyEl.innerHTML =
-                `<tr><td colspan="7" class="text-center text-danger">Fejl: ${e.message}</td></tr>`;
+                `<tr><td colspan="8" class="text-center text-danger">Fejl: ${e.message}</td></tr>`;
         }
     }
 
@@ -352,6 +352,19 @@ const elbilApp = (() => {
                 ? `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="ID: ${charge.id}">electrical_services</span>`
                 : `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="${pName}">ev_station</span>`;
 
+            // State badge (internal charges only)
+            let stateBadge = '';
+            if (charge.state) {
+                const stateMap = {
+                    completed:       ['bg-success',   'Afsluttet'],
+                    stopped_by_user: ['bg-warning text-dark', 'Stoppet'],
+                    error:           ['bg-danger',    'Fejl'],
+                };
+                const [cls, label] = stateMap[charge.state] || ['bg-secondary', charge.state];
+                const reasonTip = charge.stopReason ? ` data-bs-toggle="tooltip" title="${charge.stopReason}"` : '';
+                stateBadge = `<br><span class="badge ${cls}"${reasonTip}>${label}</span>`;
+            }
+
             let priceIcon = '', priceText = '';
             if (pPerKwh > avgPricePerKwh) { priceIcon = '↑';   priceText = 'højere end gennemsnit'; }
             else if (pPerKwh < avgPricePerKwh) { priceIcon = '↓'; priceText = 'lavere end gennemsnit'; }
@@ -370,7 +383,14 @@ const elbilApp = (() => {
                     const m      = Math.round((durH - h) * 60);
                     const durStr = h > 0 ? `${h}h ${m < 10 ? '0' + m : m}m` : `${m}m`;
                     const avgKw  = kwh / durH;
-                    sessionCell  = `<td>${durStr}<br><small class="text-muted">Ø ${avgKw.toFixed(1)} kW</small></td>`;
+                    let socHtml  = '';
+                    if (charge.socPercentage !== null && charge.socPercentage !== undefined) {
+                        const socStr = charge.socLimit
+                            ? `SoC: ${charge.socPercentage}% / ${charge.socLimit}%`
+                            : `SoC: ${charge.socPercentage}%`;
+                        socHtml = `<br><small class="text-muted">${socStr}</small>`;
+                    }
+                    sessionCell  = `<td>${durStr}<br><small class="text-muted">Ø ${avgKw.toFixed(1)} kW</small>${socHtml}</td>`;
                 }
             }
 
@@ -390,7 +410,7 @@ const elbilApp = (() => {
                 <td>${pris.toFixed(2)} kr</td>
                 <td>${priceIcon} ${pPerKwh.toFixed(2)} kr/kWh <small>${priceText}</small></td>
                 <td>${vName}</td>
-                <td>${icon}</td>
+                <td>${icon}${stateBadge}</td>
                 <td><button class="btn btn-sm btn-secondary" data-action="edit">Rediger</button></td>
             `;
             chargeTableBodyEl.appendChild(row);

@@ -83,6 +83,8 @@ function renderEvCard(ev) {
 
     const evSparkStart = new Date(); evSparkStart.setDate(evSparkStart.getDate() - 29); evSparkStart.setHours(0,0,0,0);
     _evSparkChart = _renderSparkline('ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart);
+    _renderProgress('ev-budget-progress', 'ev-budget-fill', 'ev-budget-label',
+        ev.month_cost, localStorage.getItem('sparkspend_budget_ev_kr'), 'kr');
 }
 
 function renderHeatpumpCard(hp) {
@@ -118,6 +120,8 @@ function renderHeatpumpCard(hp) {
 
     const hpSparkStart = new Date(); hpSparkStart.setDate(hpSparkStart.getDate() - 29); hpSparkStart.setHours(0,0,0,0);
     _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, hpSparkStart);
+    _renderProgress('hp-budget-progress', 'hp-budget-fill', 'hp-budget-label',
+        hp.month_kwh, localStorage.getItem('sparkspend_budget_hp_kwh'), 'kWh');
 
     // Enrich with weather-normalised year-over-year trend (async, non-blocking)
     _enrichHpWithWeather(card, hp);
@@ -193,6 +197,21 @@ async function _enrichHpWithWeather(card, hp) {
     } catch (e) {
         // Silently ignore — weather enrichment is best-effort
     }
+}
+
+function _renderProgress(wrapId, fillId, labelId, current, goalStr, unit) {
+    const wrap  = document.getElementById(wrapId);
+    const fill  = document.getElementById(fillId);
+    const label = document.getElementById(labelId);
+    if (!wrap || !fill || !label) return;
+    const goal = goalStr !== null ? parseFloat(goalStr) : NaN;
+    if (isNaN(goal) || goal <= 0) { wrap.style.display = 'none'; return; }
+    const pct = Math.min(current / goal * 100, 100);
+    wrap.style.display = '';
+    fill.style.width = pct.toFixed(1) + '%';
+    fill.className = 'dash-progress-fill ' + (pct >= 100 ? 'over' : pct >= 85 ? 'near' : 'under');
+    label.textContent = current.toFixed(0) + ' / ' + goal.toFixed(0) + ' ' + unit +
+                        (pct >= 100 ? ' — mål overskredet' : '');
 }
 
 function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = null) {

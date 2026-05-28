@@ -78,6 +78,11 @@ require 'includes/QueryBuilder.php';
               title="Synkroniseringsstatus">
         <i class="fas fa-sync-alt"></i>
       </button>
+      <button type="button" class="btn btn-secondary" id="budgetBtn"
+              data-bs-toggle="modal" data-bs-target="#budgetModal"
+              title="Månedlige forbrugsmål">
+        <i class="fas fa-bullseye"></i>
+      </button>
       <button type="button" class="btn btn-secondary" id="filterToggleBtn" title="Åbn filtre">
         <i class="fas fa-sliders-h"></i>
       </button>
@@ -171,6 +176,10 @@ require 'includes/QueryBuilder.php';
         <div class="dash-sparkline">
           <canvas id="ev-sparkline"></canvas>
         </div>
+        <div class="dash-progress" id="ev-budget-progress" style="display:none">
+          <div class="dash-progress-bar"><div class="dash-progress-fill" id="ev-budget-fill"></div></div>
+          <div class="dash-progress-label" id="ev-budget-label"></div>
+        </div>
       </div>
     </div>
 
@@ -200,6 +209,10 @@ require 'includes/QueryBuilder.php';
         <div class="dash-trend"></div>
         <div class="dash-sparkline">
           <canvas id="hp-sparkline"></canvas>
+        </div>
+        <div class="dash-progress" id="hp-budget-progress" style="display:none">
+          <div class="dash-progress-bar"><div class="dash-progress-fill" id="hp-budget-fill"></div></div>
+          <div class="dash-progress-label" id="hp-budget-label"></div>
         </div>
       </div>
     </div>
@@ -754,6 +767,38 @@ require 'includes/QueryBuilder.php';
   </div>
 </div><!-- /#syncModal -->
 
+<!-- ── Budget / Forbrugsmål Modal ─────────────────────────────────────────── -->
+<div class="modal fade" id="budgetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title mb-0"><i class="fas fa-bullseye me-2"></i>Månedlige forbrugsmål</h6>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="budgetEvKr" class="form-label small fw-semibold">Elbil — månedligt budget (kr)</label>
+          <div class="input-group input-group-sm">
+            <input type="number" class="form-control" id="budgetEvKr" min="0" step="50" placeholder="f.eks. 600">
+            <span class="input-group-text">kr</span>
+          </div>
+        </div>
+        <div class="mb-1">
+          <label for="budgetHpKwh" class="form-label small fw-semibold">Jordvarme — månedligt mål (kWh)</label>
+          <div class="input-group input-group-sm">
+            <input type="number" class="form-control" id="budgetHpKwh" min="0" step="50" placeholder="f.eks. 800">
+            <span class="input-group-text">kWh</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2 justify-content-between">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="budgetClearBtn">Nulstil</button>
+        <button type="button" class="btn btn-primary btn-sm" id="budgetSaveBtn">Gem</button>
+      </div>
+    </div>
+  </div>
+</div><!-- /#budgetModal -->
+
   <!-- App Utilities -->
   <!-- Server configuration for JS modules (area/GLN from .env, never from user input) -->
   <script>window.sparkConfig = {
@@ -865,6 +910,45 @@ require 'includes/QueryBuilder.php';
           .catch(() => { msgEl.textContent = 'Netværksfejl.'; })
           .finally(() => { if (syncAllBtn) syncAllBtn.disabled = false; });
       }
+  })();
+  </script>
+
+  <!-- Budget Modal JS -->
+  <script>
+  (function () {
+      const modal    = document.getElementById('budgetModal');
+      const evInput  = document.getElementById('budgetEvKr');
+      const hpInput  = document.getElementById('budgetHpKwh');
+      const saveBtn  = document.getElementById('budgetSaveBtn');
+      const clearBtn = document.getElementById('budgetClearBtn');
+      if (!modal) return;
+
+      modal.addEventListener('show.bs.modal', () => {
+          const ev = localStorage.getItem('sparkspend_budget_ev_kr');
+          const hp = localStorage.getItem('sparkspend_budget_hp_kwh');
+          evInput.value = ev !== null ? ev : '';
+          hpInput.value = hp !== null ? hp : '';
+      });
+
+      saveBtn?.addEventListener('click', () => {
+          const ev = parseFloat(evInput.value);
+          const hp = parseFloat(hpInput.value);
+          if (!isNaN(ev) && ev > 0) localStorage.setItem('sparkspend_budget_ev_kr',  String(ev));
+          else                       localStorage.removeItem('sparkspend_budget_ev_kr');
+          if (!isNaN(hp) && hp > 0) localStorage.setItem('sparkspend_budget_hp_kwh', String(hp));
+          else                       localStorage.removeItem('sparkspend_budget_hp_kwh');
+          bootstrap.Modal.getInstance(modal)?.hide();
+          loadDashboard();
+      });
+
+      clearBtn?.addEventListener('click', () => {
+          localStorage.removeItem('sparkspend_budget_ev_kr');
+          localStorage.removeItem('sparkspend_budget_hp_kwh');
+          evInput.value = '';
+          hpInput.value = '';
+          bootstrap.Modal.getInstance(modal)?.hide();
+          loadDashboard();
+      });
   })();
   </script>
 
