@@ -218,6 +218,13 @@ const elbilApp = (() => {
         fetchProviderStats();
     }
 
+    function resetFilters() {
+        if (filterEl)      filterEl.value = 'all';
+        if (showZeroKwhEl) showZeroKwhEl.checked = false;
+        if (quickFilterEl) quickFilterEl.value = 'month';
+        applyQuickFilter();
+    }
+
     // -------------------------------------------------------------------------
     // Data fetching
     // -------------------------------------------------------------------------
@@ -312,7 +319,7 @@ const elbilApp = (() => {
     function _renderCharges(data) {
         chargeTableBodyEl.innerHTML = '';
         if (data.length === 0) {
-            chargeTableBodyEl.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Ingen ladninger fundet for den valgte periode</td></tr>';
+            chargeTableBodyEl.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Ingen ladninger fundet for den valgte periode  ·  <button type="button" class="btn btn-sm btn-secondary" onclick="elbilApp.resetFilters()">Nulstil filtre</button></td></tr>';
             _updateSummary({}, 0, 0, 0, 0, 0, 0, 0, 0);
             return;
         }
@@ -1263,6 +1270,7 @@ const elbilApp = (() => {
         startEditVehicle, cancelEditVehicle, saveVehicle,
         startEditProvider, cancelEditProvider, saveProvider,
         createProvider, deleteProvider,
+        resetFilters,
     };
 })();
 

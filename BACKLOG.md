@@ -91,11 +91,11 @@ Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) til manuelt downlo
 - ✅ **DEBT — README.md er tom** — README skrevet med funktionsoversigt, opsætningsvejledning, cron-eksempler og .env-reference.
 - ✅ **DEBT — Ingen CHANGELOG** — `CHANGELOG.md` oprettet med historik fra denne og tidligere sessioner.
 - ✅ **DEBT — `check_data_integrity.php` dækker kun `powerlogjord`** — Nyt afsnit tilføjet for `charges`, `ext_charges`, `vehicles`, `providers` og `vehicle_charges`.
-- ✅ **DEBT — CDN-afhængigheder uden versionspinning** — Chart.js@4.4.6, chartjs-plugin-datalabels@2.2.0, chartjs-adapter-date-fns@3.0.0, flatpickr@4.6.13, ApexCharts@3.54.0 pinnet i `index.php`.
+- ✅ **ENHANCEMENT — Frontend UX & visuel redesign (Scandinavisk minimal)** — Inter-font loaded eksplicit; alle CSS gradients fladgjort (header, knapper, tabelhoveder, modals); `translateY` hover-lift fjernet fra alle elementer undtagen de 3 navigerings-dashboardkort; `backdrop-filter` fjernet fra kort, tabeller og diagramcontainere; shadow-tokens reduceret og konsolideret (`--shadow-lg` tilføjet); `--color-increase`/`--color-decrease` semantiske farvetokens + typografiskala (`--text-sm` → `--text-2xl`); `th` fladt lyseblå → hvid #f1f5f9 baggrund med mørk tekst; modal-headere hvide med border-separator; filterskuffe konsistent slide-in ved alle skærmbredder (desktop `position:static`-override fjernet); "Se detaljer →" affordance-hint på dashboardkort (fade-in ved hover); "Rediger mål"-knap inline ved fremdriftsbjælke; "Nulstil filtre"-knap i tom-tilstand for opladningstabellen; `elbilApp.resetFilters()` tilføjet; aktivt under-fanevalg bevares i `sessionStorage` ved fane-genbrug (Elbil + Hus); ikon-only tabs ved ≤600px (`.tab-label`-spans). `style.css?v=20260529`.
 
 ---
 
-Generated: 2026-03-11 · Last updated: 2026-04-14
+Generated: 2026-03-11 · Last updated: 2026-05-29
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.
 

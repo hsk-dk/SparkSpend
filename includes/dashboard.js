@@ -218,8 +218,12 @@ function _renderProgress(wrapId, fillId, labelId, current, goalStr, unit) {
     wrap.style.display = '';
     fill.style.width = pct.toFixed(1) + '%';
     fill.className = 'dash-progress-fill ' + (pct >= 100 ? 'over' : pct >= 85 ? 'near' : 'under');
-    label.textContent = current.toFixed(0) + ' / ' + goal.toFixed(0) + ' ' + unit +
+    const statusText = current.toFixed(0) + ' / ' + goal.toFixed(0) + ' ' + unit +
                         (pct >= 100 ? ' — mål overskredet' : '');
+    label.innerHTML = (window.appUtils?.escapeHtml(statusText) ?? statusText) +
+        ' &nbsp;<button type="button" class="dash-goal-btn" ' +
+        'onclick="event.stopPropagation();' +
+        'var m=document.getElementById(\'budgetModal\');if(m)new bootstrap.Modal(m).show()">Rediger mål</button>';
 }
 
 function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = null) {

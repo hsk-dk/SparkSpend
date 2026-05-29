@@ -18,25 +18,39 @@
  * }
  */
 
-require 'includes/configuration.php';
-require 'includes/DatabaseManager.php';
-require 'includes/QueryBuilder.php';
-
+// Set JSON header immediately so error responses are always parseable JSON
 header('Content-Type: application/json');
+
+try {
+    require 'includes/configuration.php';
+    require 'includes/DatabaseManager.php';
+    require 'includes/QueryBuilder.php';
+} catch (\Throwable $e) {
+    http_response_code(500);
+    error_log('getAnnualSummary bootstrap error: ' . $e->getMessage());
+    echo json_encode(['error' => 'Bootstrap: ' . $e->getMessage()]);
+    exit;
+}
 
 // ─── 1-hour file cache ────────────────────────────────────────────────────────
 $_annualCacheKey = 'annual_' . date('Y-m-d');
-$_cached = QueryBuilder::fileCacheRead($_annualCacheKey, 3600);
-if ($_cached !== null) { echo $_cached; exit; }
+$_skipCache = !empty($_GET['nocache']);
+if (!$_skipCache) {
+    $_cached = QueryBuilder::fileCacheRead($_annualCacheKey, 3600);
+    if ($_cached !== null) { echo $_cached; exit; }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
+$_step = 'init';
 try {
+    $_step = 'db-connect';
     $chargesDb  = DatabaseManager::getChargesDb();
     $powerlogDb = DatabaseManager::getPowerlogDb();
 
     // =========================================================================
     // EV — internal charges: raw fetch, proportional midnight-split by year
     // =========================================================================
+    $_step = 'ev-internal-query';
     $intByYear = [];
     $rows = $chargesDb->query("
         SELECT startedAt, stoppedAt,
@@ -45,6 +59,7 @@ try {
         FROM charges
         WHERE startedAt IS NOT NULL AND stoppedAt IS NOT NULL
     ")->fetchAll(PDO::FETCH_ASSOC);
+    $_step = 'ev-internal-split';
     foreach ($rows as $row) {
         $splits = QueryBuilder::splitChargeByDays(
             $row['startedAt'], $row['stoppedAt'],
@@ -72,9 +87,9 @@ try {
     ksort($intByYear);
 
     // =========================================================================
-    // EV — external charges (PHP-side year extraction: ISO 8601 Z-suffix on
-    // older records may not parse reliably in SQLite strftime)
+    // EV — external charges
     // =========================================================================
+    $_step = 'ev-external-query';
     $extByYear = [];
     $extRows = $chargesDb->query("SELECT datetime, kwh, pris FROM ext_charges")
                           ->fetchAll(PDO::FETCH_ASSOC);
@@ -91,7 +106,7 @@ try {
     // =========================================================================
     // Heatpump — LAG-based daily delta, summed by year
     // =========================================================================
-    // Using lagDeltaByYear over all available data (start date predates any readings)
+    $_step = 'heatpump-lag-year';
     $allDataStart = '2000-01-01';
     $allDataEnd   = date('Y-m-d');
 
@@ -100,10 +115,11 @@ try {
     // =========================================================================
     // House — same pattern, wrapped in try/catch (table may not exist yet)
     // =========================================================================
+    $_step = 'hus-lag-year';
     $husByYear = null;
     try {
         $husByYear = QueryBuilder::lagDeltaByYear($powerlogDb, 'powerloghus', $allDataStart, $allDataEnd);
-    } catch (Exception $husEx) {
+    } catch (\Throwable $husEx) {
         $husByYear = null;
         error_log('getAnnualSummary: house query failed — ' . $husEx->getMessage());
     }
@@ -111,6 +127,7 @@ try {
     // =========================================================================
     // Merge all year keys and assemble response
     // =========================================================================
+    $_step = 'merge';
     $allYears = array_unique(array_merge(
         array_keys($intByYear),
         array_keys($extByYear),
@@ -140,12 +157,13 @@ try {
     }
 
     $response = json_encode(['years' => $years]);
-    QueryBuilder::fileCacheWrite($_annualCacheKey, $response);
+    if (!$_skipCache) {
+        QueryBuilder::fileCacheWrite($_annualCacheKey, $response);
+    }
     echo $response;
 
 } catch (\Throwable $e) {
     http_response_code(500);
-    error_log('getAnnualSummary error: ' . $e->getMessage());
-    echo json_encode(['error' => $e->getMessage()]);
+    error_log('getAnnualSummary error at step [' . $_step . ']: ' . $e->getMessage());
+    echo json_encode(['error' => '[' . $_step . '] ' . $e->getMessage()]);
 }
-?>

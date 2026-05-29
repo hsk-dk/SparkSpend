@@ -67,6 +67,15 @@ const SparkNav = (() => {
             }
         }
         if (tabId === 'elbil-section') {
+            // Restore last visited sub-tab (sessionStorage, set by switchSubTab)
+            const savedSub = sessionStorage.getItem('sparkspend_elbil_sub');
+            if (savedSub && document.getElementById(savedSub)) {
+                const elbilSection = document.getElementById('elbil-section');
+                elbilSection?.querySelectorAll('.sub-section').forEach(s => s.classList.remove('active'));
+                elbilSection?.querySelectorAll('.sub-nav-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById(savedSub).classList.add('active');
+                elbilSection?.querySelector(`.sub-nav-btn[data-sub="${savedSub}"]`)?.classList.add('active');
+            }
             if (!elbilLoaded) {
                 elbilLoaded = true;
                 requestAnimationFrame(() => requestAnimationFrame(() => window.elbilApp?.init()));
@@ -82,6 +91,15 @@ const SparkNav = (() => {
             }
         }
         if (tabId === 'hus-section') {
+            // Restore last visited hus sub-tab
+            const savedHusSub = sessionStorage.getItem('sparkspend_hus_sub');
+            if (savedHusSub && document.getElementById(savedHusSub)) {
+                const husSection = document.getElementById('hus-section');
+                husSection?.querySelectorAll('.sub-section').forEach(s => s.classList.remove('active'));
+                husSection?.querySelectorAll('.sub-nav-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById(savedHusSub).classList.add('active');
+                husSection?.querySelector(`.sub-nav-btn[data-sub="${savedHusSub}"]`)?.classList.add('active');
+            }
             // Init whichever hus sub-tab is currently active
             _lazyInitHusSub();
             _resizeSection('hus-section');
@@ -114,6 +132,7 @@ const SparkNav = (() => {
         const btn = elbilSection.querySelector(`.sub-nav-btn[data-sub="${subId}"]`);
         if (btn) btn.classList.add('active');
 
+        sessionStorage.setItem('sparkspend_elbil_sub', subId);
         window.elbilApp?.onSubTab(subId);
         updateHash();
     }
@@ -134,6 +153,7 @@ const SparkNav = (() => {
         const btn = husSection.querySelector(`.sub-nav-btn[data-sub="${subId}"]`);
         if (btn) btn.classList.add('active');
 
+        sessionStorage.setItem('sparkspend_hus_sub', subId);
         _lazyInitHusSub();
         _resizeSection('hus-section');
         updateHash();

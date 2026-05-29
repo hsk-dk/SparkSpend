@@ -19,16 +19,25 @@ const annualApp = (() => {
         contentEl.style.display = 'none';
 
         fetch('getAnnualSummary.php')
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(data => {
-                if (data.error) throw new Error(data.error);
-                _renderChart(data);
-                _renderTable(data);
+            .then(r => {
+                const ct = r.headers.get('content-type') || '';
+                if (ct.includes('application/json')) {
+                    return r.json().then(data => ({ ok: r.ok, data, raw: null }));
+                }
+                return r.text().then(raw => ({ ok: false, data: null, raw }));
+            })
+            .then(({ ok, data, raw }) => {
+                if (raw !== null) throw new Error('Server returnerede ikke JSON: ' + raw.slice(0, 200));
+                if (!ok || data.error) throw new Error(data?.error || 'HTTP fejl');
+                // Make content visible before chart init so Chart.js can measure canvas dimensions
                 loadingEl.style.display = 'none';
                 contentEl.style.display = '';
+                _renderChart(data);
+                _renderTable(data);
             })
             .catch(err => {
-                loadingEl.innerHTML = '<span class="text-danger">Fejl ved hentning af data.</span>';
+                const msg = window.appUtils?.escapeHtml?.(err.message) ?? err.message;
+                loadingEl.innerHTML = '<span class="text-danger">Fejl: ' + msg + '</span>';
                 console.error('annualApp:', err);
             });
     }

@@ -18,6 +18,10 @@ require 'includes/QueryBuilder.php';
   <meta name="apple-mobile-web-app-title" content="SparkSpend">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/images/icon-192.png">
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- Material Symbols -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">  
   <!-- Font Awesome -->
@@ -35,7 +39,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260528">
+  <link rel="stylesheet" href="includes/style.css?v=20260529">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0"></script>
 
@@ -55,22 +59,22 @@ require 'includes/QueryBuilder.php';
     <!-- Main Navigation Tabs -->
     <nav class="header-nav">
       <button class="header-tab-button" data-target="oversigt-section">
-        <i class="fas fa-home"></i> Oversigt
+        <i class="fas fa-home"></i> <span class="tab-label">Oversigt</span>
       </button>
       <button class="header-tab-button" data-target="elbil-section">
-        <i class="fas fa-charging-station"></i> Elbil
+        <i class="fas fa-charging-station"></i> <span class="tab-label">Elbil</span>
         <span class="anomaly-tab-badge" id="anomaly-badge-ev" style="display:none"></span>
       </button>
       <button class="header-tab-button" data-target="jordvarme-section">
-        <i class="fas fa-fire"></i> Jordvarme
+        <i class="fas fa-fire"></i> <span class="tab-label">Jordvarme</span>
         <span class="anomaly-tab-badge" id="anomaly-badge-hp" style="display:none"></span>
       </button>
       <button class="header-tab-button" data-target="hus-section">
-        <i class="fas fa-house-chimney"></i> Hus
+        <i class="fas fa-house-chimney"></i> <span class="tab-label">Hus</span>
         <span class="anomaly-tab-badge" id="anomaly-badge-hus" style="display:none"></span>
       </button>
       <button class="header-tab-button" data-target="aarsrapport-section">
-        <i class="fas fa-calendar-alt"></i> Årsrapport
+        <i class="fas fa-calendar-alt"></i> <span class="tab-label">Årsrapport</span>
       </button>
     </nav>
 
@@ -820,11 +824,11 @@ require 'includes/QueryBuilder.php';
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260529"></script>
   <script src="includes/dashboard.js?v=20260529"></script>
-  <script src="includes/elbil.js?v=20260528"></script>
+  <script src="includes/elbil.js?v=20260529"></script>
   <script src="includes/jordvarme.js?v=20260528"></script>
   <script src="includes/hus.js?v=20260528"></script>
   <script src="includes/regning.js?v=20260529"></script>
-  <script src="includes/annual.js?v=20260528"></script>
+  <script src="includes/annual.js?v=20260529"></script>
 
   <!-- Sync Status Modal JS -->
   <script>
