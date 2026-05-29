@@ -17,6 +17,7 @@ const SparkNav = (() => {
     let jordvarmeLoaded   = false;
     let husForbrugLoaded  = false;
     let husRegningLoaded  = false;
+    let husFordelingLoaded = false;
     let aarsrapportLoaded = false;
 
     // Resize all Chart.js charts in a section after it becomes visible.
@@ -33,6 +34,14 @@ const SparkNav = (() => {
     // -------------------------------------------------------------------------
     // Main tab switching
     // -------------------------------------------------------------------------
+    const _TAB_TITLES = {
+        'oversigt-section':    'Oversigt',
+        'elbil-section':       'Elbil',
+        'jordvarme-section':   'Jordvarme',
+        'hus-section':         'Hus',
+        'aarsrapport-section': 'Årsrapport',
+    };
+
     function switchMainTab(tabId, writeHash = true) {
         document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
         document.querySelectorAll('.header-tab-button').forEach(b => b.classList.remove('active'));
@@ -43,6 +52,7 @@ const SparkNav = (() => {
         const btn = document.querySelector(`.header-tab-button[data-target="${tabId}"]`);
         if (btn) btn.classList.add('active');
 
+        document.title = 'SparkSpend \u2014 ' + (_TAB_TITLES[tabId] || tabId);
         currentTab = tabId;
         updateContextualButtons();
         if (writeHash) updateHash();
@@ -141,6 +151,10 @@ const SparkNav = (() => {
         if (activeSubId === 'hus-regning' && !husRegningLoaded) {
             husRegningLoaded = true;
             requestAnimationFrame(() => requestAnimationFrame(() => window.regningApp?.init()));
+        }
+        if (activeSubId === 'hus-fordeling' && !husFordelingLoaded) {
+            husFordelingLoaded = true;
+            requestAnimationFrame(() => requestAnimationFrame(() => window.fordelingApp?.init()));
         }
     }
 

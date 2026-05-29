@@ -1682,3 +1682,106 @@ header {
 }
 .stat-list dt { font-weight: 500; display: flex; align-items: center; }
 .stat-list dd { margin: 0; text-align: right; }
+
+/* ===== ANOMALY DETECTION ===== */
+
+/* Tab badge dot (positioned top-right of the tab button icon) */
+.anomaly-tab-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: -4px;
+  margin-bottom: 8px;
+  vertical-align: top;
+  border: 1.5px solid rgba(255,255,255,0.6);
+  flex-shrink: 0;
+}
+.anomaly-tab-badge.critical { background: #ef4444; }
+.anomaly-tab-badge.warning  { background: #f59e0b; }
+
+/* Anomaly alert panel — sits below the dashboard-grid */
+.anomaly-panel {
+  margin-top: 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.anomaly-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: rgba(245, 158, 11, 0.08);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: #92400e;
+}
+
+.anomaly-panel.has-critical {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.anomaly-panel.has-critical .anomaly-panel-header {
+  background: rgba(239, 68, 68, 0.07);
+  border-bottom-color: rgba(239, 68, 68, 0.2);
+  color: #991b1b;
+}
+
+.anomaly-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  transition: background 0.15s;
+}
+.anomaly-item:last-child { border-bottom: none; }
+.anomaly-item:hover { background: rgba(0,0,0,0.025); }
+
+.anomaly-item-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.anomaly-item-icon.critical { background: #fee2e2; color: #dc2626; }
+.anomaly-item-icon.warning  { background: #fef3c7; color: #d97706; }
+.anomaly-item-icon.info     { background: #e0f2fe; color: #0284c7; }
+
+.anomaly-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.anomaly-item-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #1f2937;
+}
+.anomaly-item-msg {
+  font-size: 0.82rem;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.anomaly-item-action {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+  align-self: center;
+}
+.anomaly-item-action:hover { background: #f3f4f6; }

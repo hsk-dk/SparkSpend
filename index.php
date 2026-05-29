@@ -59,12 +59,15 @@ require 'includes/QueryBuilder.php';
       </button>
       <button class="header-tab-button" data-target="elbil-section">
         <i class="fas fa-charging-station"></i> Elbil
+        <span class="anomaly-tab-badge" id="anomaly-badge-ev" style="display:none"></span>
       </button>
       <button class="header-tab-button" data-target="jordvarme-section">
         <i class="fas fa-fire"></i> Jordvarme
+        <span class="anomaly-tab-badge" id="anomaly-badge-hp" style="display:none"></span>
       </button>
       <button class="header-tab-button" data-target="hus-section">
         <i class="fas fa-house-chimney"></i> Hus
+        <span class="anomaly-tab-badge" id="anomaly-badge-hus" style="display:none"></span>
       </button>
       <button class="header-tab-button" data-target="aarsrapport-section">
         <i class="fas fa-calendar-alt"></i> Årsrapport
@@ -248,6 +251,16 @@ require 'includes/QueryBuilder.php';
     </div>
 
   </div>
+
+  <!-- Anomaly Detection Panel -->
+  <div id="anomaly-panel" class="anomaly-panel" style="display:none">
+    <div class="anomaly-panel-header">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>Afvigelser fra samme periode sidste år</span>
+    </div>
+    <div id="anomaly-list"></div>
+  </div>
+
 </section>
 
 <section id="elbil-section" class="tab-section">
@@ -342,25 +355,12 @@ require 'includes/QueryBuilder.php';
               <label for="vehicleId" class="form-label">Bil:</label>
               <select id="vehicleId" name="vehicleId" class="form-select" required>
                 <option value="">Vælg bil</option>
-                <?php
-                  $db = DatabaseManager::getChargesDb();
-                  $vehicles = QueryBuilder::selectAllVehicles($db);
-                  foreach ($vehicles as $row) {
-                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['vehicleName']) . '</option>';
-                  }
-                ?>
               </select>
             </div>
             <div class="mb-3">
               <label for="providerId" class="form-label">Udbyder:</label>
               <select id="providerId" name="providerId" class="form-select" required>
                 <option value="">Vælg udbyder</option>
-                <?php
-                  $providers = QueryBuilder::selectAllProviders($db);
-                  foreach ($providers as $row) {
-                    echo '<option value="' . htmlspecialchars($row['id']) . '">' . htmlspecialchars($row['providerName']) . '</option>';
-                  }
-                ?>
               </select>
             </div>
             <div class="mb-3">
@@ -655,6 +655,9 @@ require 'includes/QueryBuilder.php';
     <button class="sub-nav-btn" data-sub="hus-regning">
       <i class="fas fa-file-invoice"></i> Regning
     </button>
+    <button class="sub-nav-btn" data-sub="hus-fordeling">
+      <i class="fas fa-chart-pie"></i> Fordeling
+    </button>
   </nav>
 
   <!-- Sub-section: Forbrug -->
@@ -707,6 +710,29 @@ require 'includes/QueryBuilder.php';
       <div id="regningStatus" class="small mt-2 text-muted"></div>
     </div>
   </div><!-- /#hus-regning -->
+
+  <!-- Sub-section: Fordeling -->
+  <div id="hus-fordeling" class="sub-section">
+    <div class="card p-4">
+      <h3>Omkostningsfordeling</h3>
+      <p class="text-muted mb-3">
+        Fordeling af el-forbrug og -omkostninger på tværs af elbil, varmepumpe og restforbrug —
+        de seneste 12 måneder. Giver et hurtigt svar på, hvad vi bruger pengene på.
+      </p>
+      <div id="fordelingStatus" class="small mb-3 text-muted"></div>
+      <div id="fordelingContent">
+        <div id="fordelingSummaryCards" class="row row-cols-auto g-3 mb-4"></div>
+        <div class="row g-4 align-items-center">
+          <div class="col-md-8">
+            <canvas id="fordelingChart"></canvas>
+          </div>
+          <div class="col-md-4 d-flex flex-column align-items-center">
+            <canvas id="fordelingDonutChart" style="max-height:280px"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /#hus-fordeling -->
 
 </section><!-- /#hus-section -->
 
@@ -792,12 +818,12 @@ require 'includes/QueryBuilder.php';
   <script src="includes/app.js?v=20260528"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260528"></script>
-  <script src="includes/dashboard.js?v=20260528"></script>
+  <script src="includes/nav.js?v=20260529"></script>
+  <script src="includes/dashboard.js?v=20260529"></script>
   <script src="includes/elbil.js?v=20260528"></script>
   <script src="includes/jordvarme.js?v=20260528"></script>
   <script src="includes/hus.js?v=20260528"></script>
-  <script src="includes/regning.js?v=20260528"></script>
+  <script src="includes/regning.js?v=20260529"></script>
   <script src="includes/annual.js?v=20260528"></script>
 
   <!-- Sync Status Modal JS -->

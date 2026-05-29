@@ -20,40 +20,24 @@ Med udendørstemperaturdata (allerede hentet fra Open-Meteo) og forbrugt kWh kan
 
 ## Priority: Low — Enhancements
 
+### ENHANCEMENT — Time-of-use elpriskort
+Ugentlig heatmap (time × ugedag) med gennemsnitlig elspot-pris pr. celle fra Energi Data Service (gratis, ingen API-nøgle). Overlay faktiske ladningssessioner som prikker — synliggør om vi lader i dyre vinduer og hvad der kan spares ved at flytte til off-peak.
+**Filer:** `getElspotPrices.php`, `includes/elbil.js`, `index.php`
+
+### ENHANCEMENT — Elprisforecast-widget
+Brug den 24-timers Energi Data Service spot-prisforecast til at vise morgendagens priskurve og fremhæve det billigste opladningsvindue.
+**Filer:** `getElspotPrices.php`, `includes/dashboard.js`, `index.php`
+
 ### ENHANCEMENT — URL-hash inkluderer datointervalfilter
 Datointervalfilteret er aldrig kodet i URL-hashen. At vælge "Dette år" og bogmærke giver en URL der åbner med standardfilteret "Denne måned".
 **Filer:** `includes/nav.js`, `includes/elbil.js`
-
-### ENHANCEMENT — Tastaturgenveje til navigation
-Ingen tastaturgenveje eksisterer. `O`, `E`, `J`, `H` for Oversigt/Elbil/Jordvarme/Hus, `Escape` til at lukke modaler og filter-drawer.
-**Filer:** `includes/nav.js`, `includes/app.js`
-
-### ENHANCEMENT — Komplet mørkt tema
-CSS'en har kun en `@media (prefers-color-scheme: dark)` tilsidesætning for fire CSS-variabler. Chart.js-diagrammer, tabeller, modaler, cards og filter-draweren bruger alle stadig lyse baggrunde i mørk tilstand.
-**Filer:** `includes/style.css`
-
-### ENHANCEMENT — Opladningskort / stedssporing
-Tilføjelse af et simpelt Leaflet.js-kort over besøgte offentlige opladningssteder (fra `ext_charges` provider-kobling) ville give en geografisk dimension.
-**Filer:** `includes/elbil.js`, `index.php`
 
 ---
 
 ## New Feature Ideas
 
-### FEATURE — Time-of-use elpriskort
-Render en ugentlig heatmap (time × ugedag) med gennemsnitlig elspot-pris pr. celle. Overlej faktiske ladningssessioner som prikker.
-
-### FEATURE — Elprisforecast-widget
-Brug den 24-timers Energi Data Service spot-prisforecast til at vise morgendagens priskurve og fremhæve det billigste opladningsvindue.
-
-### FEATURE — Månedlig rapport email/PDF
-Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) og send det via email.
-
-### FEATURE — Anomali-detektionsadvarsler
-Sammenlign daglige aflæsninger mod en rullende baseline for EV og varmepumpe. Vis et badge på fanebladet og en advarselliste i headeren.
-
-### FEATURE — Integration med Tibber / Nordpool live-pris
-Tibber eksponerer en realtids el-pris websocket. Tilslutning ville muliggøre live kr/kWh-visning på Oversigt-kortet.
+### FEATURE — Månedlig rapport PDF-eksport
+Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) til manuelt download. Email-udsendelse ikke prioriteret.
 
 ---
 
@@ -98,6 +82,8 @@ Tibber eksponerer en realtids el-pris websocket. Tilslutning ville muliggøre li
 - ✅ **BUG — `getVehicleComparison.php` ingen caching + double-catch** — 5-minutters filcache tilføjet (`vehicle_compare_*`). Redundant `catch (PDOException)` og afsluttende `?>` fjernet.
 - ✅ **DEBT — Service worker cache-version bumpes ikke ved deployment** — `sw.js` bumped til `sparkspend-v3`.
 - ✅ **DEBT — JS-modulversioner (`?v=`) er forældet i `index.php`** — Alle strenge opdateret til `20260528`.
+- ✅ **ENHANCEMENT — Omkostningsfordeling — EV vs Varme vs Andet** — Nyt "Fordeling"-faneblad under Hus med stablet søjlediagram (månedlig kr/kWh fordelt på Elbil / Varmepumpe / Restforbrug), donut-oversigt og 3 sammenfatningskort med procentandele. Viser kWh-fordeling når spotpris ikke er konfigureret. `fordelingApp` tilføjet til `includes/regning.js`, lazy-initialiseret via `nav.js`.
+- ✅ **ENHANCEMENT — Anomali-detektionsadvarsler** — Ny `getAnomalyStats.php` sammenligner daglig kWh-gennemsnit for indeværende måned mod samme periode sidste år (krav: ≥5 dage i måneden). Kategorier: Hus (prioritet 1), Jordvarme (2), Elbil (3). Sev.: info (≥10%), warning (≥30%), critical (≥60%). Et farvekodet badge-punkt vises på det relevante fanebladstap; et panel med handlingsknapper vises under dashboard-kortene på Oversigt.
 - ✅ **DEBT — Ingen inputvalidering på `receive_vehicle_data.php`** — vehicleId eksistenstjek og odometer range-validering (> 0, < 2 000 000) tilføjet.
 - ✅ **DEBT — `cron/update_monta_data.php` bruger `die()` og ingen rate-limit-logik** — Alle `die()` erstattet med `error_log()` + `exit(1)`. HTTP 429 returnerer `null` og skrives til `sync_log` før ren exit.
 - ✅ **DEBT — Cache-dir `/tmp` er flygtig** — `CACHE_DIR` env-variabel tilføjet i `configuration.php`. Brugt i `QueryBuilder`, `getElspotPrices.php` og `getWeatherData.php`.

@@ -17,12 +17,18 @@ require 'includes/QueryBuilder.php';
 header('Content-Type: application/json');
 
 try {
+    // Accept JSON body or form POST
+    $ct    = $_SERVER['CONTENT_TYPE'] ?? '';
+    $input = str_contains($ct, 'application/json')
+        ? (json_decode(file_get_contents('php://input'), true) ?? [])
+        : $_POST;
+
     // Extract and type-cast parameters
-    $vehicleId      = intval($_POST['vehicleId']    ?? 0);
-    $providerId     = intval($_POST['providerId']   ?? 0);
-    $chargeDateTime = trim($_POST['chargeDateTime'] ?? '');
-    $kwh            = floatval($_POST['kwh']        ?? 0);
-    $pris           = floatval($_POST['pris']       ?? 0);
+    $vehicleId      = intval($input['vehicleId']    ?? 0);
+    $providerId     = intval($input['providerId']   ?? 0);
+    $chargeDateTime = trim($input['chargeDateTime'] ?? '');
+    $kwh            = floatval($input['kwh']        ?? 0);
+    $pris           = floatval($input['pris']       ?? 0);
 
     // Presence check
     if ($vehicleId <= 0 || $providerId <= 0 || $chargeDateTime === '') {
@@ -31,12 +37,12 @@ try {
         exit;
     }
     // Numeric bounds
-    if (!is_numeric($_POST['kwh'] ?? '') || $kwh <= 0 || $kwh > 1000) {
+    if (!is_numeric($input['kwh'] ?? '') || $kwh <= 0 || $kwh > 1000) {
         http_response_code(400);
         echo json_encode(['error' => 'kwh skal være et tal mellem 0 og 1000']);
         exit;
     }
-    if (!is_numeric($_POST['pris'] ?? '') || $pris <= 0 || $pris > 50000) {
+    if (!is_numeric($input['pris'] ?? '') || $pris <= 0 || $pris > 50000) {
         http_response_code(400);
         echo json_encode(['error' => 'pris skal være et tal mellem 0 og 50000']);
         exit;

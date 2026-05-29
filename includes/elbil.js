@@ -186,7 +186,7 @@ const elbilApp = (() => {
                 start = end = today; break;
             case 'week':
                 start = new Date(today);
-                start.setDate(today.getDate() - today.getDay());
+                start.setDate(today.getDate() - ((today.getDay() + 6) % 7));
                 end = new Date(start);
                 end.setDate(start.getDate() + 6);
                 break;
@@ -260,7 +260,7 @@ const elbilApp = (() => {
         filterEl.value = 'all';
 
         // Also populate vehicle selects in modals
-        ['internalVehicleId', 'externalVehicleId', 'chargeVehicleId'].forEach(id => {
+        ['internalVehicleId', 'externalVehicleId', 'vehicleId'].forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
             sel.querySelectorAll('option[data-vehicle]').forEach(o => o.remove());
@@ -275,7 +275,7 @@ const elbilApp = (() => {
     }
 
     function _populateProviderSelects() {
-        ['externalProviderId', 'chargeProviderId'].forEach(id => {
+        ['externalProviderId', 'providerId'].forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
             sel.querySelectorAll('option[data-provider]').forEach(o => o.remove());
@@ -311,6 +311,11 @@ const elbilApp = (() => {
     // -------------------------------------------------------------------------
     function _renderCharges(data) {
         chargeTableBodyEl.innerHTML = '';
+        if (data.length === 0) {
+            chargeTableBodyEl.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Ingen ladninger fundet for den valgte periode</td></tr>';
+            _updateSummary({}, 0, 0, 0, 0, 0, 0, 0, 0);
+            return;
+        }
         let overallKwh = 0, overallPris = 0;
         let internalCount = 0, externalCount = 0;
         let internalKwh = 0, externalKwh = 0;
@@ -350,7 +355,7 @@ const elbilApp = (() => {
 
             const icon = charge.source === 'internal'
                 ? `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="ID: ${charge.id}">electrical_services</span>`
-                : `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="${pName}">ev_station</span>`;
+                : `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="${appUtils.escapeHtml(pName)}">ev_station</span>`;
 
             // State badge (internal charges only)
             let stateBadge = '';
@@ -361,7 +366,7 @@ const elbilApp = (() => {
                     error:           ['bg-danger',    'Fejl'],
                 };
                 const [cls, label] = stateMap[charge.state] || ['bg-secondary', charge.state];
-                const reasonTip = charge.stopReason ? ` data-bs-toggle="tooltip" title="${charge.stopReason}"` : '';
+                const reasonTip = charge.stopReason ? ` data-bs-toggle="tooltip" title="${appUtils.escapeHtml(charge.stopReason)}"` : '';
                 stateBadge = `<br><span class="badge ${cls}"${reasonTip}>${label}</span>`;
             }
 
@@ -408,8 +413,8 @@ const elbilApp = (() => {
                 <td>${kwh.toFixed(2)} kWh</td>
                 ${sessionCell}
                 <td>${pris.toFixed(2)} kr</td>
-                <td>${priceIcon} ${pPerKwh.toFixed(2)} kr/kWh <small>${priceText}</small></td>
-                <td>${vName}</td>
+                <td>${priceIcon ? priceIcon + ' ' : ''}${pPerKwh.toFixed(2)} kr/kWh${priceText ? ' <small>' + priceText + '</small>' : ''}</td>
+                <td>${appUtils.escapeHtml(vName)}</td>
                 <td>${icon}${stateBadge}</td>
                 <td><button class="btn btn-sm btn-secondary" data-action="edit">Rediger</button></td>
             `;
@@ -577,7 +582,14 @@ const elbilApp = (() => {
         const form = e.target;
         if (!form.checkValidity()) { appUtils.showFormMessage('exChargeMsg', 'Udfyld alle felter', 'danger'); return; }
         try {
-            const res  = await fetch('createExCharge.php', { method: 'POST', body: new FormData(form) });
+            const payload = {
+                vehicleId:      document.getElementById('vehicleId').value,
+                providerId:     document.getElementById('providerId').value,
+                chargeDateTime: document.getElementById('chargeDateTime').value,
+                kwh:            document.getElementById('kwh').value,
+                pris:           document.getElementById('pris').value,
+            };
+            const res  = await fetch('createExCharge.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             if (data.success) {
@@ -627,8 +639,8 @@ const elbilApp = (() => {
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderEfficiencyCharts(data); })
             .catch(err => {
-                document.getElementById('kmPerKwhChart').innerHTML = `<div class="alert alert-danger">Fejl: ${err.message}</div>`;
-                document.getElementById('krPerKmChart').innerHTML  = `<div class="alert alert-danger">Fejl: ${err.message}</div>`;
+                document.getElementById('kmPerKwhChart').innerHTML = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
+                document.getElementById('krPerKmChart').innerHTML  = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
             });
     }
 
@@ -665,8 +677,8 @@ const elbilApp = (() => {
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderCostAnalytics(data); })
             .catch(err => {
-                document.getElementById('costTrendChart').innerHTML    = `<div class="alert alert-danger">Fejl: ${err.message}</div>`;
-                document.getElementById('costStatsContent').innerHTML  = `<div class="alert alert-danger">Fejl: ${err.message}</div>`;
+                document.getElementById('costTrendChart').innerHTML    = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
+                document.getElementById('costStatsContent').innerHTML  = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
             });
     }
 
@@ -746,7 +758,7 @@ const elbilApp = (() => {
         fetch('getVehicleComparison.php?' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderVehicleComparison(data.vehicles); })
-            .catch(err => { document.getElementById('vehicleComparisonTableBody').innerHTML = `<tr><td colspan="7" class="text-center text-danger">Fejl: ${err.message}</td></tr>`; });
+            .catch(err => { document.getElementById('vehicleComparisonTableBody').innerHTML = `<tr><td colspan="7" class="text-center text-danger">Fejl: ${appUtils.escapeHtml(err.message)}</td></tr>`; });
     }
 
     function _renderVehicleComparison(data) {
@@ -777,7 +789,7 @@ const elbilApp = (() => {
             .then(data => { if (data.error) throw new Error(data.error); _renderProviderStats(data); })
             .catch(err => {
                 const el = document.getElementById('providerStatsContent');
-                if (el) el.innerHTML = `<p class="text-danger small">Fejl: ${err.message}</p>`;
+                if (el) el.innerHTML = `<p class="text-danger small">Fejl: ${appUtils.escapeHtml(err.message)}</p>`;
             });
     }
 

@@ -9,6 +9,7 @@
 let _evSparkChart  = null;
 let _hpSparkChart  = null;
 let _husSparkChart = null;
+let _hpWeatherAbort = null;
 
 async function loadDashboard() {
     const cards = ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'];
@@ -28,6 +29,8 @@ async function loadDashboard() {
             if (husCard) husCard.querySelector('.dash-body').innerHTML =
                 '<p class="text-muted text-center small py-3">Hus-data ikke synkroniseret endnu</p>';
         }
+        // Anomaly detection runs after card data is available (async, best-effort)
+        loadAnomalies();
     } catch (e) {
         console.error('Dashboard load error:', e);
         ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'].forEach(id => {
@@ -123,6 +126,8 @@ function renderHeatpumpCard(hp) {
     _renderProgress('hp-budget-progress', 'hp-budget-fill', 'hp-budget-label',
         hp.month_kwh, localStorage.getItem('sparkspend_budget_hp_kwh'), 'kWh');
 
+    // Abort any in-flight weather enrichment from a previous render
+    if (_hpWeatherAbort) { _hpWeatherAbort.abort(); _hpWeatherAbort = null; }
     // Enrich with weather-normalised year-over-year trend (async, non-blocking)
     _enrichHpWithWeather(card, hp);
 }
@@ -168,6 +173,9 @@ async function _enrichHpWithWeather(card, hp) {
     const lastYearKwh = hp.last_year_period_kwh ?? null;
     if (!lat || !lon || hp.month_kwh === null || lastYearKwh === null || lastYearKwh <= 0) return;
 
+    const controller = new AbortController();
+    _hpWeatherAbort  = controller;
+
     const now       = new Date();
     const thisYear  = now.getFullYear();
     const thisMonth = now.getMonth() + 1;
@@ -178,8 +186,8 @@ async function _enrichHpWithWeather(card, hp) {
 
     try {
         const [resThis, resLast] = await Promise.all([
-            fetch(`getWeatherData.php?start=${thisYear}-${mm}-01&end=${today}&lat=${lat}&lon=${lon}`).then(r => r.json()),
-            fetch(`getWeatherData.php?start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddNow}&lat=${lat}&lon=${lon}`).then(r => r.json()),
+            fetch(`getWeatherData.php?start=${thisYear}-${mm}-01&end=${today}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
+            fetch(`getWeatherData.php?start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddNow}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
         ]);
 
         const hddThis = (resThis.records  || []).reduce((s, r) => s + r.hdd, 0);
@@ -195,7 +203,7 @@ async function _enrichHpWithWeather(card, hp) {
             `<div class="${up ? 'trend-up' : 'trend-down'}" title="Justeret for graddage (HDD 17°C)">` +
             `${up ? '↑' : '↓'} ${Math.abs(normalizedPct)}% vejrkorrigeret vs. samme måned sidste år</div>`;
     } catch (e) {
-        // Silently ignore — weather enrichment is best-effort
+        if (e.name !== 'AbortError') console.warn('_enrichHpWithWeather:', e);
     }
 }
 
@@ -273,3 +281,77 @@ document.addEventListener('DOMContentLoaded', () => {
     // Re-fetch whenever a charge is saved so totals stay current.
     window.SparkEvents?.addEventListener('charge:saved', loadDashboard);
 });
+
+// =============================================================================
+// Anomaly Detection
+// =============================================================================
+
+async function loadAnomalies() {
+    try {
+        const res  = await fetch('getAnomalyStats.php');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.error || !data.anomalies) return;
+
+        _renderAnomalies(data.anomalies);
+    } catch (e) {
+        // Anomaly loading is best-effort — never surface errors to the user
+        console.warn('loadAnomalies:', e);
+    }
+}
+
+function _renderAnomalies(anomalies) {
+    const panel    = document.getElementById('anomaly-panel');
+    const listEl   = document.getElementById('anomaly-list');
+    if (!panel || !listEl) return;
+
+    // Only show warning/critical in the panel (suppress info)
+    const visible = anomalies.filter(a => a.severity !== 'info');
+
+    // Clear all tab badges first
+    ['ev', 'hp', 'hus'].forEach(cat => {
+        const el = document.getElementById('anomaly-badge-' + cat);
+        if (el) el.style.display = 'none';
+    });
+
+    if (visible.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    // Update tab badge dots
+    anomalies.forEach(a => {
+        const el = document.getElementById('anomaly-badge-' + a.category);
+        if (el && a.severity !== 'info') {
+            el.className = 'anomaly-tab-badge ' + a.severity;
+            el.style.display = '';
+        }
+    });
+
+    // Colour the panel header based on worst severity
+    const hasCritical = visible.some(a => a.severity === 'critical');
+    panel.className = 'anomaly-panel' + (hasCritical ? ' has-critical' : '');
+
+    const iconMap = {
+        critical: '<i class="fas fa-times-circle"></i>',
+        warning:  '<i class="fas fa-exclamation-triangle"></i>',
+        info:     '<i class="fas fa-info-circle"></i>',
+    };
+
+    listEl.innerHTML = visible.map(a => {
+        const navAttr = a.nav_sub
+            ? `onclick="SparkNav.navigateTo('${a.nav_section}', '${a.nav_sub}')"`
+            : `onclick="SparkNav.navigateTo('${a.nav_section}')"`;
+        return `
+        <div class="anomaly-item">
+          <div class="anomaly-item-icon ${a.severity}">${iconMap[a.severity]}</div>
+          <div class="anomaly-item-body">
+            <div class="anomaly-item-title">${appUtils.escapeHtml(a.title)} — ${a.pct_above}% over baseline</div>
+            <div class="anomaly-item-msg">${appUtils.escapeHtml(a.message)}</div>
+          </div>
+          <button class="anomaly-item-action" ${navAttr}>Gå til →</button>
+        </div>`;
+    }).join('');
+
+    panel.style.display = '';
+}
