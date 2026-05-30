@@ -72,6 +72,8 @@ const jordvarmeApp = (() => {
         let activeComponents = null;
         // Weather state: date string (YYYY-MM-DD) → HDD (max(0, 17 - mean_temp)), from Open-Meteo
         let activeWeatherMap = {};
+        // Temperature state: date string (YYYY-MM-DD) → mean_temp_c, parallel to activeWeatherMap
+        let activeTemperatureMap = {};
         // Whether the compare chart is showing kWh/GD instead of raw kWh
         let compareNormalized = false;
         // Baseline kWh/GD computed from compare-mode data; used for expected-vs-actual in stats
@@ -89,7 +91,7 @@ const jordvarmeApp = (() => {
                 periodNav.style.display = isChronological ? "none" : "";
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";
                 activeCostMap = {}; activeComponents = null;
-                activeWeatherMap = {}; compareNormalized = false;
+                activeWeatherMap = {}; activeTemperatureMap = {}; compareNormalized = false;
                 fetchAndRender();
                 // compare/ytd: fetchElCosts is triggered inside fetchAndRender once
                 // data arrives, so the actual year range is known (avoids fetching
@@ -119,7 +121,7 @@ const jordvarmeApp = (() => {
                 currentYear = String(next);
             }
             activeCostMap = {}; activeComponents = null;
-            activeWeatherMap = {};
+            activeWeatherMap = {}; activeTemperatureMap = {};
             fetchAndRender();
             fetchElCosts();
             fetchWeatherData();
@@ -185,7 +187,7 @@ const jordvarmeApp = (() => {
                     if (currentMode === 'compare' || currentMode === 'ytd') {
                         activeCostMap = {}; activeComponents = null;
                         fetchElCosts(data);
-                        activeWeatherMap = {};
+                        activeWeatherMap = {}; activeTemperatureMap = {};
                         fetchWeatherData(data);
                     }
                 })
@@ -328,7 +330,11 @@ const jordvarmeApp = (() => {
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                 .then(data => {
                     activeWeatherMap = {};
-                    (data.records || []).forEach(r => { activeWeatherMap[r.date] = r.hdd; });
+                    activeTemperatureMap = {};
+                    (data.records || []).forEach(r => {
+                        activeWeatherMap[r.date]     = r.hdd;
+                        activeTemperatureMap[r.date] = r.mean_temp_c;
+                    });
                     _rerenderStats();
                     _rerenderChart();
                 })
@@ -621,6 +627,49 @@ const jordvarmeApp = (() => {
             yearContainer.style.display = "flex";
         }
 
+        // ── COP estimation ────────────────────────────────────────────────────
+        // Ground source heat pump model (jordvarme / brine-water GSHP).
+        // Ground loop temperature is buffered by the earth's thermal mass —
+        //   groundTempC ≈ outdoor * 0.3 + 7, clamped [2°C, 14°C]
+        // Supply temperature default 40°C (typical Danish underfloor heating).
+        // Practical COP ≈ 0.5 × Carnot (50% efficiency factor, EN 14825 typical).
+        function _estimateCop(meanOutdoorTempC, supplyTempC = 40) {
+            const groundTempC = Math.min(14, Math.max(2, meanOutdoorTempC * 0.3 + 7));
+            const dT = supplyTempC - groundTempC;
+            if (dT <= 0) return null;
+            const carnot = (supplyTempC + 273.15) / dT;
+            return Math.min(8, Math.round(carnot * 0.5 * 10) / 10);
+        }
+
+        // Compute the kWh-weighted mean outdoor temperature for a period using
+        // activeTemperatureMap. Returns null when temperature data is unavailable.
+        function _periodMeanTemp(data) {
+            if (Object.keys(activeTemperatureMap).length === 0) return null;
+            let sumWeightedTemp = 0, sumKwh = 0;
+            if (currentMode === 'daily') {
+                data.forEach(d => {
+                    const t = activeTemperatureMap[d.day];
+                    if (t == null) return;
+                    const kwh = parseFloat(d.total_kwh);
+                    sumWeightedTemp += t * kwh;
+                    sumKwh += kwh;
+                });
+            } else {
+                // Monthly: average daily temps within the month, weight by monthly kWh
+                data.forEach(d => {
+                    const temps = Object.entries(activeTemperatureMap)
+                        .filter(([date]) => date.startsWith(d.month))
+                        .map(([, t]) => t);
+                    if (temps.length === 0) return;
+                    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+                    const kwh    = parseFloat(d.total_kwh);
+                    sumWeightedTemp += avgTemp * kwh;
+                    sumKwh += kwh;
+                });
+            }
+            return sumKwh > 0 ? sumWeightedTemp / sumKwh : null;
+        }
+
         // ── Stats panel ──────────────────────────────────────────────────────
         function renderStats(data) {
             if (!data || data.length === 0) {
@@ -743,7 +792,29 @@ const jordvarmeApp = (() => {
                     <tr><td>Perioder</td><td class="text-end">${data.length}</td></tr>
                     ${costRows}
                     ${weatherRows}
+                    ${_renderCopRows(data, total)}
                 </table>`;
+        }
+
+        // Render COP estimate rows for daily/monthly stats.
+        // Only shown when temperature data is available (weatherSettingsReady + populated map).
+        function _renderCopRows(data, totalKwh) {
+            if (!weatherSettingsReady()) return '';
+            const hasTempData = Object.keys(activeTemperatureMap).length > 0;
+            if (!hasTempData) {
+                // Placeholder — same row count as loaded state to avoid layout shift
+                return `<tr><td>Estimeret COP</td>` +
+                    `<td class="text-end text-muted"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span></td></tr>` +
+                    `<tr><td>Estimeret leveret varme</td><td class="text-end text-muted">—</td></tr>`;
+            }
+            const meanTemp = _periodMeanTemp(data);
+            if (meanTemp === null) return '';
+            const cop = _estimateCop(meanTemp);
+            if (cop === null) return '';
+            const deliveredKwh = totalKwh * cop;
+            const fmt = v => new Intl.NumberFormat('da-DK', { maximumFractionDigits: 1 }).format(v);
+            return `<tr><td>Estimeret COP</td><td class="text-end">${cop.toFixed(1)}</td></tr>` +
+                   `<tr><td>Estimeret leveret varme</td><td class="text-end">${fmt(deliveredKwh)}\u00a0kWh</td></tr>`;
         }
 
         function renderCompareStats(data) {
@@ -772,7 +843,23 @@ const jordvarmeApp = (() => {
                 });
             }
 
-            const years = [...yearTotals.keys()].sort();
+            // Per-year COP estimate (requires activeTemperatureMap)
+            const hasTempData = weatherSettingsReady() && Object.keys(activeTemperatureMap).length > 0;
+            const yearCops = new Map();
+            if (hasTempData) {
+                years.forEach(year => {
+                    // Collect all daily temps for this year from activeTemperatureMap
+                    const temps = Object.entries(activeTemperatureMap)
+                        .filter(([date]) => date.startsWith(year + '-'))
+                        .map(([, t]) => t);
+                    if (temps.length === 0) return;
+                    const meanTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+                    const cop = _estimateCop(meanTemp);
+                    if (cop !== null) yearCops.set(year, cop);
+                });
+            }
+            const hasCop = yearCops.size > 0;
+
             const rows  = years.map((year, i) => {
                 const color   = YEAR_COLORS[i % YEAR_COLORS.length];
                 const total   = yearTotals.get(year);
@@ -780,19 +867,24 @@ const jordvarmeApp = (() => {
                 const costCell = hasCosts && yearCosts.get(year) > 0
                     ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(yearCosts.get(year))}</td>`
                     : (hasCosts ? '<td></td>' : '');
+                const cop    = yearCops.get(year);
+                const copCell = hasCop
+                    ? `<td class="text-end text-muted" style="font-size:11px">${cop != null ? 'COP ' + cop.toFixed(1) : '—'}</td>`
+                    : '';
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
                     <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
                     <td class="text-end text-muted" style="font-size:11px">${months} mdr.</td>
-                    ${costCell}
+                    ${costCell}${copCell}
                 </tr>`;
             }).join("");
 
             const costHeader = hasCosts ? '<th class="text-end">Est. kr</th>' : '';
+            const copHeader  = hasCop   ? '<th class="text-end">COP</th>'     : '';
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
                     <thead><tr>
-                        <th>År</th><th class="text-end">Total</th><th class="text-end">Mdr.</th>${costHeader}
+                        <th>År</th><th class="text-end">Total</th><th class="text-end">Mdr.</th>${costHeader}${copHeader}
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;

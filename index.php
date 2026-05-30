@@ -825,7 +825,7 @@ require 'includes/QueryBuilder.php';
   <script src="includes/nav.js?v=20260529"></script>
   <script src="includes/dashboard.js?v=20260529"></script>
   <script src="includes/elbil.js?v=20260529"></script>
-  <script src="includes/jordvarme.js?v=20260528"></script>
+  <script src="includes/jordvarme.js?v=20260529"></script>
   <script src="includes/hus.js?v=20260528"></script>
   <script src="includes/regning.js?v=20260529"></script>
   <script src="includes/annual.js?v=20260529"></script>
