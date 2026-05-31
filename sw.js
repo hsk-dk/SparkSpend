@@ -11,7 +11,7 @@
  * Bump CACHE version to invalidate all caches on a new deployment.
  */
 
-const CACHE = 'sparkspend-v3';
+const CACHE = 'sparkspend-v9';
 
 // Minimal precache — app shell needed to bootstrap offline
 const PRECACHE = [
@@ -22,8 +22,12 @@ const PRECACHE = [
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', event => {
+  // Use individual add() so one failing URL (e.g. auth-redirected manifest)
+  // does not abort the entire install.
   event.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
+    caches.open(CACHE).then(cache =>
+      Promise.all(PRECACHE.map(url => cache.add(url).catch(() => {})))
+    )
   );
   self.skipWaiting();
 });
@@ -55,7 +59,12 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(request)
         .then(response => {
-          caches.open(CACHE).then(c => c.put(request, response.clone()));
+          // Clone synchronously before returning — cloning inside a deferred
+          // caches.open().then() callback races with the browser consuming the body.
+          if (response.ok) {
+            const toCache = response.clone();
+            caches.open(CACHE).then(c => c.put(request, toCache));
+          }
           return response;
         })
         .catch(() => caches.match('/'))
@@ -67,12 +76,16 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) {
     event.respondWith(
       caches.open(CACHE).then(cache =>
-        cache.match(request).then(cached =>
-          cached || fetch(request).then(response => {
-            cache.put(request, response.clone());
+        cache.match(request).then(cached => {
+          if (cached) return cached;
+          return fetch(request).then(response => {
+            if (response.ok) {
+              const toCache = response.clone();
+              cache.put(request, toCache);
+            }
             return response;
-          })
-        )
+          });
+        })
       )
     );
     return;
@@ -83,10 +96,21 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(request)
         .then(response => {
-          caches.open(CACHE).then(c => c.put(request, response.clone()));
+          // Clone synchronously — same timing issue as navigate block.
+          if (response.ok) {
+            const toCache = response.clone();
+            caches.open(CACHE).then(c => c.put(request, toCache));
+          }
           return response;
         })
-        .catch(() => caches.match(request))
+        .catch(() =>
+          caches.match(request).then(
+            r => r || new Response('{"error":"offline"}', {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        )
     );
     return;
   }
@@ -95,10 +119,12 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.open(CACHE).then(cache =>
       cache.match(request).then(cached => {
-        const networkFetch = fetch(request).then(response => {
-          cache.put(request, response.clone());
-          return response;
-        });
+        const networkFetch = fetch(request)
+          .then(response => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          })
+          .catch(() => new Response('', { status: 503 })); // keep respondWith happy on network failure
         return cached || networkFetch;
       })
     )

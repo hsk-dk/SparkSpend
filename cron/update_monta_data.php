@@ -90,6 +90,17 @@ function getChargingData($accessToken, $dataEndpoint, $fromDate, $toDate) {
     return json_decode($response, true);
 }
 
+// Cache vehicle count for the lifetime of this script — avoids one DB query per charge.
+$_vehicleCount = null;
+function _getVehicleCount(): int {
+    global $_vehicleCount;
+    if ($_vehicleCount === null) {
+        $db = DatabaseManager::getChargesDb();
+        $_vehicleCount = (int) ($db->query("SELECT COUNT(*) FROM vehicles")->fetchColumn() ?: 1);
+    }
+    return $_vehicleCount;
+}
+
 function getVehicleForCharge($cablePluggedInAt) {
     $db = DatabaseManager::getChargesDb();
 
@@ -120,7 +131,11 @@ function getVehicleForCharge($cablePluggedInAt) {
     }
 
     if ($bestDiff >= 3600) {
-        error_log("getVehicleForCharge: no vehicle_charges row within 1 hour of $cablePluggedInAt (closest diff: {$bestDiff}s) — defaulting to vehicleId=1");
+        // Only warn when there are multiple vehicles — with a single vehicle, defaulting
+        // to vehicleId=1 is always correct and the message is just noise.
+        if (_getVehicleCount() > 1) {
+            error_log("getVehicleForCharge: no vehicle_charges row within 1 hour of $cablePluggedInAt (closest diff: {$bestDiff}s) — defaulting to vehicleId=1");
+        }
         return 1;
     }
 

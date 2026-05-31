@@ -1,22 +1,12 @@
 # SparkSpend — Product Backlog
 
-Generated: 2026-03-11 · Rebuilt from code analysis: 2026-05-28
+Generated: 2026-03-11 · Rebuilt from code analysis: 2026-05-28 · Updated: 2026-06-01
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.
 
 ---
 
 ## Priority: Medium — Enhancements
-
-### ENHANCEMENT — Varmepumpe COP-estimering
-Med udendørstemperaturdata (allerede hentet fra Open-Meteo) og forbrugt kWh kan et COP-estimat udledes: `leveret_varme ≈ COP × el_kWh`. Vis "Estimeret leveret varme: X kWh (COP ≈ Y)" i Jordvarme-statistikboksen.
-**Filer:** `includes/jordvarme.js`, `getWeatherData.php`
-
-### ENHANCEMENT — Fejllog-visning i sync-modal
-`cron/trigger.log` er SSH-eksklusiv. En sammenklappelig "Systemlog"-sektion i sync-modalen der viser de seneste 50 linjer ville hjælpe med at diagnosticere sync-fejl uden SSH-adgang.
-**Filer:** ny `getSystemLog.php`, `index.php`
-
----
 
 ## Priority: Low — Enhancements
 
@@ -43,6 +33,7 @@ Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) til manuelt downlo
 
 ## Afsluttet
 
+- ✅ **ENHANCEMENT — Fejllog-visning i sync-modal** — Sammenklappelig "Systemlog"-sektion tilføjet i sync-modalen. `getSystemLog.php` tail'er de seneste 80 linjer af `cron/trigger.log` og returnerer JSON. Linjerne farvekodesafter alvorlighedsgrad (rød=fejl, gul=advarsel, grøn=succes). Lazy-loaded ved første åbning af panelet. `index.php` udvidet med toggle-knap, `<pre>`-boks og meta-linje. SW bumped til v8.
 - ✅ **BUG — April/Juli 2025 husforbrug viste ~33M / ~36M kWh** — Datalogger gemte Wh i stedet for kWh. Fix: LAG-baseret daglig delta (i stedet for MAX-MIN) i alle kumulerede måler-queries. Wh→kWh normalisering under sync.
 - ✅ **FEATURE — Hus-sektion** — Nyt topniveau-faneblad med to under-faner: *Forbrug* (stablet søjlediagram) og *Regning* (månedlig fakturaoversigt).
 - ✅ **FEATURE — Hus synkronisering** — `cron/sync_housepowerlog_data.php` synkroniserer MySQL `powerloghus` → SQLite med Wh→kWh normalisering.
@@ -92,10 +83,18 @@ Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) til manuelt downlo
 - ✅ **DEBT — Ingen CHANGELOG** — `CHANGELOG.md` oprettet med historik fra denne og tidligere sessioner.
 - ✅ **DEBT — `check_data_integrity.php` dækker kun `powerlogjord`** — Nyt afsnit tilføjet for `charges`, `ext_charges`, `vehicles`, `providers` og `vehicle_charges`.
 - ✅ **ENHANCEMENT — Frontend UX & visuel redesign (Scandinavisk minimal)** — Inter-font loaded eksplicit; alle CSS gradients fladgjort (header, knapper, tabelhoveder, modals); `translateY` hover-lift fjernet fra alle elementer undtagen de 3 navigerings-dashboardkort; `backdrop-filter` fjernet fra kort, tabeller og diagramcontainere; shadow-tokens reduceret og konsolideret (`--shadow-lg` tilføjet); `--color-increase`/`--color-decrease` semantiske farvetokens + typografiskala (`--text-sm` → `--text-2xl`); `th` fladt lyseblå → hvid #f1f5f9 baggrund med mørk tekst; modal-headere hvide med border-separator; filterskuffe konsistent slide-in ved alle skærmbredder (desktop `position:static`-override fjernet); "Se detaljer →" affordance-hint på dashboardkort (fade-in ved hover); "Rediger mål"-knap inline ved fremdriftsbjælke; "Nulstil filtre"-knap i tom-tilstand for opladningstabellen; `elbilApp.resetFilters()` tilføjet; aktivt under-fanevalg bevares i `sessionStorage` ved fane-genbrug (Elbil + Hus); ikon-only tabs ved ≤600px (`.tab-label`-spans). `style.css?v=20260529`.
+- ✅ **BUG — `getAnnualSummary.php` returnerede HTTP 500** — `configuration.php` kalder `die()` når Monta-credentials er tomme; `die()` kan ikke catches. Fix: `Content-Type: application/json` header øverst, per-step fejlsporing `$_step`, `?nocache=1` bypass. `annual.js` viser nu korrekt fejlbesked og initialiserer canvas efter `display:none` → synlig.
+- ✅ **ENHANCEMENT — Jordvarme COP-estimering** — GSHP-model implementeret i `jordvarme.js`: `groundTempC = clamp(outdoor × 0.3 + 7, 2, 14)`, `COP = min(8, carnot × 0.5)`. `mean_temp_c` fra `getWeatherData.php` bruges til kWh-vægtet periodetemperatur. Vises i statistikboks (daglig/månedlig) og sammenligningstabel (per-år COP-kolonne).
+- ✅ **BUG — Jordvarme sammenligning "Fejl ved hentning af data"** — `renderCompareStats()` refererede `years` som var en lokal variabel i `renderCompareChart()`. Fix: `const years = [...new Set(data.map(d => d.year))].sort()` tilføjet øverst i `renderCompareStats`.
+- ✅ **BUG — Jordvarme diagram vises ikke første gang / blinker** — To årsager: (1) `setChartVisible(false)` skjulte canvas før `renderChart()` → Chart.js målte 0px. Fix: canvas holdes synlig under fetch, `setChartVisible(true)` kaldt FØR `renderChart()`. (2) `_rerenderChart()` destroy+recreate ved vejrdata-ankomst → synligt blink. Fix: ny `_updateHddOverlay()` opdaterer HDD-datasæt in-place med `chart.update('none')`.
+- ✅ **BUG — Service worker `response.clone()` body already used** — `response.clone()` kaldtes inde i `caches.open().then()` — en deferred callback der racede med browser-body-consumption. Fix: alle 4 SW-branches kloner synkront. `response.ok`-guard tilføjet så 404/fejl-responses aldrig caches. `cache.addAll()` → individuelle `cache.add().catch()` i precache. SW bumped til `sparkspend-v7`.
+- ✅ **BUG — `icon-192.png` manglede efter deployment** — Ikoner genereres af `cron/generate_icons.php` og er ikke i git. Robocopy-kommando opdateret til at ekskludere `icon-*.png` fra `/MIR`-sletning så server-genererede filer bevares.
+- ✅ **DEBT — Robocopy produktions-sync kommando etableret** — `robocopy C:\GIT\sparkspend\ Z:\monta\ /MIR /XF *.log *.db *.md *.sh .env .env.example LICENSE icon-*.png /XD data logs .git dev`
+- ✅ **DEBT — `<meta name="apple-mobile-web-app-capable">` deprecated** — `<meta name="mobile-web-app-capable" content="yes">` tilføjet i `index.php` (begge bevares for iOS Safari-kompatibilitet).
 
 ---
 
-Generated: 2026-03-11 · Last updated: 2026-05-29
+Generated: 2026-03-11 · Last updated: 2026-05-31
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.
 

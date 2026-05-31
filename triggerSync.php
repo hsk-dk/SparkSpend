@@ -36,11 +36,20 @@ if ($source === 'all') {
     exit;
 }
 
-// PHP_BINARY gives the full path to the current PHP executable.
-// Redirect output to trigger.log so PHP errors from background processes are visible.
-$php     = escapeshellcmd(PHP_BINARY);
-$logPath = escapeshellarg(__DIR__ . '/cron/trigger.log');
+// PHP_BINARY under PHP-FPM resolves to the FPM daemon binary (e.g. php-fpm8.4),
+// not the CLI interpreter. Derive the CLI binary by probing common paths in order:
+//   1. php-cli sibling of PHP_BINARY (Debian/Ubuntu: /usr/bin/php8.4-cli is rare;
+//      more common: /usr/bin/php8.X or /usr/bin/php)
+//   2. Same directory as PHP_BINARY but with '-cli' suffix stripped / replaced
+//   3. Fall back to PHP_BINARY itself (works on non-FPM setups)
+$php     = _resolvePhpCli();
+$logFile = __DIR__ . '/cron/trigger.log';
+$logPath = escapeshellarg($logFile);
 $started = 0;
+
+// Truncate the log before each triggered sync so the viewer always shows only
+// the latest run. Append-only growth otherwise makes the log unreadable.
+file_put_contents($logFile, '');
 
 foreach ($toRun as $script) {
     if (!file_exists($script)) {
@@ -59,6 +68,40 @@ $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_syncstatus.j
 @unlink($cacheFile);
 
 echo json_encode(['success' => true, 'started' => $started]);
+
+/**
+ * Resolve the PHP CLI binary path.
+ *
+ * PHP_BINARY under PHP-FPM is the FPM daemon (e.g. /usr/sbin/php-fpm8.4),
+ * not a CLI interpreter. We probe for the CLI sibling instead.
+ */
+function _resolvePhpCli(): string
+{
+    $fpmBinary = PHP_BINARY; // e.g. /usr/sbin/php-fpm8.4 or /usr/bin/php8.4
+
+    // Extract the version suffix if present (e.g. "8.4" from "php-fpm8.4" or "php8.4")
+    $version = '';
+    if (preg_match('/(\d+\.\d+)$/', $fpmBinary, $m)) {
+        $version = $m[1];
+    }
+
+    // Candidate CLI paths in preference order
+    $candidates = [];
+    if ($version !== '') {
+        $candidates[] = '/usr/bin/php' . $version;
+    }
+    $candidates[] = '/usr/bin/php';
+    $candidates[] = '/usr/local/bin/php';
+
+    foreach ($candidates as $path) {
+        if (is_executable($path)) {
+            return escapeshellcmd($path);
+        }
+    }
+
+    // Last resort — use PHP_BINARY as-is (works on plain CGI/CLI setups)
+    return escapeshellcmd($fpmBinary);
+}
 
 /**
  * Run a shell command in the background.

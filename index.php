@@ -13,6 +13,7 @@ require 'includes/QueryBuilder.php';
   <!-- PWA -->
   <meta name="description" content="Energiforbrug og EV-opladningsoverblik">
   <meta name="theme-color" content="#1a2635">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SparkSpend">
@@ -758,7 +759,7 @@ require 'includes/QueryBuilder.php';
 
 <!-- ── Sync Status Modal ─────────────────────────────────────────────────── -->
 <div class="modal fade" id="syncModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+  <div class="modal-dialog modal-md">
     <div class="modal-content">
       <div class="modal-header py-2">
         <h6 class="modal-title mb-0"><i class="fas fa-sync-alt me-2"></i>Synkronisering</h6>
@@ -767,6 +768,29 @@ require 'includes/QueryBuilder.php';
       <div class="modal-body p-0">
         <div id="syncStatusList" class="px-3 py-2">
           <p class="text-muted text-center mb-0 py-2">Indlæser…</p>
+        </div>
+        <!-- Collapsible system log -->
+        <div class="border-top">
+          <button class="btn btn-link btn-sm w-100 text-start px-3 py-2 text-muted text-decoration-none d-flex align-items-center justify-content-between"
+                  id="syncLogToggle" type="button" aria-expanded="false" aria-controls="syncLogPanel">
+            <span><i class="fas fa-terminal me-2 fa-xs"></i>Systemlog</span>
+            <i class="fas fa-chevron-down fa-xs" id="syncLogChevron"></i>
+          </button>
+          <div id="syncLogPanel" style="display:none">
+            <div id="syncLogContent"
+                 style="font-family:monospace;font-size:11px;line-height:1.5;
+                        max-height:260px;overflow-y:auto;
+                        background:#0f172a;color:#94a3b8;
+                        padding:10px 12px;white-space:pre-wrap;word-break:break-all">
+              <span class="text-muted">Indlæser log…</span>
+            </div>
+            <div class="d-flex align-items-center justify-content-between px-3 py-1 border-top" style="background:#f8fafc">
+              <small id="syncLogMeta" class="text-muted"></small>
+              <button class="btn btn-link btn-sm py-0 text-muted text-decoration-none" id="syncLogRefresh" title="Genindlæs log">
+                <i class="fas fa-redo fa-xs"></i>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer py-2 justify-content-between">
@@ -825,7 +849,7 @@ require 'includes/QueryBuilder.php';
   <script src="includes/nav.js?v=20260529"></script>
   <script src="includes/dashboard.js?v=20260529"></script>
   <script src="includes/elbil.js?v=20260529"></script>
-  <script src="includes/jordvarme.js?v=20260529"></script>
+  <script src="includes/jordvarme.js?v=20260530d"></script>
   <script src="includes/hus.js?v=20260528"></script>
   <script src="includes/regning.js?v=20260529"></script>
   <script src="includes/annual.js?v=20260529"></script>
@@ -833,14 +857,40 @@ require 'includes/QueryBuilder.php';
   <!-- Sync Status Modal JS -->
   <script>
   (function () {
-      const modal     = document.getElementById('syncModal');
-      const listEl    = document.getElementById('syncStatusList');
-      const msgEl     = document.getElementById('syncModalMsg');
-      const syncAllBtn= document.getElementById('syncAllBtn');
+      const modal       = document.getElementById('syncModal');
+      const listEl      = document.getElementById('syncStatusList');
+      const msgEl       = document.getElementById('syncModalMsg');
+      const syncAllBtn  = document.getElementById('syncAllBtn');
+      const logToggle   = document.getElementById('syncLogToggle');
+      const logPanel    = document.getElementById('syncLogPanel');
+      const logContent  = document.getElementById('syncLogContent');
+      const logMeta     = document.getElementById('syncLogMeta');
+      const logRefresh  = document.getElementById('syncLogRefresh');
+      const logChevron  = document.getElementById('syncLogChevron');
       if (!modal) return;
+
+      let logLoaded = false; // lazy: only fetch on first expand
 
       // Load status whenever modal opens
       modal.addEventListener('show.bs.modal', _loadStatus);
+      // Reset log panel on close so it re-fetches if sync was triggered
+      modal.addEventListener('hidden.bs.modal', () => {
+          logLoaded = false;
+          logPanel.style.display = 'none';
+          logToggle.setAttribute('aria-expanded', 'false');
+          logChevron.style.transform = '';
+      });
+
+      // Log toggle
+      logToggle?.addEventListener('click', () => {
+          const open = logPanel.style.display !== 'none';
+          logPanel.style.display = open ? 'none' : '';
+          logToggle.setAttribute('aria-expanded', String(!open));
+          logChevron.style.transform = open ? '' : 'rotate(180deg)';
+          if (!open && !logLoaded) _loadLog();
+      });
+
+      logRefresh?.addEventListener('click', _loadLog);
 
       // "Sync alle" button
       syncAllBtn?.addEventListener('click', () => _triggerSync('all'));
@@ -859,6 +909,47 @@ require 'includes/QueryBuilder.php';
               .then(d => _render(d.sources || []))
               .catch(() => {
                   listEl.innerHTML = '<p class="text-danger mb-0 py-2">Fejl ved hentning af status.</p>';
+              });
+      }
+
+      function _loadLog() {
+          logContent.innerHTML = '<span class="text-muted">Indlæser log\u2026</span>';
+          logMeta.textContent = '';
+          fetch('getSystemLog.php?lines=80')
+              .then(r => r.json())
+              .then(d => {
+                  logLoaded = true;
+                  if (d.missing) {
+                      logContent.innerHTML = '<span style="color:#64748b">Ingen log endnu — kør en synkronisering for at generere output.</span>';
+                      logMeta.textContent = '';
+                      return;
+                  }
+                  if (!d.lines || d.lines.length === 0) {
+                      logContent.innerHTML = '<span style="color:#64748b">Logfilen er tom.</span>';
+                      return;
+                  }
+                  // Colour-code lines by severity
+                  const html = d.lines.map(line => {
+                      const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                      const lower = line.toLowerCase();
+                      if (lower.includes('error') || lower.includes('fejl') || lower.includes('fatal'))
+                          return `<span style="color:#f87171">${esc}</span>`;
+                      if (lower.includes('warning') || lower.includes('advarsel'))
+                          return `<span style="color:#fbbf24">${esc}</span>`;
+                      if (lower.includes('ok') || lower.includes('success') || lower.includes('synced') || lower.includes('inserted'))
+                          return `<span style="color:#4ade80">${esc}</span>`;
+                      return `<span style="color:#94a3b8">${esc}</span>`;
+                  }).join('\n');
+                  logContent.innerHTML = html;
+                  // Scroll to bottom (newest entries)
+                  logContent.scrollTop = logContent.scrollHeight;
+                  logMeta.textContent = d.truncated
+                      ? `Viser de seneste 80 af ${d.total} linjer`
+                      : `${d.total} linjer`;
+              })
+              .catch(() => {
+                  logLoaded = false;
+                  logContent.innerHTML = '<span style="color:#f87171">Kunne ikke hente log.</span>';
               });
       }
 

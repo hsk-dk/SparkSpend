@@ -161,7 +161,9 @@ const jordvarmeApp = (() => {
             updatePeriodLabel();
             noDataEl.style.display = "none";
             errorEl.style.display  = "none";
-            setChartVisible(false);
+            // Do NOT hide the canvas here. Hiding it with display:none causes Chart.js
+            // to measure 0px dimensions when the chart is created in the .then() below.
+            // Leaving the old chart visible during loading is fine (stale-while-revalidate).
             if (yearContainer) yearContainer.style.display = "none";
             statsContent.innerHTML = "<p>Indlæser data...</p>";
 
@@ -173,14 +175,18 @@ const jordvarmeApp = (() => {
                 .then(data => {
                     if (!Array.isArray(data) || data.length === 0) {
                         noDataEl.style.display = "";
+                        // Hide canvas (may show a stale chart) and clean up
+                        setChartVisible(false);
+                        if (heatpumpChart) { heatpumpChart.destroy(); heatpumpChart = null; }
                         lastKwhData = null;
                         renderStats([]);
                         return;
                     }
+                    // Canvas is already visible — chart is created at correct dimensions.
+                    setChartVisible(true);
                     lastKwhData = data;
                     renderChart(data);
                     renderStats(data);
-                    setChartVisible(true);
                     // For compare/ytd the date range for costs depends on which years
                     // are present in the data — trigger the fetch here with the data
                     // so fetchElCosts can compute the correct start year.
@@ -194,6 +200,8 @@ const jordvarmeApp = (() => {
                 .catch(err => {
                     console.error('Jordvarme fetch error:', err);
                     errorEl.style.display = "";
+                    setChartVisible(false);
+                    if (heatpumpChart) { heatpumpChart.destroy(); heatpumpChart = null; }
                     statsContent.innerHTML = "<p class='text-muted'>Kunne ikke hente data.</p>";
                 });
         }
@@ -250,9 +258,51 @@ const jordvarmeApp = (() => {
             if (lastKwhData) renderStats(lastKwhData);
         }
 
+        // Inject or update the HDD line overlay on an existing daily/monthly chart without
+        // destroying it — avoids the destroy→recreate blink when weather data arrives.
+        function _updateHddOverlay() {
+            if (!heatpumpChart) return;
+            if (currentMode !== 'daily' && currentMode !== 'monthly') return;
+            const hasWeather = weatherSettingsReady() && Object.keys(activeWeatherMap).length > 0;
+            const hddValues = hasWeather
+                ? (currentMode === 'daily'
+                    ? lastKwhData.map(d => activeWeatherMap[d.day] ?? null)
+                    : lastKwhData.map(d => {
+                        const s = Object.entries(activeWeatherMap)
+                            .filter(([date]) => date.startsWith(d.month))
+                            .reduce((sum, [, h]) => sum + h, 0);
+                        return s > 0 ? parseFloat(s.toFixed(1)) : null;
+                    }))
+                : null;
+            const existingIdx = heatpumpChart.data.datasets.findIndex(d => d.label === 'Gradedage (GD)');
+            if (hddValues && existingIdx === -1) {
+                heatpumpChart.data.datasets.push({
+                    type: 'line', label: 'Gradedage (GD)', data: hddValues,
+                    borderColor: 'rgba(148, 163, 184, 0.85)', backgroundColor: 'transparent',
+                    borderWidth: 2, pointRadius: 2, pointHoverRadius: 4,
+                    tension: 0.3, spanGaps: false, yAxisID: 'y2',
+                });
+                heatpumpChart.options.scales.y2 = {
+                    type: 'linear', position: 'right', beginAtZero: true,
+                    title: { display: true, text: 'GD' }, grid: { drawOnChartArea: false },
+                };
+            } else if (hddValues && existingIdx !== -1) {
+                heatpumpChart.data.datasets[existingIdx].data = hddValues;
+            } else if (!hddValues && existingIdx !== -1) {
+                heatpumpChart.data.datasets.splice(existingIdx, 1);
+                heatpumpChart.options.scales.y2 = { display: false };
+            }
+            heatpumpChart.update('none'); // no animation — smooth in-place update
+        }
+
         function _rerenderChart() {
             if (!lastKwhData) return;
-            if (currentMode === 'daily' || currentMode === 'monthly') renderChart(lastKwhData);
+            if (currentMode === 'daily' || currentMode === 'monthly') {
+                // If a chart already exists, update the HDD overlay in-place to avoid blink
+                if (heatpumpChart) { _updateHddOverlay(); return; }
+                renderChart(lastKwhData);
+                return;
+            }
             if (currentMode === 'compare') renderCompareChart(lastKwhData);
         }
 
@@ -437,9 +487,24 @@ const jordvarmeApp = (() => {
                                         }
                                         if (rate > 0) lines.push(`ca. ${appUtils.formatCurrency(kwh * rate)}`);
                                     }
-                                    if (hddValues) {
-                                        const hdd = hddValues[c.dataIndex];
-                                        if (hdd > 0) lines.push(`${hdd.toFixed(1)} GD · ${(kwh / hdd).toFixed(2)} kWh/GD`);
+                                    // Read activeWeatherMap live so tooltip reflects HDD overlay
+                                    // injected after initial render (avoids stale closure over hddValues)
+                                    if (weatherSettingsReady()) {
+                                        let hdd = null;
+                                        if (currentMode === 'daily') {
+                                            const date = data[c.dataIndex]?.day;
+                                            hdd = date ? (activeWeatherMap[date] ?? null) : null;
+                                        } else {
+                                            const month = data[c.dataIndex]?.month;
+                                            if (month) {
+                                                const s = Object.entries(activeWeatherMap)
+                                                    .filter(([d]) => d.startsWith(month))
+                                                    .reduce((sum, [, h]) => sum + h, 0);
+                                                hdd = s > 0 ? s : null;
+                                            }
+                                        }
+                                        if (hdd !== null && hdd > 0)
+                                            lines.push(`${hdd.toFixed(1)} GD · ${(kwh / hdd).toFixed(2)} kWh/GD`);
                                     }
                                     return lines;
                                 }
@@ -819,6 +884,7 @@ const jordvarmeApp = (() => {
 
         function renderCompareStats(data) {
             // Build per-year totals
+            const years = [...new Set(data.map(d => d.year))].sort();
             const yearTotals = new Map();
             const yearCounts = new Map();
             data.forEach(d => {
