@@ -393,12 +393,8 @@ const jordvarmeApp = (() => {
 
         // ── Chart rendering ──────────────────────────────────────────────────
         function renderChart(data) {
-            if (heatpumpChart) {
-                heatpumpChart.destroy();
-                heatpumpChart = null;
-            }
-
             if (currentMode === "compare") {
+                // renderCompareChart handles its own destroy
                 renderCompareChart(data);
                 return;
             }
@@ -406,6 +402,12 @@ const jordvarmeApp = (() => {
             if (currentMode === "ytd") {
                 renderYtdChart(data);
                 return;
+            }
+
+            // Destroy if chart type changed (compare/ytd use line, bar chart is bar)
+            if (heatpumpChart && heatpumpChart.config.type !== 'bar') {
+                heatpumpChart.destroy();
+                heatpumpChart = null;
             }
 
             let labels, values;
@@ -454,6 +456,20 @@ const jordvarmeApp = (() => {
                     spanGaps: false,
                     yAxisID: 'y2',
                 });
+            }
+
+            if (heatpumpChart) {
+                // In-place update — avoids destroy/recreate when same mode re-renders
+                heatpumpChart.data.labels = labels;
+                heatpumpChart.data.datasets.length = 0;
+                datasets.forEach(ds => heatpumpChart.data.datasets.push(ds));
+                heatpumpChart.options.scales.y2 = hddValues
+                    ? { type: 'linear', position: 'right', beginAtZero: true,
+                        title: { display: true, text: 'GD' },
+                        grid: { drawOnChartArea: false } }
+                    : { display: false };
+                heatpumpChart.update('none');
+                return;
             }
 
             heatpumpChart = new Chart(ctx, {

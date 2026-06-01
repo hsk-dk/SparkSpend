@@ -16,6 +16,16 @@ require 'includes/configuration.php';
 
 header('Content-Type: application/json');
 
+// Rate-limit: max 1 sync request per 30 seconds
+$_cacheDir    = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+$_cooldownFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_cooldown.lock';
+if (file_exists($_cooldownFile) && (time() - filemtime($_cooldownFile)) < 30) {
+    http_response_code(429);
+    echo json_encode(['error' => 'Vent venligst 30 sekunder mellem synkroniseringer']);
+    exit;
+}
+touch($_cooldownFile);
+
 $data   = json_decode(file_get_contents('php://input'), true);
 $source = isset($data['source']) ? (string) $data['source'] : '';
 
@@ -47,6 +57,13 @@ $logFile = __DIR__ . '/cron/trigger.log';
 $logPath = escapeshellarg($logFile);
 $started = 0;
 
+// Invalidate all file caches so the next page request fetches fresh data
+// instead of waiting out the TTL (up to 1 hour for annual summary).
+$_cacheDir = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+foreach (glob($_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_*.json') ?: [] as $_f) {
+    @unlink($_f);
+}
+
 // Truncate the log before each triggered sync so the viewer always shows only
 // the latest run. Append-only growth otherwise makes the log unreadable.
 file_put_contents($logFile, '');
@@ -62,10 +79,6 @@ foreach ($toRun as $script) {
         $started++;
     }
 }
-
-// Invalidate sync status cache so next getSyncStatus.php call returns fresh data
-$cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sparkspend_syncstatus.json';
-@unlink($cacheFile);
 
 echo json_encode(['success' => true, 'started' => $started]);
 

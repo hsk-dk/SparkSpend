@@ -37,12 +37,12 @@ try {
         exit;
     }
     // Numeric bounds
-    if (!is_numeric($input['kwh'] ?? '') || $kwh <= 0 || $kwh > 1000) {
+    if (!is_numeric($input['kwh'] ?? '') || $kwh <= 0 || $kwh > 1000 || !is_finite($kwh)) {
         http_response_code(400);
         echo json_encode(['error' => 'kwh skal være et tal mellem 0 og 1000']);
         exit;
     }
-    if (!is_numeric($input['pris'] ?? '') || $pris <= 0 || $pris > 50000) {
+    if (!is_numeric($input['pris'] ?? '') || $pris < 0 || $pris > 50000 || !is_finite($pris)) {
         http_response_code(400);
         echo json_encode(['error' => 'pris skal være et tal mellem 0 og 50000']);
         exit;

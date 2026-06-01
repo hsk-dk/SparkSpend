@@ -237,6 +237,15 @@ try {
     $evPctChangeCost     = $prevTotalCost > 0 ? round(($totalCost - $prevTotalCost) / $prevTotalCost * 100, 1) : null;
     $evPctChangeCostYear = $lyTotalCost   > 0 ? round(($totalCost - $lyTotalCost)   / $lyTotalCost   * 100, 1) : null;
 
+    // Home vs. external split details (for driver analysis)
+    $homeKwh    = floatval($intMonth['kwh']);
+    $homeCost   = floatval($intMonth['cost']);
+    $extKwh     = floatval($extMonth['kwh']);
+    $extCost    = floatval($extMonth['cost']);
+    $homeCpKwh  = $homeKwh > 0 ? round($homeCost / $homeKwh, 3) : null;
+    $extCpKwh   = $extKwh  > 0 ? round($extCost  / $extKwh,  3) : null;
+    $prevExtPct = $prevTotalKwh > 0 ? round($extPrevKwh / $prevTotalKwh * 100, 1) : null;
+
     $hpDailyAvg     = $daysThisMonth > 0 ? round($hpCurrent / $daysThisMonth, 2) : null;
     $hpProjected    = $daysThisMonth > 0 ? round($hpCurrent  / $daysThisMonth * $daysInMonth, 1) : null;
 
@@ -262,6 +271,15 @@ try {
             'pct_change_cost'      => $evPctChangeCost,
             'pct_change_year_cost' => $evPctChangeCostYear,
             'sparkline'            => $evSparkline,
+            // Home/external split
+            'home_kwh'             => round($homeKwh, 2),
+            'home_cost'            => round($homeCost, 2),
+            'home_cpkwh'           => $homeCpKwh,
+            'ext_kwh'              => round($extKwh, 2),
+            'ext_cost'             => round($extCost, 2),
+            'ext_cpkwh'            => $extCpKwh,
+            'ext_cnt'              => intval($extMonth['cnt']),
+            'prev_ext_kwh_pct'     => $prevExtPct,
         ],
         'heatpump' => [
             'month_kwh'           => round($hpCurrent, 2),
@@ -278,6 +296,8 @@ try {
             'month_kwh'       => round($husCurrentKwh, 2),
             'pct_change'      => $husPctChange,
             'pct_change_year' => $husPctChangeYear,
+            'ev_home_kwh'     => round($homeKwh, 2),
+            'hp_kwh'          => round($hpCurrent, 2),
             'daily_avg_kwh'   => $husDailyAvg,
             'projected_kwh'   => $husProjected,
             'sparkline'       => $husSparkline,

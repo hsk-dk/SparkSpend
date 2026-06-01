@@ -7,12 +7,28 @@
 
 const annualApp = (() => {
     let chartInstance = null;
+    let _mode = 'kwh';
+    let _data = null;
 
     // ── Init ──────────────────────────────────────────────────────────────────
     function init() {
         const loadingEl = document.getElementById('annualLoading');
         const contentEl = document.getElementById('annualContent');
         if (!loadingEl || !contentEl) return;
+
+        // Wire kWh / kr toggle
+        document.getElementById('annualKwhBtn')?.addEventListener('click', () => {
+            _mode = 'kwh';
+            document.getElementById('annualKwhBtn')?.classList.add('active');
+            document.getElementById('annualKrBtn')?.classList.remove('active');
+            if (_data) _renderChart(_data);
+        });
+        document.getElementById('annualKrBtn')?.addEventListener('click', () => {
+            _mode = 'kr';
+            document.getElementById('annualKrBtn')?.classList.add('active');
+            document.getElementById('annualKwhBtn')?.classList.remove('active');
+            if (_data) _renderChart(_data);
+        });
 
         loadingEl.innerHTML = 'Indlæser…';
         loadingEl.style.display = '';
@@ -29,6 +45,7 @@ const annualApp = (() => {
             .then(({ ok, data, raw }) => {
                 if (raw !== null) throw new Error('Server returnerede ikke JSON: ' + raw.slice(0, 200));
                 if (!ok || data.error) throw new Error(data?.error || 'HTTP fejl');
+                _data = data;
                 // Make content visible before chart init so Chart.js can measure canvas dimensions
                 loadingEl.style.display = 'none';
                 contentEl.style.display = '';
@@ -47,38 +64,70 @@ const annualApp = (() => {
         return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 1 }).format(v) + '\u00a0kWh';
     }
 
+    function _fmtKr(v) {
+        return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(v) + '\u00a0kr';
+    }
+
     // ── Chart ─────────────────────────────────────────────────────────────────
     function _renderChart(data) {
         const canvas = document.getElementById('annualChart');
+        const noteEl = document.getElementById('annualKrNote');
         if (!canvas) return;
 
         if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
         const labels = data.years.map(y => y.year);
-        const hasHus = data.years.some(y => y.hus !== null);
 
-        const datasets = [
-            {
-                label: 'El-bil kWh',
-                data: data.years.map(y => y.ev.kwh),
+        let datasets, yLabel, tooltipFmt;
+
+        if (_mode === 'kr') {
+            datasets = [{
+                label: 'El-bil kr',
+                data: data.years.map(y => y.ev.cost),
                 backgroundColor: 'rgba(59, 130, 246, 0.8)',
                 borderRadius: 3,
-            },
-            {
-                label: 'Jordvarme kWh',
-                data: data.years.map(y => y.heatpump.kwh),
-                backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                borderRadius: 3,
-            },
-        ];
+            }];
+            yLabel = 'kr';
+            tooltipFmt = ctx => ' ' + ctx.dataset.label + ': ' + _fmtKr(ctx.raw);
+            if (noteEl) noteEl.style.display = '';
+        } else {
+            const hasHus = data.years.some(y => y.hus !== null);
+            datasets = [
+                {
+                    label: 'El-bil kWh',
+                    data: data.years.map(y => y.ev.kwh),
+                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                    borderRadius: 3,
+                },
+                {
+                    label: 'Jordvarme kWh',
+                    data: data.years.map(y => y.heatpump.kwh),
+                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                    borderRadius: 3,
+                },
+            ];
+            if (hasHus) {
+                datasets.push({
+                    label: 'Hus total kWh',
+                    data: data.years.map(y => y.hus?.kwh ?? 0),
+                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                    borderRadius: 3,
+                });
+            }
+            yLabel = 'kWh';
+            tooltipFmt = ctx => ' ' + ctx.dataset.label + ': ' + _fmtKwh(ctx.raw);
+            if (noteEl) noteEl.style.display = 'none';
+        }
 
-        if (hasHus) {
-            datasets.push({
-                label: 'Hus total kWh',
-                data: data.years.map(y => y.hus?.kwh ?? 0),
-                backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                borderRadius: 3,
-            });
+        if (chartInstance) {
+            // In-place update — avoids destroy/recreate on mode toggle
+            chartInstance.data.labels = labels;
+            chartInstance.data.datasets.length = 0;
+            datasets.forEach(ds => chartInstance.data.datasets.push(ds));
+            chartInstance.options.scales.y.title.text = yLabel;
+            chartInstance.options.plugins.tooltip.callbacks.label = tooltipFmt;
+            chartInstance.update('none');
+            return;
         }
 
         chartInstance = new Chart(canvas.getContext('2d'), {
@@ -90,16 +139,14 @@ const annualApp = (() => {
                     legend: { position: 'top' },
                     datalabels: { display: false },
                     tooltip: {
-                        callbacks: {
-                            label: ctx => ' ' + ctx.dataset.label + ': ' + _fmtKwh(ctx.raw),
-                        },
+                        callbacks: { label: tooltipFmt },
                     },
                 },
                 scales: {
                     x: { grid: { display: false } },
                     y: {
                         beginAtZero: true,
-                        title: { display: true, text: 'kWh' },
+                        title: { display: true, text: yLabel },
                         ticks: {
                             callback: v => new Intl.NumberFormat('da-DK').format(v),
                         },

@@ -879,7 +879,16 @@ class QueryBuilder {
     public static function fileCacheWrite(string $key, string $json): void {
         $dir  = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
         $file = $dir . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
-        @file_put_contents($file, $json);
+        $handle = @fopen($file, 'c');
+        if ($handle === false) return;
+        if (flock($handle, LOCK_EX)) {
+            ftruncate($handle, 0);
+            rewind($handle);
+            fwrite($handle, $json);
+            fflush($handle);
+            flock($handle, LOCK_UN);
+        }
+        fclose($handle);
     }
 
     /**

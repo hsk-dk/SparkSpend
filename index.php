@@ -40,7 +40,7 @@ require 'includes/QueryBuilder.php';
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260529">
+  <link rel="stylesheet" href="includes/style.css?v=20260601b">
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0"></script>
 
@@ -177,8 +177,17 @@ require 'includes/QueryBuilder.php';
           </div>
         </div>
         <div class="dash-meta">
-          <span class="dash-split"></span>
           <span class="dash-projected"></span>
+        </div>
+        <div class="dash-split-wrap" style="display:none">
+          <div class="dash-split-track">
+            <div class="dash-split-home-fill"></div>
+            <div class="dash-split-ext-fill"></div>
+          </div>
+          <div class="dash-split-labels">
+            <span class="dash-split-home-lbl"></span>
+            <span class="dash-split-ext-lbl"></span>
+          </div>
         </div>
         <div class="dash-trend"></div>
         <div class="dash-sparkline">
@@ -188,11 +197,11 @@ require 'includes/QueryBuilder.php';
           <div class="dash-progress-bar"><div class="dash-progress-fill" id="ev-budget-fill"></div></div>
           <div class="dash-progress-label" id="ev-budget-label"></div>
         </div>
+        <div class="dash-sync" id="ev-sync-label"></div>
       </div>
     </div>
 
     <!-- Heatpump Dashboard Card -->
-    <div class="dashboard-card" id="hp-dashboard-card" onclick="SparkNav.navigateTo('jordvarme-section')">
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-fire"></i></span>
         <div>
@@ -210,6 +219,10 @@ require 'includes/QueryBuilder.php';
             <div class="dash-stat-daily dash-stat-value">—</div>
             <div class="dash-stat-label">kWh/dag</div>
           </div>
+          <div class="dash-stat" id="hp-cost-stat" style="display:none">
+            <div class="dash-est-cost dash-stat-value">—</div>
+            <div class="dash-stat-label">~kr</div>
+          </div>
         </div>
         <div class="dash-meta">
           <span class="dash-projected"></span>
@@ -222,6 +235,7 @@ require 'includes/QueryBuilder.php';
           <div class="dash-progress-bar"><div class="dash-progress-fill" id="hp-budget-fill"></div></div>
           <div class="dash-progress-label" id="hp-budget-label"></div>
         </div>
+        <div class="dash-sync" id="hp-sync-label"></div>
       </div>
     </div>
 
@@ -244,14 +258,34 @@ require 'includes/QueryBuilder.php';
             <div class="dash-stat-daily dash-stat-value">—</div>
             <div class="dash-stat-label">kWh/dag</div>
           </div>
+          <div class="dash-stat" id="hus-cost-stat" style="display:none">
+            <div class="dash-est-cost dash-stat-value">—</div>
+            <div class="dash-stat-label">~kr</div>
+          </div>
         </div>
         <div class="dash-meta">
           <span class="dash-projected"></span>
+        </div>
+        <div class="dash-split-wrap" id="hus-split-wrap" style="display:none">
+          <div class="dash-split-track">
+            <div class="dash-split-ev-fill"></div>
+            <div class="dash-split-hp-fill"></div>
+            <div class="dash-split-rest-fill"></div>
+          </div>
+          <div class="dash-split-labels">
+            <span class="dash-split-ev-lbl"></span>
+            <span class="dash-split-rest-lbl"></span>
+          </div>
         </div>
         <div class="dash-trend"></div>
         <div class="dash-sparkline">
           <canvas id="hus-sparkline"></canvas>
         </div>
+        <div class="dash-progress" id="hus-budget-progress" style="display:none">
+          <div class="dash-progress-bar"><div class="dash-progress-fill" id="hus-budget-fill"></div></div>
+          <div class="dash-progress-label" id="hus-budget-label"></div>
+        </div>
+        <div class="dash-sync" id="hus-sync-label"></div>
       </div>
     </div>
 
@@ -264,6 +298,19 @@ require 'includes/QueryBuilder.php';
       <span>Afvigelser fra samme periode sidste år</span>
     </div>
     <div id="anomaly-list"></div>
+  </div>
+  <div id="anomaly-ok" class="anomaly-ok" style="display:none">
+    <i class="fas fa-check-circle"></i> Ingen afvigelser detekteret
+  </div>
+
+  <!-- Elspot Forecast Widget -->
+  <div id="elspot-forecast-card" class="card p-4 mt-4" style="display:none">
+    <div class="d-flex align-items-baseline justify-content-between gap-2 mb-1">
+      <h3 class="mb-0">Elpris i morgen</h3>
+      <span class="text-muted small" id="elspot-forecast-meta"></span>
+    </div>
+    <div id="elspot-forecast-chart"></div>
+    <div id="elspot-cheapest-window" class="mt-2 small"></div>
   </div>
 
 </section>
@@ -325,14 +372,14 @@ require 'includes/QueryBuilder.php';
 
   <div class="table-responsive">
     <table>
-    <thead>
+    <thead id="chargeTableHead">
       <tr>
-        <th>Dato</th>
-        <th>Forbrugt kWh</th>
+        <th data-sort="datetime">Dato <span class="sort-arrow"></span></th>
+        <th data-sort="kwh">Forbrugt kWh <span class="sort-arrow"></span></th>
         <th>Varighed</th>
-        <th>Pris</th>
-		<th>Pris pr kWh</th>
-        <th>Bil</th>
+        <th data-sort="pris">Pris <span class="sort-arrow"></span></th>
+        <th data-sort="ppkwh">Pris pr kWh <span class="sort-arrow"></span></th>
+        <th data-sort="vehicle">Bil <span class="sort-arrow"></span></th>
         <th>Type</th>
         <th>Handling</th>
       </tr>
@@ -518,6 +565,15 @@ require 'includes/QueryBuilder.php';
       <h3>Ladesteder</h3>
       <div id="providerStatsContent">
         <p class="text-muted small">Indlæser data...</p>
+      </div>
+    </div>
+
+    <!-- Time-of-use heatmap card -->
+    <div class="card p-4 mt-4" id="touHeatmapCard">
+      <h3>Elspot-tidsmønster</h3>
+      <p class="text-muted small mb-3">Gennemsnitlig elpris (kr/kWh inkl. afgifter) og dine ladninger fordelt på time og ugedag — seneste 90 dage.</p>
+      <div id="touHeatmapContainer">
+        <p class="text-muted small">Kræver elspot-konfiguration (ELSPOT_AREA + ELSPOT_GLN).</p>
       </div>
     </div>
 
@@ -743,13 +799,20 @@ require 'includes/QueryBuilder.php';
 
 <section id="aarsrapport-section" class="tab-section">
   <div class="card p-4">
-    <h3>Årsrapport</h3>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+      <h3 class="mb-0">Årsrapport</h3>
+      <div class="hp-mode-nav">
+        <button class="hp-mode-btn active" id="annualKwhBtn">kWh</button>
+        <button class="hp-mode-btn" id="annualKrBtn">kr</button>
+      </div>
+    </div>
     <p class="text-muted mb-3">Samlet energiforbrug pr. kalenderår på tværs af el-bil, jordvarme og hus.</p>
     <div id="annualLoading" class="text-muted py-3">Indlæser…</div>
     <div id="annualContent" style="display:none">
       <div class="row mb-2">
         <div class="col-lg-9 col-md-12">
           <canvas id="annualChart"></canvas>
+          <p id="annualKrNote" class="text-muted small mt-1" style="display:none">Viser kun EV-pris — jordvarme og husforbrug kræver elspot-konfiguration for omkostningsberegning.</p>
         </div>
       </div>
       <div id="annualTable"></div>
@@ -819,10 +882,17 @@ require 'includes/QueryBuilder.php';
             <span class="input-group-text">kr</span>
           </div>
         </div>
-        <div class="mb-1">
+        <div class="mb-3">
           <label for="budgetHpKwh" class="form-label small fw-semibold">Jordvarme — månedligt mål (kWh)</label>
           <div class="input-group input-group-sm">
             <input type="number" class="form-control" id="budgetHpKwh" min="0" step="50" placeholder="f.eks. 800">
+            <span class="input-group-text">kWh</span>
+          </div>
+        </div>
+        <div class="mb-1">
+          <label for="budgetHusKwh" class="form-label small fw-semibold">Hus — månedligt mål (kWh)</label>
+          <div class="input-group input-group-sm">
+            <input type="number" class="form-control" id="budgetHusKwh" min="0" step="50" placeholder="f.eks. 1500">
             <span class="input-group-text">kWh</span>
           </div>
         </div>
@@ -846,13 +916,13 @@ require 'includes/QueryBuilder.php';
   <script src="includes/app.js?v=20260528"></script>
 
   <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260529"></script>
-  <script src="includes/dashboard.js?v=20260529"></script>
-  <script src="includes/elbil.js?v=20260529"></script>
-  <script src="includes/jordvarme.js?v=20260530d"></script>
-  <script src="includes/hus.js?v=20260528"></script>
-  <script src="includes/regning.js?v=20260529"></script>
-  <script src="includes/annual.js?v=20260529"></script>
+  <script src="includes/nav.js?v=20260601c"></script>
+  <script src="includes/dashboard.js?v=20260601c"></script>
+  <script src="includes/elbil.js?v=20260601d"></script>
+  <script src="includes/jordvarme.js?v=20260601"></script>
+  <script src="includes/hus.js?v=20260601"></script>
+  <script src="includes/regning.js?v=20260531"></script>
+  <script src="includes/annual.js?v=20260601"></script>
 
   <!-- Sync Status Modal JS -->
   <script>
@@ -1022,24 +1092,30 @@ require 'includes/QueryBuilder.php';
       const modal    = document.getElementById('budgetModal');
       const evInput  = document.getElementById('budgetEvKr');
       const hpInput  = document.getElementById('budgetHpKwh');
+      const husInput = document.getElementById('budgetHusKwh');
       const saveBtn  = document.getElementById('budgetSaveBtn');
       const clearBtn = document.getElementById('budgetClearBtn');
       if (!modal) return;
 
       modal.addEventListener('show.bs.modal', () => {
-          const ev = localStorage.getItem('sparkspend_budget_ev_kr');
-          const hp = localStorage.getItem('sparkspend_budget_hp_kwh');
-          evInput.value = ev !== null ? ev : '';
-          hpInput.value = hp !== null ? hp : '';
+          const ev  = localStorage.getItem('sparkspend_budget_ev_kr');
+          const hp  = localStorage.getItem('sparkspend_budget_hp_kwh');
+          const hus = localStorage.getItem('sparkspend_budget_hus_kwh');
+          evInput.value  = ev  !== null ? ev  : '';
+          hpInput.value  = hp  !== null ? hp  : '';
+          husInput.value = hus !== null ? hus : '';
       });
 
       saveBtn?.addEventListener('click', () => {
-          const ev = parseFloat(evInput.value);
-          const hp = parseFloat(hpInput.value);
-          if (!isNaN(ev) && ev > 0) localStorage.setItem('sparkspend_budget_ev_kr',  String(ev));
-          else                       localStorage.removeItem('sparkspend_budget_ev_kr');
-          if (!isNaN(hp) && hp > 0) localStorage.setItem('sparkspend_budget_hp_kwh', String(hp));
-          else                       localStorage.removeItem('sparkspend_budget_hp_kwh');
+          const ev  = parseFloat(evInput.value);
+          const hp  = parseFloat(hpInput.value);
+          const hus = parseFloat(husInput.value);
+          if (!isNaN(ev)  && ev  > 0) localStorage.setItem('sparkspend_budget_ev_kr',   String(ev));
+          else                         localStorage.removeItem('sparkspend_budget_ev_kr');
+          if (!isNaN(hp)  && hp  > 0) localStorage.setItem('sparkspend_budget_hp_kwh',  String(hp));
+          else                         localStorage.removeItem('sparkspend_budget_hp_kwh');
+          if (!isNaN(hus) && hus > 0) localStorage.setItem('sparkspend_budget_hus_kwh', String(hus));
+          else                         localStorage.removeItem('sparkspend_budget_hus_kwh');
           bootstrap.Modal.getInstance(modal)?.hide();
           loadDashboard();
       });
@@ -1047,8 +1123,10 @@ require 'includes/QueryBuilder.php';
       clearBtn?.addEventListener('click', () => {
           localStorage.removeItem('sparkspend_budget_ev_kr');
           localStorage.removeItem('sparkspend_budget_hp_kwh');
-          evInput.value = '';
-          hpInput.value = '';
+          localStorage.removeItem('sparkspend_budget_hus_kwh');
+          evInput.value  = '';
+          hpInput.value  = '';
+          husInput.value = '';
           bootstrap.Modal.getInstance(modal)?.hide();
           loadDashboard();
       });

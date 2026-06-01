@@ -44,6 +44,59 @@ $_cached   = QueryBuilder::fileCacheRead($_cacheKey, 300);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Returns sum of HDD for the given date range (inclusive), or null on failure.
+ * Reuses the same file-cache as getWeatherData.php to avoid duplicate API calls.
+ */
+function _anomalyFetchHddSum(string $start, string $end, float $lat, float $lon): ?float
+{
+    $cacheDir  = rtrim($GLOBALS['cacheDir'] ?? sys_get_temp_dir(), '/\\');
+    $cacheKey  = md5($start . '|' . $end . '|' . round($lat, 4) . '|' . round($lon, 4) . '|v1');
+    $cacheFile = $cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_weather_' . $cacheKey . '.json';
+
+    $json = null;
+    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+        $json = file_get_contents($cacheFile);
+    }
+
+    if ($json === null) {
+        // Fetch from Open-Meteo (best-effort; 5s timeout)
+        $url = 'https://archive-api.open-meteo.com/v1/archive?' . http_build_query([
+            'latitude'   => $lat,
+            'longitude'  => $lon,
+            'start_date' => $start,
+            'end_date'   => $end,
+            'daily'      => 'temperature_2m_mean',
+            'timezone'   => 'Europe/Copenhagen',
+        ]);
+        $ctx  = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+        $raw  = @file_get_contents($url, false, $ctx);
+        if ($raw === false) return null;
+        $data = json_decode($raw, true);
+        if (!is_array($data) || !isset($data['daily']['time'])) return null;
+
+        $times  = $data['daily']['time']                ?? [];
+        $temps  = $data['daily']['temperature_2m_mean'] ?? [];
+        $recs   = [];
+        foreach ($times as $i => $date) {
+            $t = $temps[$i] ?? null;
+            if ($t === null) continue;
+            $recs[] = ['date' => $date, 'hdd' => round(max(0.0, 17.0 - (float)$t), 2), 'mean_temp_c' => round((float)$t, 1)];
+        }
+        $json = json_encode(['records' => $recs]);
+        @file_put_contents($cacheFile, $json);
+    }
+
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded['records'] ?? null)) return null;
+
+    $sum = 0.0;
+    foreach ($decoded['records'] as $rec) {
+        $sum += (float)($rec['hdd'] ?? 0);
+    }
+    return $sum;
+}
+
 try {
     $today      = new DateTimeImmutable('today');
     $dayOfMonth = (int)$today->format('j');
@@ -180,6 +233,26 @@ try {
     // =========================================================================
     $severityRank = ['critical' => 0, 'warning' => 1, 'info' => 2];
     usort($anomalies, fn($a, $b) => $severityRank[$a['severity']] <=> $severityRank[$b['severity']]);
+
+    // =========================================================================
+    // Possible cause: weather vs. consumption
+    // If current-period HDD is ≥ 40% above baseline HDD → suggest 'vejr'
+    // =========================================================================
+    if (!empty($anomalies)) {
+        $lat = (float)($GLOBALS['weatherLat'] ?? 0);
+        $lon = (float)($GLOBALS['weatherLon'] ?? 0);
+        if ($lat !== 0.0 || $lon !== 0.0) {
+            $hddCur = _anomalyFetchHddSum($curMonthStart, $curMonthEnd, $lat, $lon);
+            $hddLy  = _anomalyFetchHddSum($lyMonthStart,  $lyMonthEnd,  $lat, $lon);
+            $hddPct = ($hddLy > 0 && $hddCur !== null && $hddLy !== null)
+                ? ($hddCur / $hddLy - 1) * 100
+                : null;
+            foreach ($anomalies as &$anomaly) {
+                $anomaly['possible_cause'] = ($hddPct !== null && $hddPct >= 40.0) ? 'vejr' : 'forbrug';
+            }
+            unset($anomaly);
+        }
+    }
 
     $json = json_encode(['anomalies' => $anomalies, 'insufficient_data' => false]);
     QueryBuilder::fileCacheWrite($_cacheKey, $json);

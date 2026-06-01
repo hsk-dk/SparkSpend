@@ -52,6 +52,7 @@ $start = isset($_GET['start']) ? trim($_GET['start']) : '';
 $end   = isset($_GET['end'])   ? trim($_GET['end'])   : '';
 $area  = isset($_GET['area'])  ? trim($_GET['area'])  : '';
 $gln   = isset($_GET['gln'])   ? trim($_GET['gln'])   : '';
+$format = isset($_GET['format']) ? trim($_GET['format']) : 'daily';
 
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
     !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)   ||
@@ -59,6 +60,11 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
     !preg_match('/^\d+$/', $gln)) {
     http_response_code(400);
     echo json_encode(['error' => 'Ugyldige parametre. Forventet: start, end (YYYY-MM-DD), area (DK1|DK2), gln (tal).']);
+    exit;
+}
+if (!in_array($format, ['daily', 'hourly'], true)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'format skal v\u00e6re daily eller hourly.']);
     exit;
 }
 
@@ -70,7 +76,7 @@ if ($end < $start) {
 
 // ─── File cache ──────────────────────────────────────────────────────────────
 
-$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|v' . CACHE_VERSION);
+$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|' . $format . '|v' . CACHE_VERSION);
 $_cacheDir = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
 $cacheFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_' . $cacheKey . '.json';
 
@@ -255,9 +261,10 @@ if (!$nettarifRecords) {
 
 // ─── 4. Assemble daily records (hour-by-hour cost matching) ─────────────────
 
-$dailyRecords = [];
-$cursor       = new DateTime($start);
-$endDate      = new DateTime($end);
+$dailyRecords  = [];
+$hourlyRecords = [];
+$cursor        = new DateTime($start);
+$endDate       = new DateTime($end);
 
 while ($cursor <= $endDate) {
     $date  = $cursor->format('Y-m-d');
@@ -268,11 +275,13 @@ while ($cursor <= $endDate) {
     } else {
         $sum = 0.0;
         foreach ($hours as $entry) {
-            $h   = $entry['h'];
-            $sys = tariff_for_hour($systemtarifRecords, $date, $h);
-            $ela = ELAFGIFT_HP_KR_KWH; // procesformål reduced rate (heat pump)
-            $net = tariff_for_hour($nettarifRecords,    $date, $h);
-            $sum += ($entry['s'] + $sys + $ela + $net) * VAT_FACTOR;
+            $h         = $entry['h'];
+            $sys       = tariff_for_hour($systemtarifRecords, $date, $h);
+            $ela       = ELAFGIFT_HP_KR_KWH; // procesformål reduced rate (heat pump)
+            $net       = tariff_for_hour($nettarifRecords,    $date, $h);
+            $hourKrKwh = ($entry['s'] + $sys + $ela + $net) * VAT_FACTOR;
+            $sum      += $hourKrKwh;
+            $hourlyRecords[] = ['date' => $date, 'hour' => $entry['h'], 'kr_kwh' => round($hourKrKwh, 4)];
         }
         $krKwh = $sum / count($hours);
     }
@@ -307,7 +316,7 @@ $components = [
 // ─── 6. Cache and respond ────────────────────────────────────────────────────
 
 $response = json_encode([
-    'records'    => $dailyRecords,
+    'records'    => $format === 'hourly' ? $hourlyRecords : $dailyRecords,
     'components' => $components,
 ]);
 

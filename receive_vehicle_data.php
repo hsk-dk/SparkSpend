@@ -17,10 +17,7 @@ try {
     // Validate request method
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405);
-        echo json_encode([
-            "status" => "error",
-            "message" => "Method not allowed"
-        ]);
+        echo json_encode(['error' => 'Method not allowed']);
         exit;
     }
 
@@ -28,32 +25,23 @@ try {
     $raw_input = file_get_contents('php://input');
     if ($raw_input === false) {
         http_response_code(400);
-        error_log("Error reading input data in receive_vehicle_data.php");
-        echo json_encode([
-            "status" => "error",
-            "message" => "Error reading input data"
-        ]);
+        error_log('Error reading input data in receive_vehicle_data.php');
+        echo json_encode(['error' => 'Error reading input data']);
         exit;
     }
 
     $input = json_decode($raw_input, true);
     if ($input === null) {
         http_response_code(400);
-        error_log("JSON decode error in receive_vehicle_data.php: " . json_last_error_msg());
-        echo json_encode([
-            "status" => "error",
-            "message" => "Invalid JSON format"
-        ]);
+        error_log('JSON decode error in receive_vehicle_data.php: ' . json_last_error_msg());
+        echo json_encode(['error' => 'Invalid JSON format']);
         exit;
     }
 
     // Validate required fields
     if (!isset($input['vehicleId']) || !isset($input['odometer'])) {
         http_response_code(400);
-        echo json_encode([
-            "status" => "error",
-            "message" => "Missing vehicleId or odometer"
-        ]);
+        echo json_encode(['error' => 'Missing vehicleId or odometer']);
         exit;
     }
 
@@ -62,13 +50,13 @@ try {
 
     if ($vehicleId <= 0) {
         http_response_code(400);
-        echo json_encode(["status" => "error", "message" => "vehicleId must be a positive integer"]);
+        echo json_encode(['error' => 'vehicleId must be a positive integer']);
         exit;
     }
 
     if (!is_numeric($odometer) || (float)$odometer <= 0 || (float)$odometer >= 2000000) {
         http_response_code(400);
-        echo json_encode(["status" => "error", "message" => "odometer must be a number between 0 and 2,000,000"]);
+        echo json_encode(['error' => 'odometer must be a number between 0 and 2,000,000']);
         exit;
     }
 
@@ -84,7 +72,7 @@ try {
     $existing = QueryBuilder::selectVehicleById($db, $vehicleId);
     if ($existing === null && $vehicleName === '') {
         http_response_code(422);
-        echo json_encode(["status" => "error", "message" => "Unknown vehicleId and no vehicleName provided to create it"]);
+        echo json_encode(['error' => 'Unknown vehicleId and no vehicleName provided to create it']);
         exit;
     }
 
@@ -99,15 +87,10 @@ try {
 
     if ($result) {
         http_response_code(201);
-        echo json_encode([
-            "status" => "success",
-            "message" => "Data stored"
-        ]);
+        echo json_encode(['status' => 'success', 'message' => 'Data stored']);
     } else {
         http_response_code(500);
-        echo json_encode([
-            "status" => "error",
-            "message" => "Error storing data"
+        echo json_encode(['error' => 'Error storing data']);
         ]);
     }
 

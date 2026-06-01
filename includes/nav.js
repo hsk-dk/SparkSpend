@@ -12,6 +12,7 @@
 
 const SparkNav = (() => {
     let currentTab = 'oversigt-section';
+    let _hashDateRange    = null;   // set by readHash(), consumed by elbilApp.init()
     let dashboardLoaded   = false;
     let elbilLoaded       = false;
     let jordvarmeLoaded   = false;
@@ -219,6 +220,11 @@ const SparkNav = (() => {
         if (currentTab === 'elbil-section') {
             const sub = _getActiveElbilSubId().replace('elbil-', '');
             hash = '#elbil/' + sub;
+            // Append date range on the ladninger sub-tab
+            if (sub === 'ladninger') {
+                const dr = window.elbilApp?.getDateRange?.();
+                if (dr) hash += '?dr=' + dr.start + '_' + dr.end;
+            }
         } else if (currentTab === 'jordvarme-section') {
             hash = '#jordvarme';
         } else if (currentTab === 'hus-section') {
@@ -231,7 +237,19 @@ const SparkNav = (() => {
     }
 
     function readHash() {
-        const hash = location.hash.slice(1);
+        const rawHash = location.hash.slice(1);
+        // Split path from query string: elbil/ladninger?dr=2026-05-01_2026-05-31
+        const [hash, hashQuery] = rawHash.split('?');
+        // Parse optional date range param
+        _hashDateRange = null;
+        if (hashQuery) {
+            const params = new URLSearchParams(hashQuery);
+            const dr = params.get('dr');
+            if (dr) {
+                const [start, end] = dr.split('_');
+                if (start && end) _hashDateRange = { start, end };
+            }
+        }
         if (hash.startsWith('elbil')) {
             const parts = hash.split('/');
             const sub = parts[1] ? 'elbil-' + parts[1] : 'elbil-ladninger';
@@ -294,7 +312,7 @@ const SparkNav = (() => {
         }
     }
 
-    return { init, switchMainTab, switchSubTab, switchHusSubTab, navigateTo };
+    return { init, switchMainTab, switchSubTab, switchHusSubTab, navigateTo, getHashDateRange: () => _hashDateRange };
 })();
 
 window.SparkNav = SparkNav;

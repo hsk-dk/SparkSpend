@@ -10,6 +10,7 @@ let _evSparkChart  = null;
 let _hpSparkChart  = null;
 let _husSparkChart = null;
 let _hpWeatherAbort = null;
+let _costEnrichAbort = null;
 
 async function loadDashboard() {
     const cards = ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'];
@@ -31,6 +32,12 @@ async function loadDashboard() {
         }
         // Anomaly detection runs after card data is available (async, best-effort)
         loadAnomalies();
+        // Async cost enrichment for VP and Hus cards
+        _enrichCardsWithCost(data.heatpump, data.hus || null);
+        // Elspot day-ahead forecast widget
+        loadElspotForecast();
+        // Sync-status enrichment — async, non-blocking
+        _enrichSyncLabels();
     } catch (e) {
         console.error('Dashboard load error:', e);
         ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'].forEach(id => {
@@ -54,8 +61,23 @@ function renderEvCard(ev) {
     _setText(card, '.dash-stat-kwh', ev.month_kwh.toFixed(1) + ' kWh');
     _setText(card, '.dash-stat-cost', ev.month_cost.toFixed(0) + ' kr');
     _setText(card, '.dash-stat-cpkwh', ev.cost_per_kwh !== null ? ev.cost_per_kwh.toFixed(2) + ' kr/kWh' : '—');
-    _setText(card, '.dash-split', ev.home_kwh_pct !== null ? ev.home_kwh_pct.toFixed(0) + '% hjemme' : '');
     _setText(card, '.dash-projected', ev.projected_cost !== null ? 'Forventet: ' + ev.projected_cost + ' kr' : '');
+
+    // Home / external split bar
+    const splitWrap = card.querySelector('.dash-split-wrap');
+    if (splitWrap && ev.month_kwh > 0) {
+        const homePct = ev.home_kwh / ev.month_kwh * 100;
+        const extPct  = ev.ext_kwh  / ev.month_kwh * 100;
+        const homeFill = splitWrap.querySelector('.dash-split-home-fill');
+        const extFill  = splitWrap.querySelector('.dash-split-ext-fill');
+        if (homeFill) homeFill.style.width = homePct.toFixed(1) + '%';
+        if (extFill)  extFill.style.width  = extPct.toFixed(1)  + '%';
+        const homeLbl = splitWrap.querySelector('.dash-split-home-lbl');
+        const extLbl  = splitWrap.querySelector('.dash-split-ext-lbl');
+        if (homeLbl) homeLbl.textContent = 'Hjemme' + (ev.home_cpkwh !== null ? ' · ' + ev.home_cpkwh.toFixed(2) + '\u00a0kr/kWh' : '');
+        if (extLbl)  extLbl.textContent  = ev.ext_kwh > 0 ? 'Ude' + (ev.ext_cpkwh !== null ? ' · ' + ev.ext_cpkwh.toFixed(2) + '\u00a0kr/kWh' : '') : '';
+        splitWrap.style.display = '';
+    }
 
     const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
@@ -80,6 +102,17 @@ function renderEvCard(ev) {
             const up = ev.pct_change_year_cost >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_cost)}% pris vs. samme måned sidste år</div>`;
+        }
+        // Driver note: flag if external charging share shifted significantly vs. prev period
+        if (showTrends && ev.prev_ext_kwh_pct !== null && ev.month_kwh > 0) {
+            const curExtPct  = Math.round(ev.ext_kwh / ev.month_kwh * 100);
+            const ppChange   = Math.round(curExtPct - ev.prev_ext_kwh_pct);
+            if (Math.abs(ppChange) >= 5) {
+                const up = ppChange > 0;
+                html += `<div class="trend-neutral">` +
+                        `Udeladning: ${curExtPct}% af kWh (${up ? '↑' : '↓'}${Math.abs(ppChange)}\u00a0pp) ` +
+                        `— ${up ? 'trækker gennemsnitsprisen op' : 'trækker gennemsnitsprisen ned'}</div>`;
+            }
         }
         trendEl.innerHTML = html;
     }
@@ -163,8 +196,32 @@ function renderHusCard(hus) {
         trendEl.className = 'dash-trend';
     }
 
+    // Hus composition split bar: EV home (blue) / Jordvarme (green) / Rest (amber)
+    const splitWrap = card.querySelector('#hus-split-wrap');
+    if (splitWrap && hus.month_kwh > 0 && hus.ev_home_kwh != null && hus.hp_kwh != null) {
+        const evKwh   = Math.min(hus.ev_home_kwh, hus.month_kwh);
+        const hpKwh   = Math.min(hus.hp_kwh, hus.month_kwh - evKwh);
+        const restKwh = Math.max(0, hus.month_kwh - evKwh - hpKwh);
+        const evPct   = evKwh   / hus.month_kwh * 100;
+        const hpPct   = hpKwh   / hus.month_kwh * 100;
+        const restPct = restKwh / hus.month_kwh * 100;
+        const evFill   = splitWrap.querySelector('.dash-split-ev-fill');
+        const hpFill   = splitWrap.querySelector('.dash-split-hp-fill');
+        const restFill = splitWrap.querySelector('.dash-split-rest-fill');
+        if (evFill)   evFill.style.width   = evPct.toFixed(1)   + '%';
+        if (hpFill)   hpFill.style.width   = hpPct.toFixed(1)   + '%';
+        if (restFill) restFill.style.width  = restPct.toFixed(1) + '%';
+        const evLbl   = splitWrap.querySelector('.dash-split-ev-lbl');
+        const restLbl = splitWrap.querySelector('.dash-split-rest-lbl');
+        if (evLbl)   evLbl.textContent   = evPct   >= 5 ? 'EV ' + evPct.toFixed(0)   + '%' : '';
+        if (restLbl) restLbl.textContent = restPct >= 5 ? 'Rest ' + restPct.toFixed(0) + '%' : '';
+        splitWrap.style.display = '';
+    }
+
     const husSparkStart = new Date(); husSparkStart.setDate(husSparkStart.getDate() - 29); husSparkStart.setHours(0,0,0,0);
     _husSparkChart = _renderSparkline('hus-sparkline', hus.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
+    _renderProgress('hus-budget-progress', 'hus-budget-fill', 'hus-budget-label',
+        hus.month_kwh, localStorage.getItem('sparkspend_budget_hus_kwh'), 'kWh');
 }
 
 async function _enrichHpWithWeather(card, hp) {
@@ -270,6 +327,93 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
     });
 }
 
+async function _enrichCardsWithCost(hp, hus) {
+    const area = window.sparkConfig?.elspotArea || '';
+    const gln  = window.sparkConfig?.elspotGln  || '';
+    if (!area || !gln) return;
+
+    if (_costEnrichAbort) { _costEnrichAbort.abort(); }
+    const controller = new AbortController();
+    _costEnrichAbort = controller;
+
+    const now   = new Date();
+    const mm    = String(now.getMonth() + 1).padStart(2, '0');
+    const start = `${now.getFullYear()}-${mm}-01`;
+    const end   = now.toISOString().slice(0, 10);
+
+    try {
+        const res = await fetch(
+            `getElspotPrices.php?start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}`,
+            { signal: controller.signal }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const records = (data.records || []).filter(r => r.kr_kwh > 0);
+        if (records.length === 0) return;
+        const avgKrKwh = records.reduce((s, r) => s + r.kr_kwh, 0) / records.length;
+
+        // Jordvarme — HP procesformål rate (accurate)
+        if (hp && hp.month_kwh > 0) {
+            const cost = Math.round(hp.month_kwh * avgKrKwh);
+            const el = document.getElementById('hp-cost-stat');
+            if (el) {
+                el.querySelector('.dash-est-cost').textContent = cost + ' kr';
+                el.title = `Estimeret: ${hp.month_kwh.toFixed(1)} kWh × ${avgKrKwh.toFixed(3)} kr/kWh\n(inkl. systemtarif, nettarif, procesformål elafgift og moms)`;
+                el.style.display = '';
+            }
+        }
+        // Hus — same rate, approksimation (boligelafgift er højere end procesformål)
+        if (hus && hus.month_kwh > 0) {
+            const cost = Math.round(hus.month_kwh * avgKrKwh);
+            const el = document.getElementById('hus-cost-stat');
+            if (el) {
+                el.querySelector('.dash-est-cost').textContent = cost + ' kr';
+                el.title = `Estimeret: ${hus.month_kwh.toFixed(1)} kWh × ${avgKrKwh.toFixed(3)} kr/kWh\n(approksimation — bruger VP-elpriser; boligelafgift er højere)`;
+                el.style.display = '';
+            }
+        }
+    } catch (e) {
+        if (e.name !== 'AbortError') console.warn('_enrichCardsWithCost:', e);
+    }
+}
+
+async function _enrichSyncLabels() {
+    try {
+        const res  = await fetch('getSyncStatus.php');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data.sources)) return;
+
+        const idMap = { monta: 'ev', heatpump: 'hp', housepowerlog: 'hus', hus: 'hus' };
+        const now   = Date.now();
+
+        data.sources.forEach(src => {
+            const cardPrefix = idMap[src.id];
+            if (!cardPrefix) return;
+            const el = document.getElementById(cardPrefix + '-sync-label');
+            if (!el) return;
+
+            if (!src.last_sync) { el.textContent = ''; return; }
+
+            const syncMs  = new Date(src.last_sync.replace(' ', 'T')).getTime();
+            const diffMin = Math.round((now - syncMs) / 60000);
+            let label;
+            if (diffMin < 2)       label = 'Data: lige nu';
+            else if (diffMin < 60) label = `Data: ${diffMin}\u00a0min siden`;
+            else if (diffMin < 120) label = 'Data: over 1 time gammel';
+            else {
+                const h = Math.round(diffMin / 60);
+                label = `Data: ${h}\u00a0timer gammel`;
+            }
+
+            el.textContent  = label;
+            el.className    = 'dash-sync' + (diffMin >= 240 ? ' dash-sync-stale' : '');
+        });
+    } catch (e) {
+        // Best-effort — never surface errors
+    }
+}
+
 function _monthName() {
     const raw = new Date().toLocaleString('da-DK', { month: 'long', year: 'numeric' });
     return raw.charAt(0).toUpperCase() + raw.slice(1);
@@ -320,8 +464,13 @@ function _renderAnomalies(anomalies) {
 
     if (visible.length === 0) {
         panel.style.display = 'none';
+        // Show "alt normalt" confirmation from day 5 onwards
+        const okEl = document.getElementById('anomaly-ok');
+        if (okEl) okEl.style.display = new Date().getDate() >= 5 ? '' : 'none';
         return;
     }
+    const okEl2 = document.getElementById('anomaly-ok');
+    if (okEl2) okEl2.style.display = 'none';
 
     // Update tab badge dots
     anomalies.forEach(a => {
@@ -346,12 +495,16 @@ function _renderAnomalies(anomalies) {
         const navAttr = a.nav_sub
             ? `onclick="SparkNav.navigateTo('${a.nav_section}', '${a.nav_sub}')"`
             : `onclick="SparkNav.navigateTo('${a.nav_section}')"`;
+        const causeHtml = a.possible_cause
+            ? `<span class="anomaly-cause anomaly-cause-${a.possible_cause}">${a.possible_cause === 'vejr' ? '\u2601\ufe0f Vejret kan v\u00e6re \u00e5rsagen' : '\ud83d\udd0d Tjek forbrugsmm\u00f8ster'}</span>`
+            : '';
         return `
         <div class="anomaly-item">
           <div class="anomaly-item-icon ${a.severity}">${iconMap[a.severity]}</div>
           <div class="anomaly-item-body">
             <div class="anomaly-item-title">${appUtils.escapeHtml(a.title)} — ${a.pct_above}% over baseline</div>
             <div class="anomaly-item-msg">${appUtils.escapeHtml(a.message)}</div>
+            ${causeHtml}
           </div>
           <button class="anomaly-item-action" ${navAttr}>Gå til →</button>
         </div>`;

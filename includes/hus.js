@@ -159,10 +159,11 @@ const husApp = (() => {
 
         // ── Chart rendering ──────────────────────────────────────────────────
         function renderChart(resp) {
-            if (husChart) { husChart.destroy(); husChart = null; }
-
             if (currentMode === 'compare') { _renderCompare(resp.data || []); return; }
             if (currentMode === 'ytd')     { _renderYtd(resp.data || []);     return; }
+
+            // Destroy if chart type changed (compare/ytd use line, stacked uses bar)
+            if (husChart && husChart.config.type !== 'bar') { husChart.destroy(); husChart = null; }
 
             const rows = resp.days || resp.months || [];
 
@@ -223,6 +224,21 @@ const husApp = (() => {
                     borderRadius: 4,
                     stack: 'a',
                 });
+            }
+
+            if (husChart) {
+                // In-place update — avoids destroy/recreate when same mode re-renders
+                husChart.data.labels = labels;
+                husChart.data.datasets.length = 0;
+                datasets.forEach(ds => husChart.data.datasets.push(ds));
+                husChart.options.plugins.tooltip.callbacks.footer = items => {
+                    const idx = items[0]?.dataIndex;
+                    if (idx === undefined) return '';
+                    const total = hpVals[idx] + evVals[idx] + (hasHus ? restVals[idx] : 0);
+                    return `Total: ${total.toFixed(1)} kWh`;
+                };
+                husChart.update('none');
+                return;
             }
 
             husChart = new Chart(ctx, {

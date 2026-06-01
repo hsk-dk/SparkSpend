@@ -21,7 +21,7 @@ class DatabaseManager {
      */
     public static function getChargesDb(): PDO {
         if (self::$chargesDb === null) {
-            self::$chargesDb = self::connect($GLOBALS['dbPath'] ?? 'data/charging_data.db');
+            self::$chargesDb = self::connect($GLOBALS['dbPath'] ?? 'data/charging_data.db', 'charges');
         }
         return self::$chargesDb;
     }
@@ -34,7 +34,7 @@ class DatabaseManager {
      */
     public static function getPowerlogDb(): PDO {
         if (self::$powerlogDb === null) {
-            self::$powerlogDb = self::connect($GLOBALS['powerlogDbPath'] ?? 'data/powerlog_data.db');
+            self::$powerlogDb = self::connect($GLOBALS['powerlogDbPath'] ?? 'data/powerlog_data.db', 'powerlog');
         }
         return self::$powerlogDb;
     }
@@ -54,7 +54,7 @@ class DatabaseManager {
      * @return PDO Configured PDO instance
      * @throws Exception If database file doesn't exist or is not readable
      */
-    private static function connect(string $dbPath): PDO {
+    private static function connect(string $dbPath, string $dbType = 'charges'): PDO {
         // Validate database file
         if (!self::validateDatabaseFile($dbPath)) {
             throw new Exception("Database file not found or not readable: {$dbPath}");
@@ -75,6 +75,21 @@ class DatabaseManager {
 
             // Disable foreign keys by default (SQLite requires explicit enabling)
             $db->setAttribute(PDO::SQLITE_ATTR_OPEN_FLAGS, PDO::SQLITE_OPEN_READWRITE);
+
+            // Ensure performance indexes exist (idempotent — safe to run on every connect)
+            if ($dbType === 'charges') {
+                $db->exec("
+                    CREATE INDEX IF NOT EXISTS idx_charges_stopped    ON charges(stoppedAt);
+                    CREATE INDEX IF NOT EXISTS idx_charges_started    ON charges(startedAt);
+                    CREATE INDEX IF NOT EXISTS idx_charges_vehicle    ON charges(vehicleId);
+                    CREATE INDEX IF NOT EXISTS idx_ext_charges_dt     ON ext_charges(datetime);
+                ");
+            } elseif ($dbType === 'powerlog') {
+                $db->exec("
+                    CREATE INDEX IF NOT EXISTS idx_powerlogjord_dt    ON powerlogjord(logdate);
+                    CREATE INDEX IF NOT EXISTS idx_powerloghus_dt     ON powerloghus(logdate);
+                ");
+            }
 
             return $db;
         } catch (PDOException $e) {

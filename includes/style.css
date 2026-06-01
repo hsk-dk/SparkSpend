@@ -442,6 +442,24 @@ th {
   border-bottom: 2px solid #e2e8f0;
 }
 
+th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+th[data-sort]:hover {
+  background: #e9eef5;
+}
+
+th.sort-active {
+  color: var(--color-primary, #3b82f6);
+}
+
+.sort-arrow {
+  font-style: normal;
+  font-weight: 400;
+}
+
 td {
   padding: 14px 16px;
   border-bottom: 1px solid rgba(107, 163, 255, 0.1);
@@ -1327,8 +1345,9 @@ header {
   font-weight: 500;
 }
 
-.trend-up   { color: var(--color-increase); }
-.trend-down { color: var(--color-decrease); }
+.trend-up      { color: var(--color-increase); }
+.trend-down    { color: var(--color-decrease); }
+.trend-neutral { color: #6b7280; font-style: italic; }
 
 .dash-sparkline {
   height: 52px;
@@ -1347,6 +1366,59 @@ header {
   color: #6b7280;
   margin-bottom: 4px;
 }
+
+/* EV home/external charging split bar */
+.dash-split-wrap {
+  margin-bottom: 5px;
+}
+.dash-split-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #e5e7eb;
+  overflow: hidden;
+  display: flex;
+}
+.dash-split-home-fill {
+  height: 100%;
+  background: #6BA3FF;
+  transition: width 0.4s ease;
+  flex-shrink: 0;
+}
+.dash-split-ext-fill {
+  height: 100%;
+  background: #f59e0b;
+  transition: width 0.4s ease;
+  flex-shrink: 0;
+}
+/* Hus composition segments */
+.dash-split-ev-fill {
+  height: 100%;
+  background: #6BA3FF;
+  transition: width 0.4s ease;
+  flex-shrink: 0;
+}
+.dash-split-hp-fill {
+  height: 100%;
+  background: #22c55e;
+  transition: width 0.4s ease;
+  flex-shrink: 0;
+}
+.dash-split-rest-fill {
+  height: 100%;
+  background: #f59e0b;
+  transition: width 0.4s ease;
+  flex-shrink: 0;
+}
+.dash-split-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.dash-split-home-lbl { color: #4e87e8; }
+.dash-split-ext-lbl  { color: #d97706; }
+.dash-split-ev-lbl   { color: #4e87e8; }
+.dash-split-rest-lbl { color: #d97706; }
 
 /* Budget / goal progress bars */
 .dash-progress {
@@ -1589,6 +1661,31 @@ header {
   backdrop-filter: blur(6px);
 }
 
+.dash-sync {
+  font-size: 10px;
+  color: #9ca3af;
+  text-align: right;
+  margin-top: 4px;
+  min-height: 14px;
+}
+.dash-sync.dash-sync-stale {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.anomaly-ok {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #16a34a;
+  padding: 6px 10px;
+  background: rgba(220, 252, 231, 0.7);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 8px;
+}
+
 .anomaly-panel-header {
   display: flex;
   align-items: center;
@@ -1648,6 +1745,23 @@ header {
   font-size: 0.82rem;
   color: #6b7280;
   margin-top: 2px;
+}
+
+.anomaly-cause {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.76rem;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.anomaly-cause-vejr {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.anomaly-cause-forbrug {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .anomaly-item-action {

@@ -25,6 +25,15 @@ const elbilApp = (() => {
     let currentVehicleSort = null;
     let initialized = false;
 
+    // Sort state for charge table
+    let _allCharges = [];
+    let _sortCol = 'datetime';
+    let _sortDir = 'desc';
+
+    // Pagination
+    const _PAGE_SIZE  = 50;
+    let   _visibleRows = _PAGE_SIZE;
+
     // -------------------------------------------------------------------------
     // DOM refs (resolved at init time, after DOM is ready)
     // -------------------------------------------------------------------------
@@ -43,19 +52,39 @@ const elbilApp = (() => {
         quickFilterEl     = document.getElementById('quickFilter');
         chargeTableBodyEl = document.getElementById('chargeTableBody');
 
+        // Sort header click handler
+        document.getElementById('chargeTableHead')?.addEventListener('click', e => {
+            const th = e.target.closest('th[data-sort]');
+            if (!th) return;
+            const col = th.dataset.sort;
+            if (_sortCol === col) {
+                _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                _sortCol = col;
+                _sortDir = col === 'datetime' ? 'desc' : 'asc';
+            }
+            _applySortAndRender();
+        });
+
         Chart.register(ChartDataLabels);
 
         _setupFlatpickr();
         _setupEventListeners();
         _setupModalFlatpickrs();
 
-        // Default filter: this month
+        // Default filter: this month — or restore from URL hash if present
         setTimeout(() => {
-            const today = new Date();
-            const start = new Date(today.getFullYear(), today.getMonth(), 1);
-            const end   = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            dateRangeEl._flatpickr.setDate([start, end]);
-            quickFilterEl.value = 'month';
+            const hashDr = window.SparkNav?.getHashDateRange?.();
+            if (hashDr) {
+                dateRangeEl._flatpickr.setDate([hashDr.start, hashDr.end]);
+                quickFilterEl.value = '';
+            } else {
+                const today = new Date();
+                const start = new Date(today.getFullYear(), today.getMonth(), 1);
+                const end   = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                dateRangeEl._flatpickr.setDate([start, end]);
+                quickFilterEl.value = 'month';
+            }
             fetchVehicles();
             fetchProviders();
         }, 50);
@@ -64,6 +93,17 @@ const elbilApp = (() => {
     // -------------------------------------------------------------------------
     // Flatpickr setup
     // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Date range helpers
+    // -------------------------------------------------------------------------
+    function getDateRange() {
+        if (!dateRangeEl?._flatpickr) return null;
+        const dates = dateRangeEl._flatpickr.selectedDates;
+        if (dates.length < 2) return null;
+        const fmt = d => d.toISOString().slice(0, 10);
+        return { start: fmt(dates[0]), end: fmt(dates[1]) };
+    }
+
     function _setupFlatpickr() {
         flatpickr(dateRangeEl, {
             mode: 'range',
@@ -74,6 +114,7 @@ const elbilApp = (() => {
                 fetchEfficiencyStats();
                 fetchCostAnalytics();
                 fetchVehicleComparison();
+                window.SparkNav?.updateHash();
             }
         });
     }
@@ -216,12 +257,15 @@ const elbilApp = (() => {
         fetchCostAnalytics();
         fetchVehicleComparison();
         fetchProviderStats();
+        window.SparkNav?.updateHash();
     }
 
     function resetFilters() {
         if (filterEl)      filterEl.value = 'all';
         if (showZeroKwhEl) showZeroKwhEl.checked = false;
         if (quickFilterEl) quickFilterEl.value = 'month';
+        _sortCol = 'datetime';
+        _sortDir = 'desc';
         applyQuickFilter();
     }
 
@@ -306,11 +350,60 @@ const elbilApp = (() => {
         try {
             const res  = await fetch('getCharges.php?' + params);
             const data = await appUtils.handleFetchResponse(res);
-            _renderCharges(data);
+            _allCharges   = data;
+            _visibleRows  = _PAGE_SIZE;
+            _applySortAndRender();
         } catch (e) {
             chargeTableBodyEl.innerHTML =
                 `<tr><td colspan="8" class="text-center text-danger">Fejl: ${e.message}</td></tr>`;
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Sort helpers
+    // -------------------------------------------------------------------------
+    function _sortCharges(data) {
+        return [...data].sort((a, b) => {
+            let av, bv;
+            switch (_sortCol) {
+                case 'datetime': av = a.datetime || ''; bv = b.datetime || ''; break;
+                case 'kwh':      av = parseFloat(a.kwh)  || 0; bv = parseFloat(b.kwh)  || 0; break;
+                case 'pris':     av = parseFloat(a.pris) || 0; bv = parseFloat(b.pris) || 0; break;
+                case 'ppkwh': {
+                    const ak = parseFloat(a.kwh) || 0; av = ak > 0 ? (parseFloat(a.pris) || 0) / ak : 0;
+                    const bk = parseFloat(b.kwh) || 0; bv = bk > 0 ? (parseFloat(b.pris) || 0) / bk : 0;
+                    break;
+                }
+                case 'vehicle': {
+                    av = (vehicles.find(v => v.id == a.vehicleId) || {}).vehicleName || '';
+                    bv = (vehicles.find(v => v.id == b.vehicleId) || {}).vehicleName || '';
+                    break;
+                }
+                default: return 0;
+            }
+            if (av < bv) return _sortDir === 'asc' ? -1 : 1;
+            if (av > bv) return _sortDir === 'asc' ?  1 : -1;
+            return 0;
+        });
+    }
+
+    function _applySortAndRender() {
+        _updateSortHeaders();
+        _renderCharges(_sortCharges(_allCharges));
+    }
+
+    function _updateSortHeaders() {
+        document.querySelectorAll('#chargeTableHead th[data-sort]').forEach(th => {
+            const arrow = th.querySelector('.sort-arrow');
+            if (!arrow) return;
+            if (th.dataset.sort === _sortCol) {
+                arrow.textContent = _sortDir === 'asc' ? ' ↑' : ' ↓';
+                th.classList.add('sort-active');
+            } else {
+                arrow.textContent = '';
+                th.classList.remove('sort-active');
+            }
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -323,6 +416,9 @@ const elbilApp = (() => {
             _updateSummary({}, 0, 0, 0, 0, 0, 0, 0, 0);
             return;
         }
+        const visible   = data.slice(0, _visibleRows);
+        const remaining = data.length - visible.length;
+
         let overallKwh = 0, overallPris = 0;
         let internalCount = 0, externalCount = 0;
         let internalKwh = 0, externalKwh = 0;
@@ -353,7 +449,7 @@ const elbilApp = (() => {
 
         const avgPricePerKwh = overallKwh > 0 ? overallPris / overallKwh : 0;
 
-        data.forEach(charge => {
+        visible.forEach(charge => {
             const kwh      = parseFloat(charge.kwh)  || 0;
             const pris     = parseFloat(charge.pris) || 0;
             const pPerKwh  = kwh > 0 ? pris / kwh : 0;
@@ -427,6 +523,22 @@ const elbilApp = (() => {
             `;
             chargeTableBodyEl.appendChild(row);
         });
+
+        // "Hent flere" button
+        if (remaining > 0) {
+            const moreRow = document.createElement('tr');
+            moreRow.id = 'charges-load-more-row';
+            moreRow.innerHTML = `<td colspan="8" class="text-center py-2">
+                <button class="btn btn-sm btn-outline-secondary" id="charges-load-more-btn">
+                    Vis ${Math.min(remaining, _PAGE_SIZE)} flere <span class="text-muted">(${remaining} tilbage)</span>
+                </button>
+            </td>`;
+            chargeTableBodyEl.appendChild(moreRow);
+            document.getElementById('charges-load-more-btn').addEventListener('click', () => {
+                _visibleRows += _PAGE_SIZE;
+                _applySortAndRender();
+            });
+        }
 
         _updateSummary(totals, overallKwh, overallPris, internalCount, externalCount, internalKwh, externalKwh, internalPrice, externalPrice);
         appUtils.initializeTooltips();
@@ -1251,6 +1363,7 @@ const elbilApp = (() => {
     // Sub-tab hook (called from nav.js when a sub-tab becomes active)
     // -------------------------------------------------------------------------
     let sammenligningLoaded = false;
+    let touLoaded = false;
 
     function onSubTab(subId) {
         if (subId === 'elbil-sammenligning') {
@@ -1260,6 +1373,111 @@ const elbilApp = (() => {
             } else if (evYearCompareChart) {
                 evYearCompareChart.resize();
             }
+        }
+        if (subId === 'elbil-analyse' && !touLoaded) {
+            touLoaded = true;
+            fetchTouHeatmap();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Time-of-use heatmap (Elspot-tidsmønster)
+    // -------------------------------------------------------------------------
+    async function fetchTouHeatmap() {
+        const area = window.sparkConfig?.elspotArea || '';
+        const gln  = window.sparkConfig?.elspotGln  || '';
+        const container = document.getElementById('touHeatmapContainer');
+        if (!container) return;
+        if (!area || !gln) return; // unconfigured — placeholder text already shown
+
+        const now    = new Date();
+        const end    = now.toISOString().slice(0, 10);
+        const d90    = new Date(now); d90.setDate(now.getDate() - 89);
+        const start  = d90.toISOString().slice(0, 10);
+
+        container.innerHTML = '<p class="text-muted small">Indlæser elspot-data…</p>';
+
+        try {
+            const res = await fetch(
+                `getElspotPrices.php?start=${start}&end=${end}` +
+                `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`
+            );
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            const records = data.records || [];
+            if (records.length === 0) {
+                container.innerHTML = '<p class="text-muted small">Ingen prisdata tilgængeligt for den valgte periode.</p>';
+                return;
+            }
+
+            // Aggregate to 7×24 matrix: dow 0=Mon…6=Sun, hour 0-23
+            const sums = Array.from({length: 7}, () => new Float64Array(24));
+            const cnts = Array.from({length: 7}, () => new Int32Array(24));
+            for (const r of records) {
+                const d   = new Date(r.date + 'T12:00:00'); // noon to avoid DST ambiguity
+                const dow = (d.getDay() + 6) % 7;          // 0=Mon
+                sums[dow][r.hour] += r.kr_kwh;
+                cnts[dow][r.hour]++;
+            }
+
+            const dayNames = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'];
+            const hours    = Array.from({length: 24}, (_, h) => h + ':00');
+
+            const priceSeries = dayNames.map((name, dow) => ({
+                name,
+                data: Array.from({length: 24}, (_, h) =>
+                    cnts[dow][h] > 0 ? Math.round(sums[dow][h] / cnts[dow][h] * 1000) / 1000 : 0
+                )
+            }));
+
+            // Charge count overlay using current _allCharges
+            const cCnts = Array.from({length: 7}, () => new Int32Array(24));
+            for (const c of _allCharges) {
+                if (!c.datetime) continue;
+                const cd  = new Date(c.datetime);
+                const dow = (cd.getDay() + 6) % 7;
+                cCnts[dow][cd.getHours()]++;
+            }
+            const chargeSeries = dayNames.map((name, dow) => ({
+                name,
+                data: Array.from({length: 24}, (_, h) => cCnts[dow][h])
+            }));
+
+            container.innerHTML =
+                '<div id="touPriceChart"></div>' +
+                (_allCharges.length > 0 ? '<div id="touChargeChart" class="mt-3"></div>' : '');
+
+            const heatmapOpts = (series, title, color, fmtFn) => ({
+                series,
+                chart: { type: 'heatmap', height: 210, toolbar: { show: false },
+                         animations: { enabled: false } },
+                title: { text: title, align: 'left', style: { fontSize: '13px', fontWeight: 600 } },
+                dataLabels: { enabled: false },
+                colors:     [color],
+                xaxis:      { categories: hours, labels: { rotate: -45, style: { fontSize: '10px' } } },
+                yaxis:      { labels: { style: { fontSize: '11px' } } },
+                tooltip:    { y: { formatter: fmtFn } },
+                plotOptions: { heatmap: { enableShades: true } },
+                legend:     { show: false }
+            });
+
+            new ApexCharts(
+                document.getElementById('touPriceChart'),
+                heatmapOpts(priceSeries, 'Gns. elpris (kr/kWh inkl. afgifter)', '#22c55e',
+                    v => v > 0 ? v.toFixed(3) + ' kr/kWh' : '—')
+            ).render();
+
+            if (_allCharges.length > 0) {
+                new ApexCharts(
+                    document.getElementById('touChargeChart'),
+                    heatmapOpts(chargeSeries, 'Antal ladninger pr. time/ugedag', '#6BA3FF',
+                        v => v + ' ladning' + (v === 1 ? '' : 'er'))
+                ).render();
+            }
+        } catch (e) {
+            console.error('fetchTouHeatmap:', e);
+            if (container) container.innerHTML =
+                '<p class="text-danger small">Kunne ikke indlæse elspot-data.</p>';
         }
     }
 
@@ -1271,6 +1489,7 @@ const elbilApp = (() => {
         startEditProvider, cancelEditProvider, saveProvider,
         createProvider, deleteProvider,
         resetFilters,
+        getDateRange,
     };
 })();
 

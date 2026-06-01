@@ -96,7 +96,7 @@ const regningApp = (() => {
                 <td class="text-end">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
                 <td class="text-end">${hpRow.kwh > 0 ? hpRow.kwh.toFixed(1) : '—'}</td>
                 ${hasCosts ? `<td class="text-end">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
-                ${hasHus ? `<td class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-warning' : ''}">${residualKwh !== null ? residualKwh.toFixed(1) : '—'}</td>` : ''}
+                ${hasHus ? `<td class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + residualKwh.toFixed(1) : '\u2014'}</td>` : ''}
                 ${hasResidual ? `<td class="text-end fw-semibold">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
             </tr>`;
         }).join('');
@@ -113,7 +113,7 @@ const regningApp = (() => {
         const totHpCostTd    = hasCosts
             ? `<td class="text-end fw-bold">${totHpCost > 0 ? _kr(totHpCost) : '—'}</td>` : '';
         const totResidualKwhTd = hasHus
-            ? `<td class="text-end fw-bold${totResidualKwh !== null && totResidualKwh < 0 ? ' text-warning' : ''}">${totResidualKwh !== null ? totResidualKwh.toFixed(1) : '—'}</td>` : '';
+            ? `<td class="text-end fw-bold${totResidualKwh !== null && totResidualKwh < 0 ? ' text-danger' : ''}">${totResidualKwh !== null ? (totResidualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + totResidualKwh.toFixed(1) : '\u2014'}</td>` : '';
         const totResidualCostTd = hasResidual
             ? `<td class="text-end fw-bold">${totResidualCost > 0 ? _kr(totResidualCost) : '—'}</td>` : '';
 

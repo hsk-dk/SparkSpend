@@ -1,12 +1,30 @@
 # SparkSpend — Product Backlog
 
-Generated: 2026-03-11 · Rebuilt from code analysis: 2026-05-28 · Updated: 2026-06-01
+Generated: 2026-03-11 · Rebuilt from code analysis: 2026-05-28 · Updated: 2026-05-31
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.
 
 ---
 
+## Priority: High — Teknisk gæld / Sikkerhed
+
+---
+
 ## Priority: Medium — Enhancements
+
+### ENHANCEMENT — Negativ "Restforbrug" flag i regningsvisning
+Hvis `hus.month_kwh < ev.home_kwh + hp.month_kwh` (måler-fejl eller synkroniseringsforsinkelse) viser Fordeling-fanen "Restforbrug: -X kWh" uden advarsel. Marker celle rød og vis tooltip "Data inkonsistent — tjek systemlog" i `regning.js`.
+**Fil:** `includes/regning.js`
+
+### ENHANCEMENT — "Sidst synkroniseret" på dashboardkort
+`getSyncStatus.php` returnerer allerede `last_sync` per datakilde. Vis en micro-tekst `"Data pr. dd. mm. hh:mm"` under sparkline på hvert kort. Marker med rød farve hvis sync er > 4 timer gammel.
+**Filer:** `includes/dashboard.js`, `index.php`
+
+### ENHANCEMENT — Chart destroy→update refaktor (memory)
+`jordvarme.js`, `hus.js` og `annual.js` kalder `chart.destroy()` + `new Chart()` ved hver periode-navigation. Brug i stedet `.data` + `.update('none')` for eksisterende charts — undgår memory-akkumulering ved lange sessions.
+**Filer:** `includes/jordvarme.js`, `includes/hus.js`, `includes/annual.js`
+
+---
 
 ## Priority: Low — Enhancements
 
@@ -22,18 +40,45 @@ Brug den 24-timers Energi Data Service spot-prisforecast til at vise morgendagen
 Datointervalfilteret er aldrig kodet i URL-hashen. At vælge "Dette år" og bogmærke giver en URL der åbner med standardfilteret "Denne måned".
 **Filer:** `includes/nav.js`, `includes/elbil.js`
 
+### ENHANCEMENT — Jordvarme estimeret kr på dashboardkortet
+Jordvarme-sektionen beregner allerede estimeret kr (via `fetchElCosts()` i `jordvarme.js`), men dashboardkortet viser kun kWh. Kan løses som client-side enrichment efter kort-render (mønster fra `_enrichHpWithWeather`): hent måneds-spotpris asynkront og vis `~X kr` under den forventede kWh. Kræver elspot-konfiguration.
+**Filer:** `includes/dashboard.js`, `getDashboardSummary.php`
+
+### ENHANCEMENT — Hus estimeret kr på dashboardkortet
+Hus-kortet viser kun kWh — ingen prisindikation. Approksimation: `hus.month_kwh × gns. spotpris` for måneden, ekskl. netlejen (da den ikke er i systemet). Giver brugeren et svar på "hvad koster huset at drive denne måned".
+**Filer:** `includes/dashboard.js`, `getDashboardSummary.php`
+
+### ENHANCEMENT — Anomali-alert foreslår mulig årsag
+Alerts siger "60% over baseline" men giver ikke årsagskontekst. Hvis HDD (heating degree days) også er forhøjet ≥40%, tilføj `possible_cause: 'vejr'` til anomali-objektet og vis "Sandsynlig årsag: koldt vejr" i panelet. Hvis HDD er normal, vis "Mulig årsag: øget forbrug — tjek kørsel/indstillinger". Data er allerede tilgængeligt via `getWeatherData.php`.
+**Filer:** `getAnomalyStats.php`, `includes/dashboard.js`
+
+### ENHANCEMENT — Pagination på opladningstabel
+`getCharges.php` returnerer alle rækker uden LIMIT. Ved > 2000 ladninger (typisk efter 3+ år) vil initial JSON-parse og DOM-render blive mærkbar. Tilføj `?page=&perPage=` og vis "Hent flere"-knap i bunden af tabellen.
+**Filer:** `getCharges.php`, `includes/elbil.js`
+
 ---
 
 ## New Feature Ideas
 
-### FEATURE — Månedlig rapport PDF-eksport
-Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) til manuelt download. Email-udsendelse ikke prioriteret.
+### FEATURE — Månedlig rapport CSV-eksport
+Eksporter månedsoversigt som CSV: `Måned, El-bil kWh, El-bil kr, Varmepumpe kWh, Hus kWh, Restforbrug kWh`. Knap på Regning-fanen. Nyttigt til regnskabs-forsoning og faktura-match.
+**Filer:** Nyt `exportCharges.php`, `includes/regning.js`, `index.php`
 
 ---
 
 ## Afsluttet
 
-- ✅ **ENHANCEMENT — Fejllog-visning i sync-modal** — Sammenklappelig "Systemlog"-sektion tilføjet i sync-modalen. `getSystemLog.php` tail'er de seneste 80 linjer af `cron/trigger.log` og returnerer JSON. Linjerne farvekodesafter alvorlighedsgrad (rød=fejl, gul=advarsel, grøn=succes). Lazy-loaded ved første åbning af panelet. `index.php` udvidet med toggle-knap, `<pre>`-boks og meta-linje. SW bumped til v8.
+- ✅ **DEBT — Thread-safe filcache (LOCK_EX)** — `fileCacheWrite()` ombygget til `fopen` + `flock(LOCK_EX)` + `ftruncate` + `fwrite` + `flock(LOCK_UN)`. Eliminerer risiko for korrupt JSON-svar ved concurrent requests. `includes/QueryBuilder.php`.
+- ✅ **DEBT — SQLite indeksstrategi** — 5 indekser oprettes idempotent (`CREATE INDEX IF NOT EXISTS`) i `DatabaseManager::connect()` ved hver opstart: `idx_charges_stopped`, `idx_charges_started`, `idx_charges_vehicle`, `idx_ext_charges_dt`, `idx_powerlogjord_dt`, `idx_powerloghus_dt`. `includes/DatabaseManager.php`.
+- ✅ **DEBT — Rate-limiting på triggerSync.php** — Filbaseret 30s cooldown via `sparkspend_sync_cooldown.lock` i CACHE_DIR. Returnerer HTTP 429 med dansk fejlbesked hvis for tidligt. `triggerSync.php`.
+- ✅ **DEBT — Inkonsistent JSON-fejlformat** — `receive_vehicle_data.php` standardiseret til `{error: string}` på alle fejlstier (var `{status, message}`). Succesvar bevarer `{status: 'success'}` da det er eksternt API. `receive_vehicle_data.php`.
+- ✅ **DEBT — Negativ/ikke-finit input afvises ikke i ext-charges** — `is_finite()` guard tilføjet til `$kwh` og `$pris` validering. `pris` tillader nu `>= 0` (gratis ladning mulig). `createExCharge.php`, `updateExtCharge.php`.
+- ✅ **ENHANCEMENT — Hus budget-mål (kWh/måned)** — Nyt felt i budget-modalen (`sparkspend_budget_hus_kwh`). `_renderProgress()` kaldt i `renderHusCard()`. "Nulstil" rydder alle tre mål. `dashboard.js?v=20260531c`.
+- ✅ **ENHANCEMENT — "Alt normalt" bekræftelse i anomali-panelet** — Grøn `#anomaly-ok` chip vises fra dag 5 i måneden når ingen warning/critical anomalier. Skjules automatisk hvis panelet aktiveres.
+- ✅ **ENHANCEMENT — EV hjemme/ude split-bar på dashboardkortet** — Tofarvet bjælke (blå=hjemme, amber=ude) viser kWh-fordelingen visuelt med separat kr/kWh for hver type. Driver-note i trend-sektionen aktiveres når udeandelen ændrer sig ≥5 procentpoint vs. forrige måned. `getDashboardSummary.php` udvider EV-objektet med `home_kwh/cost/cpkwh`, `ext_kwh/cost/cpkwh`, `ext_cnt`, `prev_ext_kwh_pct`. `dashboard.js?v=20260531`, `style.css?v=20260531`.
+- ✅ **ENHANCEMENT — Hus kompositions-split-bar på dashboardkortet** — 3-farvet bjælke (blå=EV, grøn=Jordvarme, amber=Rest) på Hus-kortet. `ev_home_kwh` og `hp_kwh` tilføjet til `hus`-objekt i `getDashboardSummary.php`. `dashboard.js?v=20260531b`.
+- ✅ **ENHANCEMENT — Årsrapport viser EV-pris og kWh-total pr. år** — kWh/kr toggle tilføjet til Årsrapport-kortet. `annualApp` gemmer nu `_data` og `_mode`; toggle-knapper rewirer `_renderChart()` in-place uden nyt fetch. kWh-tilstand: uændret 3-søjle diagram (EV/VP/Hus). kr-tilstand: EV-pris alene (blå søjler) med note om at VP/Hus kræver elspot-konfiguration. `_fmtKr()` tilføjet. `annual.js?v=20260531`.
+- ✅ **ENHANCEMENT — Tabelsortering i opladningstabellen** — Sammenklappelig "Systemlog"-sektion tilføjet i sync-modalen. `getSystemLog.php` tail'er de seneste 80 linjer af `cron/trigger.log` og returnerer JSON. Linjerne farvekodesafter alvorlighedsgrad (rød=fejl, gul=advarsel, grøn=succes). Lazy-loaded ved første åbning af panelet. `index.php` udvidet med toggle-knap, `<pre>`-boks og meta-linje. SW bumped til v8.
 - ✅ **BUG — April/Juli 2025 husforbrug viste ~33M / ~36M kWh** — Datalogger gemte Wh i stedet for kWh. Fix: LAG-baseret daglig delta (i stedet for MAX-MIN) i alle kumulerede måler-queries. Wh→kWh normalisering under sync.
 - ✅ **FEATURE — Hus-sektion** — Nyt topniveau-faneblad med to under-faner: *Forbrug* (stablet søjlediagram) og *Regning* (månedlig fakturaoversigt).
 - ✅ **FEATURE — Hus synkronisering** — `cron/sync_housepowerlog_data.php` synkroniserer MySQL `powerloghus` → SQLite med Wh→kWh normalisering.
@@ -90,13 +135,17 @@ Generer et udskrivbart månedsoversigt (kWh, pris, tendenser) til manuelt downlo
 - ✅ **BUG — Service worker `response.clone()` body already used** — `response.clone()` kaldtes inde i `caches.open().then()` — en deferred callback der racede med browser-body-consumption. Fix: alle 4 SW-branches kloner synkront. `response.ok`-guard tilføjet så 404/fejl-responses aldrig caches. `cache.addAll()` → individuelle `cache.add().catch()` i precache. SW bumped til `sparkspend-v7`.
 - ✅ **BUG — `icon-192.png` manglede efter deployment** — Ikoner genereres af `cron/generate_icons.php` og er ikke i git. Robocopy-kommando opdateret til at ekskludere `icon-*.png` fra `/MIR`-sletning så server-genererede filer bevares.
 - ✅ **DEBT — Robocopy produktions-sync kommando etableret** — `robocopy C:\GIT\sparkspend\ Z:\monta\ /MIR /XF *.log *.db *.md *.sh .env .env.example LICENSE icon-*.png /XD data logs .git dev`
-- ✅ **DEBT — `<meta name="apple-mobile-web-app-capable">` deprecated** — `<meta name="mobile-web-app-capable" content="yes">` tilføjet i `index.php` (begge bevares for iOS Safari-kompatibilitet).
+- ✅ **ENHANCEMENT — EV hjemme/ude split-bar på dashboardkortet** — Tofarvet bjælke (blå=hjemme, amber=ude) viser kWh-fordelingen visuelt med separat kr/kWh for hver type. Driver-note i trend-sektionen aktiveres når udeandelen ændrer sig ≥5 procentpoint vs. forrige måned (f.eks. "Udeladning: 31% af kWh (↑12 pp) — trækker gennemsnitsprisen op"). `getDashboardSummary.php` udvider EV-objektet med `home_kwh/cost/cpkwh`, `ext_kwh/cost/cpkwh`, `ext_cnt`, `prev_ext_kwh_pct`. `dashboard.js?v=20260531`, `style.css?v=20260531`.
+- ✅ **ENHANCEMENT — Årsrapport viser EV-pris og kWh-total pr. år** — kWh/kr toggle tilføjet til Årsrapport-kortet. `annualApp` gemmer nu `_data` og `_mode`; toggle-knapper rewirer `_renderChart()` in-place uden nyt fetch. kWh-tilstand: uændret 3-søjle diagram (EV/VP/Hus). kr-tilstand: EV-pris alene (blå søjler) med note om at VP/Hus kræver elspot-konfiguration. `_fmtKr()` tilføjet. `annual.js?v=20260531`.
+- ✅ **ENHANCEMENT — Tabelsortering i opladningstabellen** — Klik på kolonneoverskrift (Dato, kWh, Pris, kr/kWh, Bil) sorterer tabellen stigende/faldende in-memory. Aktiv kolonne fremhæves med blå farve og pil-ikon. Sort-tilstand nulstilles ved "Nulstil filtre". `_allCharges`, `_sortCol`, `_sortDir`, `_sortCharges()`, `_applySortAndRender()`, `_updateSortHeaders()` tilføjet til `elbilApp`. CSS: `cursor:pointer` + hover på `th[data-sort]`, `.sort-active`-klasse.
+- ✅ **DEBT — Cache-invalidering efter "Sync nu"** — `triggerSync.php` glob-sletter nu alle `sparkspend_*.json` cache-filer fra `CACHE_DIR` umiddelbart inden baggrunds-scripts startes. Erstatter den gamle enkelt-fil `@unlink(syncstatus)`. Brugeren ser frisk data ved første page-request efter sync.
 
 ---
 
 Generated: 2026-03-11 · Last updated: 2026-05-31
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.
+
 
 ---
 
