@@ -81,15 +81,12 @@ try {
 
 /**
  * Create the SQLite powerloghus table if it does not exist.
- * Schema mirrors powerlogjord: one row per hour, logdate = primary key.
+ * Schema is now managed by migrations, but kept as a safety check.
  */
 function ensureTableExists(PDO $db): void {
-    $db->exec("
-        CREATE TABLE IF NOT EXISTS powerloghus (
-            logdate TEXT PRIMARY KEY,
-            kwh     REAL NOT NULL
-        )
-    ");
+    // No-op: table creation is handled by migrations/powerlog/002_add_powerloghus.php
+    // The migration runner runs on DatabaseManager::connect(), so the table exists
+    // by the time this function is called.
 }
 
 /**
@@ -177,19 +174,33 @@ function fetchRecords(PDO $mysqlDb, ?string $afterTimestamp): array {
  * Insert/replace records into SQLite powerloghus.
  */
 function insertRecords(PDO $db, array $records): int {
-    $stmt    = $db->prepare("INSERT OR REPLACE INTO powerloghus (logdate, kwh) VALUES (?, ?)");
-    $inserted = 0;
+    $stmt      = $db->prepare("INSERT OR REPLACE INTO powerloghus (logdate, kwh) VALUES (?, ?)");
+    $inserted  = 0;
+    $batchSize = 1000;
 
-    foreach ($records as $row) {
-        $logdate = $row['logdate'] ?? null;
-        $kwh     = $row['kwh']     ?? null;
-        if ($logdate === null || $kwh === null) continue;
-        try {
-            $stmt->execute([$logdate, floatval($kwh)]);
-            $inserted++;
-        } catch (PDOException $e) {
-            logMsg("Could not insert logdate={$logdate}: " . $e->getMessage(), 'WARN');
+    $db->beginTransaction();
+    try {
+        foreach ($records as $row) {
+            $logdate = $row['logdate'] ?? null;
+            $kwh     = $row['kwh']     ?? null;
+            if ($logdate === null || $kwh === null) continue;
+            try {
+                $stmt->execute([$logdate, floatval($kwh)]);
+                $inserted++;
+            } catch (PDOException $e) {
+                logMsg("Could not insert logdate={$logdate}: " . $e->getMessage(), 'WARN');
+            }
+
+            // Commit in chunks to avoid holding the write-lock too long
+            if ($inserted > 0 && $inserted % $batchSize === 0) {
+                $db->commit();
+                $db->beginTransaction();
+            }
         }
+        $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        throw $e;
     }
 
     return $inserted;
@@ -207,17 +218,6 @@ function insertRecords(PDO $db, array $records): int {
 function saveLastSync(PDO $db, int $count, array $records): void {
     try {
         $now = date('Y-m-d H:i:s');
-
-        // Ensure sync_log table exists (uses INSERT OR REPLACE which requires the table).
-        $db->exec("
-            CREATE TABLE IF NOT EXISTS sync_log (
-                source              TEXT PRIMARY KEY,
-                last_sync_timestamp TEXT,
-                last_sync_count     INTEGER,
-                error_message       TEXT,
-                updated_at          TEXT
-            )
-        ");
 
         if ($count > 0) {
             // Advance watermark to the max logdate of the batch just inserted.

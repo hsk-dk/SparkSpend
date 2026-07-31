@@ -146,10 +146,10 @@ const jordvarmeApp = (() => {
         }
 
         function buildUrl() {
-            if (currentMode === "daily")   return `getHeatpumpData.php?mode=daily&month=${currentMonth}`;
-            if (currentMode === "monthly") return `getHeatpumpData.php?mode=monthly&year=${currentYear}`;
-            if (currentMode === "ytd")     return "getHeatpumpData.php?mode=ytd";
-            return "getHeatpumpData.php?mode=compare";
+            if (currentMode === "daily")   return `api.php?action=heatpump&mode=daily&month=${currentMonth}`;
+            if (currentMode === "monthly") return `api.php?action=heatpump&mode=monthly&year=${currentYear}`;
+            if (currentMode === "ytd")     return "api.php?action=heatpump&mode=ytd";
+            return "api.php?action=heatpump&mode=compare";
         }
 
         function setChartVisible(visible) {
@@ -241,7 +241,7 @@ const jordvarmeApp = (() => {
             }
 
             const params = new URLSearchParams({ start, end, area, gln });
-            fetch('getElspotPrices.php?' + params)
+            fetch('api.php?action=elspot-prices&' + params)
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                 .then(data => {
                     activeCostMap    = {};
@@ -314,14 +314,14 @@ const jordvarmeApp = (() => {
             if (!weatherSettingsReady()) return;
             const { lat, lon } = getWeatherSettings();
             const today = new Date().toISOString().slice(0, 10);
-            fetch('getHeatpumpData.php?mode=compare')
+            fetch('api.php?action=heatpump&mode=compare')
                 .then(r => r.json())
                 .then(compareData => {
                     if (!Array.isArray(compareData) || compareData.length === 0) return;
                     const years   = compareData.map(d => parseInt(d.year)).filter(y => !isNaN(y));
                     const minYear = Math.min(...years);
                     const params  = new URLSearchParams({ start: minYear + '-01-01', end: today, lat, lon });
-                    return fetch('getWeatherData.php?' + params)
+                    return fetch('api.php?action=weather&' + params)
                         .then(r => r.json())
                         .then(weatherData => {
                             const wMap = {};
@@ -344,8 +344,8 @@ const jordvarmeApp = (() => {
         }
 
         // ── Weather / degree-day fetch ────────────────────────────────────────
-        // Calls getWeatherData.php which fetches from Open-Meteo and caches the
-        // result server-side (24-hour TTL, same pattern as getElspotPrices.php).
+        // Calls api.php?action=weather which fetches from Open-Meteo and caches the
+        // result server-side (24-hour TTL, same pattern as elspot-prices).
         // kwhData: optional, passed for compare/ytd so the year range is derived
         // from actual measurements (same pattern as fetchElCosts).
         function fetchWeatherData(kwhData) {
@@ -376,7 +376,7 @@ const jordvarmeApp = (() => {
             }
 
             const params = new URLSearchParams({ start, end, lat, lon });
-            fetch('getWeatherData.php?' + params)
+            fetch('api.php?action=weather&' + params)
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                 .then(data => {
                     activeWeatherMap = {};
@@ -1106,7 +1106,7 @@ const jordvarmeApp = (() => {
 
         // ── Sync status ──────────────────────────────────────────────────────
         function fetchSyncStatus() {
-            fetch("getHeatpumpData.php?mode=sync_status")
+            fetch("api.php?action=heatpump&mode=sync_status")
                 .then(r => r.json())
                 .then(data => {
                     if (data && data.updated_at) {

@@ -23,7 +23,7 @@ const regningApp = (() => {
 
         _setStatus(statusEl, 'Indlæser data…');
 
-        fetch('getMonthlyBillData.php?months=24')
+        fetch('api.php?action=monthly-bill&months=24')
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(billData => {
                 if (billData.error) throw new Error(billData.error);
@@ -42,7 +42,7 @@ const regningApp = (() => {
 
                 const { start, end } = billData.range;
                 const params = new URLSearchParams({ start, end, area, gln });
-                return fetch('getElspotPrices.php?' + params)
+                return fetch('api.php?action=elspot-prices&' + params)
                     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                     .then(elData => {
                         const costMap = {};
@@ -212,7 +212,7 @@ const fordelingApp = (() => {
 
         _setStatus(statusEl, 'Indlæser data…');
 
-        fetch('getMonthlyBillData.php?months=24')
+        fetch('api.php?action=monthly-bill&months=24')
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(billData => {
                 if (billData.error) throw new Error(billData.error);
@@ -230,7 +230,7 @@ const fordelingApp = (() => {
 
                 const { start, end } = billData.range;
                 const params = new URLSearchParams({ start, end, area, gln });
-                return fetch('getElspotPrices.php?' + params)
+                return fetch('api.php?action=elspot-prices&' + params)
                     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                     .then(elData => {
                         const costMap = {};

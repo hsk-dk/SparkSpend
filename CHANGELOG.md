@@ -7,15 +7,27 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 ## [Unreleased]
 
 ### Added
-- `QueryBuilder::fileCacheInvalidatePattern()` — deletes all `/sparkspend_{prefix}*.json` cache files; called from all mutation endpoints on successful write.
-- `CACHE_DIR` environment variable — configurable cache directory (default: `sys_get_temp_dir()`). Used by `QueryBuilder`, `getElspotPrices.php`, and `getWeatherData.php`.
-- `getVehicleComparison.php` — 5-minute file cache (`vehicle_compare_*`).
-- `dev/check_data_integrity.php` — charges.db section covering `charges`, `ext_charges`, `vehicles`, `providers`, and `vehicle_charges` tables.
-- `receive_vehicle_data.php` — vehicleId existence check and odometer range validation (> 0, < 2 000 000).
-- `README.md` — project overview, setup guide, cron job examples, and .env reference.
+- `cron/migrate_charges_utc.php` — migration script to convert all `charges` table timestamps from mixed timezone offsets (`+01:00`, `+02:00`) to standardized UTC Z-suffix format. Supports `--commit` and dry-run mode.
+- `_toUtcZ()` helper in `cron/update_monta_data.php` — normalizes incoming Monta API timestamps to UTC Z-suffix at ingestion time.
 
 ### Changed
-- `getChargeAnalytics.php` — replaced inline cache code with `QueryBuilder::fileCacheRead/fileCacheWrite` (key prefix `analytics_`). Consolidated double catch block.
+- **Datetime standardization**: All datetime columns in `charges` and `ext_charges` now use consistent UTC Z-suffix format (`YYYY-MM-DDTHH:MM:SSZ`). SQLite `DATE()` handles this natively, enabling SQL-side filtering.
+- `getCharges.php` — removed `strftime()` reformatting in UNION query; timestamps are returned as stored (already ISO 8601).
+- `getDashboardSummary.php` — simplified ext_charges filtering using `DATE()` comparisons instead of PHP `strtotime()` loop.
+- `getProviderStats.php` — replaced PHP-side date/vehicle filtering with SQL WHERE clauses using `DATE()`.
+- `getEfficiencyStats.php` — replaced PHP-side ext_charges date filtering with SQL `DATE()` filter.
+- `getAnomalyStats.php` — use `DATE(datetime)` in SQL instead of `strtotime()` extraction.
+- `getHousePowerData.php` — `_extEvByKey()` now uses SQL `DATE()` bounds instead of PHP loop filtering.
+- `getMonthlyBillData.php` — use `DATE(datetime) >=` for ext_charges query.
+- `getAnnualSummary.php` — extract year from datetime string directly instead of `strtotime()`.
+- `getChargeCompare.php` — updated comments; logic unchanged (still uses `strtotime` for local-tz month grouping).
+- `QueryBuilder::getCostTrend()` — ext_charges date filtering moved to SQL with `DATE()`.
+- `QueryBuilder::getCostStatistics()` — ext_charges aggregation now done entirely in SQL (single query with SUM/COUNT/MIN/MAX).
+- `QueryBuilder::getVehicleCostComparison()` — ext_charges date filtering moved to SQL.
+
+### Fixed
+- `getMonthlyBillData.php` — fixed duplicate/missing months caused by `strtotime("-N months")` on day 31 (anchored to 1st of month).
+- `QueryBuilder::fileCacheInvalidatePattern()` — replaced inline cache code with `QueryBuilder::fileCacheRead/fileCacheWrite` (key prefix `analytics_`). Consolidated double catch block.
 - `getVehicleComparison.php` — consolidated redundant `PDOException` + `\Throwable` catch into single `\Throwable` catch. Removed trailing `?>`.
 - `cron/update_monta_data.php` — replaced all `die()` calls with `error_log()` + `exit(1)`. `getChargingData()` now returns `null` on HTTP 429; caller writes error to `sync_log` and exits cleanly.
 - `index.php` — pinned CDN versions: Chart.js@4.4.6, chartjs-plugin-datalabels@2.2.0, chartjs-adapter-date-fns@3.0.0, flatpickr@4.6.13, ApexCharts@3.54.0. Updated all stale `?v=` strings to `20260528`.

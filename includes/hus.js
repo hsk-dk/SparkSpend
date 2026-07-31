@@ -105,10 +105,10 @@ const husApp = (() => {
         }
 
         function buildUrl() {
-            if (currentMode === 'daily')   return `getHousePowerData.php?mode=daily&month=${currentMonth}`;
-            if (currentMode === 'monthly') return `getHousePowerData.php?mode=monthly&year=${currentYear}`;
-            if (currentMode === 'ytd')     return 'getHousePowerData.php?mode=ytd';
-            return 'getHousePowerData.php?mode=compare';
+            if (currentMode === 'daily')   return `api.php?action=house-power&mode=daily&month=${currentMonth}`;
+            if (currentMode === 'monthly') return `api.php?action=house-power&mode=monthly&year=${currentYear}`;
+            if (currentMode === 'ytd')     return 'api.php?action=house-power&mode=ytd';
+            return 'api.php?action=house-power&mode=compare';
         }
 
         // ── Fetch & render ───────────────────────────────────────────────────
@@ -143,7 +143,7 @@ const husApp = (() => {
 
         // ── Sync status ──────────────────────────────────────────────────────
         function fetchSyncStatus() {
-            fetch('getHousePowerData.php?mode=sync_status')
+            fetch('api.php?action=house-power&mode=sync_status')
                 .then(r => r.json())
                 .then(s => {
                     if (!syncStatusEl) return;

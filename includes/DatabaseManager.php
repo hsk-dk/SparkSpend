@@ -73,23 +73,15 @@ class DatabaseManager {
             // Set connection timeout
             $db->setAttribute(PDO::ATTR_TIMEOUT, 30);
 
-            // Disable foreign keys by default (SQLite requires explicit enabling)
-            $db->setAttribute(PDO::SQLITE_ATTR_OPEN_FLAGS, PDO::SQLITE_OPEN_READWRITE);
+            // Enable WAL mode for better concurrent read/write performance.
+            // WAL allows readers and writers to operate simultaneously without blocking.
+            $db->exec("PRAGMA journal_mode=WAL");
+            $db->exec("PRAGMA busy_timeout=5000");
 
-            // Ensure performance indexes exist (idempotent — safe to run on every connect)
-            if ($dbType === 'charges') {
-                $db->exec("
-                    CREATE INDEX IF NOT EXISTS idx_charges_stopped    ON charges(stoppedAt);
-                    CREATE INDEX IF NOT EXISTS idx_charges_started    ON charges(startedAt);
-                    CREATE INDEX IF NOT EXISTS idx_charges_vehicle    ON charges(vehicleId);
-                    CREATE INDEX IF NOT EXISTS idx_ext_charges_dt     ON ext_charges(datetime);
-                ");
-            } elseif ($dbType === 'powerlog') {
-                $db->exec("
-                    CREATE INDEX IF NOT EXISTS idx_powerlogjord_dt    ON powerlogjord(logdate);
-                    CREATE INDEX IF NOT EXISTS idx_powerloghus_dt     ON powerloghus(logdate);
-                ");
-            }
+            // Run database migrations (checked at most once per hour to avoid overhead)
+            require_once dirname(__FILE__) . '/MigrationRunner.php';
+            $migrationsDir = dirname(dirname(__FILE__)) . '/migrations/' . $dbType;
+            MigrationRunner::runIfDue($db, $migrationsDir, 3600);
 
             return $db;
         } catch (PDOException $e) {

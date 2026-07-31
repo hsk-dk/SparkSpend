@@ -3,10 +3,22 @@ require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
 require __DIR__ . '/../includes/QueryBuilder.php';
 
+/**
+ * Append a timestamped line to cron/cron.log.
+ */
+function logMsg(string $message, string $level = 'INFO'): void {
+    $logFile = __DIR__ . '/cron.log';
+    $line    = '[' . date('Y-m-d H:i:s') . "] [{$level}] Monta Sync: {$message}\n";
+    file_put_contents($logFile, $line, FILE_APPEND);
+    if ($level === 'ERROR') {
+        error_log("Monta Sync: {$message}");
+    }
+}
+
 try {
     $db = DatabaseManager::getChargesDb();
 } catch (PDOException $e) {
-    error_log("update_monta_data.php: Databaseforbindelse fejlede: " . $e->getMessage());
+    logMsg("Databaseforbindelse fejlede: " . $e->getMessage(), 'ERROR');
     exit(1);
 }
 
@@ -46,7 +58,7 @@ function getAccessToken($clientId, $clientSecret, $authEndpoint) {
     curl_close($ch);
 
     if ($httpCode !== 200) {
-        error_log("update_monta_data.php: Fejl ved hentning af adgangstoken: HTTP statuskode " . $httpCode);
+        logMsg("Fejl ved hentning af adgangstoken: HTTP " . $httpCode, 'ERROR');
         exit(1);
     }
 
@@ -54,7 +66,7 @@ function getAccessToken($clientId, $clientSecret, $authEndpoint) {
     if (isset($data["accessToken"])) {
         return $data["accessToken"];
     } else {
-        error_log("update_monta_data.php: Adgangstoken mangler i svar: " . json_encode($data));
+        logMsg("Adgangstoken mangler i svar: " . json_encode($data), 'ERROR');
         exit(1);
     }
 }
@@ -79,13 +91,12 @@ function getChargingData($accessToken, $dataEndpoint, $fromDate, $toDate) {
     curl_close($ch);
 
     if ($httpCode === 429) {
-        // Rate-limited: log and return null so the caller can record the error in sync_log
-        error_log("update_monta_data.php: Monta API rate-limit (429) — afventer næste kørsel.");
+        logMsg("Monta API rate-limit (429) — afventer næste kørsel.", 'WARN');
         return null;
     }
 
     if ($httpCode !== 200) {
-        error_log("update_monta_data.php: Fejl ved hentning af data: HTTP statuskode " . $httpCode);
+        logMsg("Fejl ved hentning af data: HTTP " . $httpCode, 'ERROR');
         exit(1);
     }
 
@@ -106,9 +117,8 @@ function _getVehicleCount(): int {
 function getVehicleForCharge($cablePluggedInAt) {
     $db = DatabaseManager::getChargesDb();
 
-    // PHP's strtotime() handles both "+01:00" (old rows) and "Z" (new rows) correctly,
-    // unlike SQLite's strftime('%s', ...) which returns NULL for "+HH:MM" offsets on
-    // many SQLite versions, causing every charge to fall back to vehicleId=1.
+    // All timestamps are now stored as UTC Z-suffix. PHP's strtotime() handles
+    // this correctly for timestamp comparison.
     $targetTime = strtotime($cablePluggedInAt);
     if ($targetTime === false) {
         error_log("getVehicleForCharge: could not parse Monta timestamp: $cablePluggedInAt");
@@ -145,9 +155,32 @@ function getVehicleForCharge($cablePluggedInAt) {
     return $bestVehicleId;
 }
 
+/**
+ * Normalize a Monta API timestamp to UTC Z-suffix format.
+ * Monta returns offsets like +01:00 or +02:00 depending on CET/CEST.
+ * We standardize everything to YYYY-MM-DDTHH:MM:SSZ for consistent
+ * SQLite date function behaviour and simple string comparisons.
+ */
+function _toUtcZ(?string $ts): ?string {
+    if ($ts === null || $ts === '') return $ts;
+    if (str_ends_with($ts, 'Z')) return $ts; // already UTC
+    $epoch = strtotime($ts);
+    if ($epoch === false) return $ts; // unparseable — store as-is
+    return gmdate('Y-m-d\TH:i:s\Z', $epoch);
+}
+
 // Funktion til at gemme data i databasen
 function saveChargingData($db, $data) {
-    foreach ($data['data'] as $charge) {
+    $db->beginTransaction();
+    try {
+        foreach ($data['data'] as $charge) {
+        // Normalize all timestamps to UTC Z-suffix before storing
+        $charge['createdAt']       = _toUtcZ($charge['createdAt'] ?? null);
+        $charge['updatedAt']       = _toUtcZ($charge['updatedAt'] ?? null);
+        $charge['cablePluggedInAt']= _toUtcZ($charge['cablePluggedInAt'] ?? null);
+        $charge['startedAt']       = _toUtcZ($charge['startedAt'] ?? null);
+        $charge['stoppedAt']       = _toUtcZ($charge['stoppedAt'] ?? null);
+
         // Find den rigtige bil baseret på kabeltilslutningstidspunktet
         $vehicleId = getVehicleForCharge($charge['cablePluggedInAt']);
 
@@ -241,18 +274,17 @@ function saveChargingData($db, $data) {
             ]);
         }
     }
+    $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        throw $e;
+    }
 }
 
-// ── Ensure sync_log table exists ─────────────────────────────────────────────
-$db->exec("CREATE TABLE IF NOT EXISTS sync_log (
-    source TEXT PRIMARY KEY,
-    last_sync_timestamp TEXT,
-    last_sync_count INTEGER,
-    updated_at TEXT,
-    error_message TEXT
-)");
+// ── Sync execution ───────────────────────────────────────────────────────────
 
 // Hent adgangstoken
+logMsg("Starting Monta sync (from: {$newFromDate})…");
 $accessToken = getAccessToken($clientId, $clientSecret, $authEndpoint);
 
 // Hent data fra Monta API med den udregnede fromDate og toDate
@@ -268,12 +300,14 @@ if ($data === null) {
 }
 
 // Gem data i databasen
+$count = isset($data['data']) ? count($data['data']) : 0;
+logMsg("Fetched {$count} charges from API.");
 saveChargingData($db, $data);
 
 // ── Skriv sync-status til sync_log ───────────────────────────────────────────
 $now   = date('Y-m-d H:i:s');
-$count = isset($data['data']) ? count($data['data']) : 0;
 $db->prepare("INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at, error_message)
               VALUES ('monta', ?, ?, ?, NULL)")
    ->execute([$now, $count, $now]);
+logMsg("Sync completed. {$count} charges synced.");
 // ─────────────────────────────────────────────────────────────────────────────

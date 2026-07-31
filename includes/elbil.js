@@ -274,7 +274,7 @@ const elbilApp = (() => {
     // -------------------------------------------------------------------------
     async function fetchVehicles() {
         try {
-            const res  = await fetch('getVehicles.php');
+            const res  = await fetch('api.php?action=vehicles');
             const data = await appUtils.handleFetchResponse(res);
             vehicles = data;
             _populateVehicleFilter();
@@ -290,7 +290,7 @@ const elbilApp = (() => {
 
     async function fetchProviders() {
         try {
-            const res  = await fetch('getProviders.php');
+            const res  = await fetch('api.php?action=providers');
             const data = await appUtils.handleFetchResponse(res);
             providers = data;
             _populateProviderSelects();
@@ -348,7 +348,7 @@ const elbilApp = (() => {
         });
         appUtils.setLoadingState('chargeTableBody', true);
         try {
-            const res  = await fetch('getCharges.php?' + params);
+            const res  = await fetch('api.php?action=charges&' + params);
             const data = await appUtils.handleFetchResponse(res);
             _allCharges   = data;
             _visibleRows  = _PAGE_SIZE;
@@ -654,7 +654,7 @@ const elbilApp = (() => {
         const form = e.target;
         if (!form.checkValidity()) { appUtils.showFormMessage('internalChargeMsg', 'Udfyld alle felter', 'danger'); return; }
         try {
-            const res    = await fetch('updateInternalCharge.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: document.getElementById('internalChargeId').value, vehicleId: document.getElementById('internalVehicleId').value }) });
+            const res    = await fetch('api.php?action=update-internal-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: document.getElementById('internalChargeId').value, vehicleId: document.getElementById('internalVehicleId').value }) });
             const result = await appUtils.handleFetchResponse(res);
             if (result.success) {
                 appUtils.showFormMessage('internalChargeMsg', 'Intern ladning opdateret!', 'success');
@@ -681,7 +681,7 @@ const elbilApp = (() => {
                 kwh: document.getElementById('externalKwh').value,
                 pris: document.getElementById('externalPris').value,
             };
-            const res    = await fetch('updateExtCharge.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const res    = await fetch('api.php?action=update-ext-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const result = await appUtils.handleFetchResponse(res);
             if (result.success) {
                 appUtils.showFormMessage('externalChargeMsg', 'Ekstern ladning opdateret!', 'success');
@@ -708,7 +708,7 @@ const elbilApp = (() => {
                 kwh:            document.getElementById('kwh').value,
                 pris:           document.getElementById('pris').value,
             };
-            const res  = await fetch('createExCharge.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const res  = await fetch('api.php?action=create-ext-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             if (data.success) {
@@ -731,7 +731,7 @@ const elbilApp = (() => {
         document.getElementById('deleteConfirmBtn').onclick = async () => {
             confirmModal.hide();
             try {
-                const res    = await fetch('deleteExtCharge.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+                const res    = await fetch('api.php?action=delete-ext-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const result = await res.json();
                 if (result.success) {
@@ -754,7 +754,7 @@ const elbilApp = (() => {
     // -------------------------------------------------------------------------
     function fetchEfficiencyStats() {
         const params = new URLSearchParams({ filter: filterEl.value, showZeroKwh: showZeroKwhEl.checked, dateRange: dateRangeEl.value });
-        fetch('getEfficiencyStats.php?' + params)
+        fetch('api.php?action=efficiency&' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderEfficiencyCharts(data); })
             .catch(err => {
@@ -792,7 +792,7 @@ const elbilApp = (() => {
     function fetchCostAnalytics() {
         const groupBy = document.querySelector('button[data-grouping].active')?.dataset.grouping || 'week';
         const params  = new URLSearchParams({ filter: filterEl.value, dateRange: dateRangeEl.value, groupBy, showZeroKwh: showZeroKwhEl.checked });
-        fetch('getChargeAnalytics.php?' + params)
+        fetch('api.php?action=charge-analytics&' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderCostAnalytics(data); })
             .catch(err => {
@@ -874,7 +874,7 @@ const elbilApp = (() => {
         if (sortBy) currentVehicleSort = sortBy;
         const params = new URLSearchParams({ dateRange: dateRangeEl.value });
         if (currentVehicleSort) params.set('sortBy', currentVehicleSort);
-        fetch('getVehicleComparison.php?' + params)
+        fetch('api.php?action=vehicle-comparison&' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderVehicleComparison(data.vehicles); })
             .catch(err => { document.getElementById('vehicleComparisonTableBody').innerHTML = `<tr><td colspan="7" class="text-center text-danger">Fejl: ${appUtils.escapeHtml(err.message)}</td></tr>`; });
@@ -903,7 +903,7 @@ const elbilApp = (() => {
     // -------------------------------------------------------------------------
     function fetchProviderStats() {
         const params = new URLSearchParams({ filter: filterEl.value, dateRange: dateRangeEl.value });
-        fetch('getProviderStats.php?' + params)
+        fetch('api.php?action=provider-stats&' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderProviderStats(data); })
             .catch(err => {
@@ -962,7 +962,7 @@ const elbilApp = (() => {
         if (errEl)   errEl.style.display   = 'none';
         if (statsEl) statsEl.innerHTML     = '<p class="text-muted small">Indlæser…</p>';
 
-        fetch('getChargeCompare.php')
+        fetch('api.php?action=charge-compare')
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => {
                 if (!Array.isArray(data) || data.length === 0) {
@@ -1263,7 +1263,7 @@ const elbilApp = (() => {
         const name = inp?.value.trim();
         if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
         try {
-            const res  = await fetch('updateVehicle.php', {
+            const res  = await fetch('api.php?action=update-vehicle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, name }),
@@ -1305,7 +1305,7 @@ const elbilApp = (() => {
         const name = inp?.value.trim();
         if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
         try {
-            const res  = await fetch('updateProvider.php', {
+            const res  = await fetch('api.php?action=update-provider', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, name }),
@@ -1326,7 +1326,7 @@ const elbilApp = (() => {
         const name = inp?.value.trim();
         if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
         try {
-            const res  = await fetch('createProvider.php', {
+            const res  = await fetch('api.php?action=create-provider', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name }),
@@ -1345,7 +1345,7 @@ const elbilApp = (() => {
     async function deleteProvider(id) {
         if (!confirm('Slet denne udbyder?')) return;
         try {
-            const res  = await fetch('deleteProvider.php', {
+            const res  = await fetch('api.php?action=delete-provider', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id }),
@@ -1399,7 +1399,7 @@ const elbilApp = (() => {
 
         try {
             const res = await fetch(
-                `getElspotPrices.php?start=${start}&end=${end}` +
+                `api.php?action=elspot-prices&start=${start}&end=${end}` +
                 `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`
             );
             if (!res.ok) throw new Error('HTTP ' + res.status);

@@ -181,18 +181,17 @@ function fetchNewHeatpumpData(PDO $mysqlDb, ?string $afterTimestamp): array {
  * @throws Exception If sync fails
  */
 function syncHeatpumpData(PDO $sqliteDb, array $records): int {
-    $inserted = 0;
+    $inserted  = 0;
+    $batchSize = 1000;
 
+    $stmt = $sqliteDb->prepare("
+        INSERT OR REPLACE INTO powerlogjord (logdate, kwh)
+        VALUES (?, ?)
+    ");
+
+    $sqliteDb->beginTransaction();
     try {
-        // Prepare insert statement (adjust column names and table name as needed)
-        // This assumes MySQL table has similar structure to SQLite powerlogjord table
-        $stmt = $sqliteDb->prepare("
-            INSERT OR REPLACE INTO powerlogjord (logdate, kwh)
-            VALUES (?, ?)
-        ");
-
         foreach ($records as $record) {
-            // Map MySQL columns to SQLite columns (adjust based on your schema)
             $logdate = $record['datetime'] ?? $record['logdate'] ?? $record['timestamp'];
             $kwh = $record['kwh'] ?? $record['value'] ?? 0;
 
@@ -201,15 +200,21 @@ function syncHeatpumpData(PDO $sqliteDb, array $records): int {
                 $inserted++;
             } catch (PDOException $e) {
                 logMessage("Warning: Could not insert record with logdate={$logdate}: " . $e->getMessage(), 'WARN');
-                // Continue processing other records
+            }
+
+            // Commit in chunks to avoid holding the write-lock too long
+            if ($inserted > 0 && $inserted % $batchSize === 0) {
+                $sqliteDb->commit();
+                $sqliteDb->beginTransaction();
             }
         }
-
-        return $inserted;
-
-    } catch (Exception $e) {
+        $sqliteDb->commit();
+    } catch (\Throwable $e) {
+        $sqliteDb->rollBack();
         throw new Exception("Failed to sync records to SQLite: " . $e->getMessage());
     }
+
+    return $inserted;
 }
 
 /**
@@ -264,17 +269,6 @@ function updateSyncTimestamp(PDO $sqliteDb, int $count, array $records = []): vo
 function recordSyncError(PDO $sqliteDb, string $error): void {
     try {
         $now = date('Y-m-d H:i:s');
-
-        // Try to create sync_log table if it doesn't exist
-        $sqliteDb->exec("
-            CREATE TABLE IF NOT EXISTS sync_log (
-                source TEXT PRIMARY KEY,
-                last_sync_timestamp TEXT,
-                last_sync_count INTEGER,
-                error_message TEXT,
-                updated_at TEXT
-            )
-        ");
 
         $stmt = $sqliteDb->prepare("
             INSERT OR REPLACE INTO sync_log (source, error_message, updated_at)

@@ -11,7 +11,7 @@
  * Bump CACHE version to invalidate all caches on a new deployment.
  */
 
-const CACHE = 'sparkspend-v9';
+const CACHE = 'sparkspend-v10';
 
 // Minimal precache — app shell needed to bootstrap offline
 const PRECACHE = [

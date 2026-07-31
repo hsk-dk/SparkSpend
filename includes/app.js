@@ -280,10 +280,16 @@ function _handleAuthExpiry() {
 
         const response = await _nativeFetch(input, init);
 
-        // Direct auth failure
+        // Direct auth failure from the reverse proxy (Authentik).
+        // Our own PHP endpoints also return 401/403 for CSRF or admin-key failures,
+        // but those have Content-Type: application/json. The auth proxy returns
+        // HTML or has no JSON content-type. Only treat non-JSON 401/403 as session expiry.
         if (response.status === 401 || response.status === 403) {
-            _handleAuthExpiry();
-            return response; // still return so caller can reject gracefully
+            const ct = response.headers.get('content-type') || '';
+            if (!ct.includes('application/json')) {
+                _handleAuthExpiry();
+            }
+            return response;
         }
 
         // Auth-proxy transparent redirect: 302 → 200 HTML login page

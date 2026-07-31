@@ -34,7 +34,7 @@ const annualApp = (() => {
         loadingEl.style.display = '';
         contentEl.style.display = 'none';
 
-        fetch('getAnnualSummary.php')
+        fetch('api.php?action=annual')
             .then(r => {
                 const ct = r.headers.get('content-type') || '';
                 if (ct.includes('application/json')) {

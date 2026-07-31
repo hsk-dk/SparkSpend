@@ -977,7 +977,7 @@ require 'includes/QueryBuilder.php';
       function _loadStatus() {
           listEl.innerHTML = '<p class="text-muted text-center mb-0 py-2">Indlæser\u2026</p>';
           msgEl.textContent = '';
-          fetch('getSyncStatus.php')
+          fetch('api.php?action=sync-status')
               .then(r => r.json())
               .then(d => _render(d.sources || []))
               .catch(() => {
@@ -988,10 +988,21 @@ require 'includes/QueryBuilder.php';
       function _loadLog() {
           logContent.innerHTML = '<span class="text-muted">Indlæser log\u2026</span>';
           logMeta.textContent = '';
-          fetch('getSystemLog.php?lines=80&key=' + encodeURIComponent(window.sparkConfig.adminKey || ''))
-              .then(r => r.json())
+          fetch('api.php?action=system-log&lines=80', {
+                  headers: { 'Authorization': 'Bearer ' + (window.sparkConfig.adminKey || '') }
+              })
+              .then(r => {
+                  if (!r.ok && r.status === 403) {
+                      throw new Error('Admin-nøgle mangler eller er forkert — sæt ADMIN_KEY i .env');
+                  }
+                  return r.json();
+              })
               .then(d => {
                   logLoaded = true;
+                  if (d.error) {
+                      logContent.innerHTML = `<span style="color:#f87171">${d.error}</span>`;
+                      return;
+                  }
                   if (d.missing) {
                       logContent.innerHTML = '<span style="color:#64748b">Ingen log endnu — kør en synkronisering for at generere output.</span>';
                       logMeta.textContent = '';
@@ -1069,7 +1080,7 @@ require 'includes/QueryBuilder.php';
       function _triggerSync(source) {
           if (syncAllBtn) syncAllBtn.disabled = true;
           msgEl.textContent = 'Starter sync\u2026';
-          fetch('triggerSync.php', {
+          fetch('api.php?action=trigger-sync', {
               method: 'POST',
               headers: {'Content-Type': 'application/json'},
               body: JSON.stringify({source}),

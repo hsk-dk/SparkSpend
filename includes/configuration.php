@@ -77,6 +77,7 @@ ini_set('error_log', $logPath);
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com cdnjs.cloudflare.com; font-src fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data: auth.useful.dk; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com");
 
 // ============================================================================
 // CSRF Protection
@@ -114,8 +115,23 @@ function csrfVerify(): void {
     if (!$session || !hash_equals($session, $token)) {
         http_response_code(403);
         header('Content-Type: application/json');
-        echo json_encode(['error' => 'Ugyldig CSRF-token']);
+        echo json_encode(['success' => false, 'error' => 'Ugyldig CSRF-token']);
         exit;
     }
+}
+
+/**
+ * Emit a standardized JSON error response and terminate.
+ *
+ * All error responses follow the envelope: {"success": false, "error": "..."}
+ *
+ * @param string $message Human-readable error message
+ * @param int    $httpCode HTTP status code (default 400)
+ */
+function jsonError(string $message, int $httpCode = 400): never {
+    http_response_code($httpCode);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => $message]);
+    exit;
 }
 ?>
