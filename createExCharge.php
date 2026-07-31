@@ -15,6 +15,7 @@ require 'includes/DatabaseManager.php';
 require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
+csrfVerify();
 
 try {
     // Accept JSON body or form POST

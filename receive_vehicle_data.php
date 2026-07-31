@@ -13,6 +13,20 @@ require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
 
+// API key authentication — optional. If VEHICLE_API_KEY is set in .env, the caller
+// (e.g. Home Assistant) must send: Authorization: Bearer <VEHICLE_API_KEY>.
+// If VEHICLE_API_KEY is not configured, the endpoint is open (no auth enforced).
+$apiKey = $GLOBALS['vehicleApiKey'] ?? '';
+if ($apiKey !== '') {
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (!str_starts_with($authHeader, 'Bearer ') || !hash_equals($apiKey, substr($authHeader, 7))) {
+        http_response_code(401);
+        header('WWW-Authenticate: Bearer realm="SparkSpend"');
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+}
+
 try {
     // Validate request method
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -91,7 +105,6 @@ try {
     } else {
         http_response_code(500);
         echo json_encode(['error' => 'Error storing data']);
-        ]);
     }
 
 } catch (PDOException $e) {

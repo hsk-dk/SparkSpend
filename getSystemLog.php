@@ -21,6 +21,15 @@ require 'includes/configuration.php';
 
 header('Content-Type: application/json');
 
+// Admin key guard — fail closed if key is not configured or does not match
+$adminKey     = $GLOBALS['adminKey'] ?? '';
+$submittedKey = $_GET['key'] ?? '';
+if ($adminKey === '' || !hash_equals($adminKey, $submittedKey)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Adgang nægtet']);
+    exit;
+}
+
 // Hardcoded log path — never derived from user input
 $logPath = __DIR__ . '/cron/trigger.log';
 

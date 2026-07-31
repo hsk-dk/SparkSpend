@@ -1,6 +1,6 @@
 # SparkSpend — Product Backlog
 
-Generated: 2026-03-11 · Rebuilt from code analysis: 2026-05-28 · Updated: 2026-05-31
+Generated: 2026-03-11 · Rebuilt from code analysis: 2026-05-28 · Updated: 2026-06-02
 Covers all features across Oversigt, Elbil, Jordvarme, Hus, architecture, and UX.
 Items within each priority tier are ordered by impact.
 
@@ -8,66 +8,55 @@ Items within each priority tier are ordered by impact.
 
 ## Priority: High — Teknisk gæld / Sikkerhed
 
+*(Alle high-elementer er afsluttet)*
+
 ---
 
 ## Priority: Medium — Enhancements
 
-### ENHANCEMENT — Negativ "Restforbrug" flag i regningsvisning
-Hvis `hus.month_kwh < ev.home_kwh + hp.month_kwh` (måler-fejl eller synkroniseringsforsinkelse) viser Fordeling-fanen "Restforbrug: -X kWh" uden advarsel. Marker celle rød og vis tooltip "Data inkonsistent — tjek systemlog" i `regning.js`.
-**Fil:** `includes/regning.js`
+### DEBT — Service worker cache-version bumpes ikke automatisk ved deploy
+`sw.js` har en hardkodet versionstreng (`sparkspend-vX`). Den ændres kun manuelt, så deployede filer kan sidde bag en stale cache i timevis for PWA-brugere. Deploy-scriptet (eller et pre-deploy trin) bør erstatte versionsstrengen med en dato/hash automatisk.
+**Filer:** `sw.js`, `Deploy sparkspend.bat`
 
-### ENHANCEMENT — "Sidst synkroniseret" på dashboardkort
-`getSyncStatus.php` returnerer allerede `last_sync` per datakilde. Vis en micro-tekst `"Data pr. dd. mm. hh:mm"` under sparkline på hvert kort. Marker med rød farve hvis sync er > 4 timer gammel.
-**Filer:** `includes/dashboard.js`, `index.php`
+### DEBT — `annual.js` optional-chained `escapeHtml` kan rendere råt HTML
+Linje 57: `window.appUtils?.escapeHtml?.()` — hvis `app.js` endnu ikke er evalueret (race condition eller load-fejl), indsættes `err.message` direkte i `innerHTML` uden sanitering. Brug `document.createTextNode` som fallback.
+**Fil:** `includes/annual.js`
 
-### ENHANCEMENT — Chart destroy→update refaktor (memory)
-`jordvarme.js`, `hus.js` og `annual.js` kalder `chart.destroy()` + `new Chart()` ved hver periode-navigation. Brug i stedet `.data` + `.update('none')` for eksisterende charts — undgår memory-akkumulering ved lange sessions.
-**Filer:** `includes/jordvarme.js`, `includes/hus.js`, `includes/annual.js`
+### ENHANCEMENT — Loading-skeletter på dashboard
+Ved langsom forbindelse viser alle tre dashboardkort kun `—` uden nogen feedback om at data hentes. Tilføj en CSS-skeleton-puls på `.dash-stat-value` mens `loadDashboard()` kører.
+**Filer:** `includes/dashboard.js`, `includes/style.css`
 
 ---
 
 ## Priority: Low — Enhancements
 
-### ENHANCEMENT — Time-of-use elpriskort
-Ugentlig heatmap (time × ugedag) med gennemsnitlig elspot-pris pr. celle fra Energi Data Service (gratis, ingen API-nøgle). Overlay faktiske ladningssessioner som prikker — synliggør om vi lader i dyre vinduer og hvad der kan spares ved at flytte til off-peak.
-**Filer:** `getElspotPrices.php`, `includes/elbil.js`, `index.php`
+### ENHANCEMENT — Elprisforecast: vis besked når priser endnu ikke er publiceret
+Forecast-kortet (`#elspot-forecast-card`) forbliver skjult stille hvis EDS endnu ikke har publiceret morgendagens priser (normalt ~13:00). Vis i stedet en diskret tekst: "Morgendagens priser offentliggøres ca. 13:00" så brugeren ikke tror der er en fejl.
+**Fil:** `includes/dashboard.js`
 
-### ENHANCEMENT — Elprisforecast-widget
-Brug den 24-timers Energi Data Service spot-prisforecast til at vise morgendagens priskurve og fremhæve det billigste opladningsvindue.
-**Filer:** `getElspotPrices.php`, `includes/dashboard.js`, `index.php`
-
-### ENHANCEMENT — URL-hash inkluderer datointervalfilter
-Datointervalfilteret er aldrig kodet i URL-hashen. At vælge "Dette år" og bogmærke giver en URL der åbner med standardfilteret "Denne måned".
-**Filer:** `includes/nav.js`, `includes/elbil.js`
-
-### ENHANCEMENT — Jordvarme estimeret kr på dashboardkortet
-Jordvarme-sektionen beregner allerede estimeret kr (via `fetchElCosts()` i `jordvarme.js`), men dashboardkortet viser kun kWh. Kan løses som client-side enrichment efter kort-render (mønster fra `_enrichHpWithWeather`): hent måneds-spotpris asynkront og vis `~X kr` under den forventede kWh. Kræver elspot-konfiguration.
-**Filer:** `includes/dashboard.js`, `getDashboardSummary.php`
-
-### ENHANCEMENT — Hus estimeret kr på dashboardkortet
-Hus-kortet viser kun kWh — ingen prisindikation. Approksimation: `hus.month_kwh × gns. spotpris` for måneden, ekskl. netlejen (da den ikke er i systemet). Giver brugeren et svar på "hvad koster huset at drive denne måned".
-**Filer:** `includes/dashboard.js`, `getDashboardSummary.php`
-
-### ENHANCEMENT — Anomali-alert foreslår mulig årsag
-Alerts siger "60% over baseline" men giver ikke årsagskontekst. Hvis HDD (heating degree days) også er forhøjet ≥40%, tilføj `possible_cause: 'vejr'` til anomali-objektet og vis "Sandsynlig årsag: koldt vejr" i panelet. Hvis HDD er normal, vis "Mulig årsag: øget forbrug — tjek kørsel/indstillinger". Data er allerede tilgængeligt via `getWeatherData.php`.
-**Filer:** `getAnomalyStats.php`, `includes/dashboard.js`
-
-### ENHANCEMENT — Pagination på opladningstabel
-`getCharges.php` returnerer alle rækker uden LIMIT. Ved > 2000 ladninger (typisk efter 3+ år) vil initial JSON-parse og DOM-render blive mærkbar. Tilføj `?page=&perPage=` og vis "Hent flere"-knap i bunden af tabellen.
-**Filer:** `getCharges.php`, `includes/elbil.js`
+### ENHANCEMENT — Mobilvalidering af dashboardlayout
+Dashboardkortene er designet og testet på desktop. Kortenes stat-rækker (`dash-stats`) med 3 elementer, split-bar og sparkline er ikke valideret på skærme < 400 px. Gennemgå og ret eventuelle overflow/truncation-problemer.
+**Filer:** `includes/style.css`, `index.php`
 
 ---
-
-## New Feature Ideas
-
-### FEATURE — Månedlig rapport CSV-eksport
-Eksporter månedsoversigt som CSV: `Måned, El-bil kWh, El-bil kr, Varmepumpe kWh, Hus kWh, Restforbrug kWh`. Knap på Regning-fanen. Nyttigt til regnskabs-forsoning og faktura-match.
-**Filer:** Nyt `exportCharges.php`, `includes/regning.js`, `index.php`
 
 ---
 
 ## Afsluttet
 
+- ✅ **BUG — Vehicle pairing: `stoppedAt` gemt som BLOB (SQLite type-fejl)** — Ældre PHP/PDO-SQLite gemte tekststrenge som BLOB. SQLite sorterer BLOB > TEXT, så `MAX(stoppedAt)` returnerede februar 2026 (nyeste BLOB) i stedet for juni 2026 — cron'en re-synkede de samme 72 charges ved hvert kørsel og tildelte forkert vehicleId ved manglende `vehicle_charges`-match. Fix: (1) `cron/fix_blob_timestamps.php` migration konverterer 377 BLOB-rækker til TEXT med `CAST(stoppedAt AS TEXT)`, (2) `MAX`-query ændret til `MAX(CAST(stoppedAt AS TEXT))` som robust forsikring, (3) NULL `cablePluggedInAt` i `vehicle_charges` guards mod PHP 8 deprecation-advarsel. `cron/update_monta_data.php`, `cron/fix_blob_timestamps.php`.
+- ✅ **SECURITY — `receive_vehicle_data.php` API-nøgle-autentifikation** — `VEHICLE_API_KEY` i `.env` (optional); hvis sat valideres `Authorization: Bearer <key>` med `hash_equals()` og returnerer 401 ved fejl. Uden nøgle er endpointet åbent. `receive_vehicle_data.php`, `includes/configuration.php`.
+- ✅ **SECURITY — CSRF-token på muterende endpoints** — PHP session + `bin2hex(random_bytes(32))` token i `$_SESSION`; `<meta name="csrf-token">` i `index.php`; `app.js` fetch-interceptor patcher alle POST/PUT/PATCH/DELETE med `X-CSRF-Token` header; `csrfVerify()` helper i `configuration.php` kaldt i 9 endpoints.
+- ✅ **SECURITY — Sikkerhedsheaders** — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` sendt centralt fra `includes/configuration.php` på alle svar.
+- ✅ **SECURITY — `getSystemLog.php` ADMIN_KEY** — `ADMIN_KEY` i `.env`; endpoint validerer `?key=` med `hash_equals()`; fail-closed (returnerer 403) hvis nøglen ikke er konfigureret. `adminKey` eksponeret via `window.sparkConfig` til JS. i regningsvisning** — Celle markeres rød og tooltip "Data inkonsistent — tjek systemlog" vises når `hus.month_kwh < ev.home_kwh + hp.month_kwh`. `includes/regning.js`.
+- ✅ **ENHANCEMENT — "Sidst synkroniseret" på dashboardkort** — Micro-tekst "Data X min siden" under sparkline; rød farve hvis sync > 4 timer gammel. `includes/dashboard.js`, `includes/style.css`, `index.php`.
+- ✅ **ENHANCEMENT — Chart destroy→update refaktor (memory)** — `jordvarme.js`, `hus.js`, `annual.js` genbruger nu eksisterende Chart-instanser via `.data` + `.update('none')` i stedet for destroy/new.
+- ✅ **ENHANCEMENT — Anomali-alert foreslår mulig årsag** — `possible_cause: 'vejr'` tilføjet til anomali-objektet når HDD ≥ 40% forhøjet; vises som farvekodet chip i dashboard-panelet. `getAnomalyStats.php`, `includes/dashboard.js`, `includes/style.css`.
+- ✅ **ENHANCEMENT — Pagination på opladningstabel** — Serverside `?page=&perPage=` + "Hent flere"-knap. `getCharges.php`, `includes/elbil.js`.
+- ✅ **ENHANCEMENT — URL-hash inkluderer datointervalfilter** — `#elbil/ladninger?dr=start_end` i URL; `readHash()` gendanner valgt datointerval ved sideindlæsning/bogmærke. `includes/nav.js`, `includes/elbil.js`.
+- ✅ **ENHANCEMENT — Jordvarme/Hus estimeret kr på dashboardkortet** — Async enrichment efter kort-render: måneds-spotpris hentes og `~X kr` vises som 3. stat på begge kort. `includes/dashboard.js`, `index.php`.
+- ✅ **ENHANCEMENT — Time-of-use elpriskort** — 7×24 ApexCharts-heatmap (gns. spotpris + antal ladninger) i Elbil → Analyse-fanen. Lazy-loaded ved første besøg. `getElspotPrices.php` udvidet med `&format=hourly`. `includes/elbil.js`, `index.php`.
+- ✅ **ENHANCEMENT — Elprisforecast-widget** — Morgendagens timespris som farvekodede søjler (grøn/amber/rød) + fremhævet billigste 2-timers ladevindue på Oversigt-siden. `includes/dashboard.js`, `index.php`.
 - ✅ **DEBT — Thread-safe filcache (LOCK_EX)** — `fileCacheWrite()` ombygget til `fopen` + `flock(LOCK_EX)` + `ftruncate` + `fwrite` + `flock(LOCK_UN)`. Eliminerer risiko for korrupt JSON-svar ved concurrent requests. `includes/QueryBuilder.php`.
 - ✅ **DEBT — SQLite indeksstrategi** — 5 indekser oprettes idempotent (`CREATE INDEX IF NOT EXISTS`) i `DatabaseManager::connect()` ved hver opstart: `idx_charges_stopped`, `idx_charges_started`, `idx_charges_vehicle`, `idx_ext_charges_dt`, `idx_powerlogjord_dt`, `idx_powerloghus_dt`. `includes/DatabaseManager.php`.
 - ✅ **DEBT — Rate-limiting på triggerSync.php** — Filbaseret 30s cooldown via `sparkspend_sync_cooldown.lock` i CACHE_DIR. Returnerer HTTP 429 med dansk fejlbesked hvis for tidligt. `triggerSync.php`.

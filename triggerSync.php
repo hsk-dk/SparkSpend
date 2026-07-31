@@ -15,6 +15,7 @@
 require 'includes/configuration.php';
 
 header('Content-Type: application/json');
+csrfVerify();
 
 // Rate-limit: max 1 sync request per 30 seconds
 $_cacheDir    = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();

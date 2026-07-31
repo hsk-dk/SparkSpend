@@ -4,6 +4,7 @@ require 'includes/DatabaseManager.php';
 require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
+csrfVerify();
 
 $data = json_decode(file_get_contents('php://input'), true);
 $id   = isset($data['id']) ? (int) $data['id'] : 0;

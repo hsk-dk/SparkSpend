@@ -10,16 +10,18 @@ try {
     exit(1);
 }
 
-// Udregn den nye fromDate baseret på den nyeste stoppedAt-værdi i databasen
+// Udregn den nye fromDate baseret på den nyeste stoppedAt-værdi i databasen.
+// CAST(stoppedAt AS TEXT) sikrer korrekt sammenligning selv hvis gamle rækker er
+// gemt som BLOB (ældre PHP/PDO-SQLite-adfærd — BLOB sorterer over TEXT i SQLite).
 $defaultFromDate = "2022-05-22T09:30:03Z"; // Standardværdi hvis ingen data findes
-$stmt = $db->query("SELECT MAX(stoppedAt) AS maxStoppedAt FROM charges");
+$stmt = $db->query("SELECT MAX(CAST(stoppedAt AS TEXT)) AS maxStoppedAt FROM charges");
 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 if ($row && !empty($row['maxStoppedAt'])) {
     $maxStoppedAt = $row['maxStoppedAt'];
     $timestamp = strtotime($maxStoppedAt);
     if ($timestamp !== false) {
         // Læg 1 sekund til den nyeste stoppedAt-værdi
-        $newFromDate = date('Y-m-d\TH:i:s\Z', $timestamp + 1);
+        $newFromDate = gmdate('Y-m-d\TH:i:s\Z', $timestamp + 1);
     } else {
         $newFromDate = $defaultFromDate;
     }
@@ -28,7 +30,7 @@ if ($row && !empty($row['maxStoppedAt'])) {
 }
 
 // Udregn toDate som nuværende tid + 1 time
-$toDate = date('Y-m-d\TH:i:s\Z', strtotime('+1 hour'));
+$toDate = gmdate('Y-m-d\TH:i:s\Z', strtotime('+1 hour'));
 
 // Funktion til at hente adgangstoken
 function getAccessToken($clientId, $clientSecret, $authEndpoint) {
@@ -121,6 +123,7 @@ function getVehicleForCharge($cablePluggedInAt) {
     $bestVehicleId = 1;
     $bestDiff      = PHP_INT_MAX;
     foreach ($rows as $row) {
+        if ($row['cablePluggedInAt'] === null) continue;  // skip NULL rows (avoids PHP 8 deprecation)
         $storedTime = strtotime($row['cablePluggedInAt']);
         if ($storedTime === false) continue;
         $diff = abs($targetTime - $storedTime);

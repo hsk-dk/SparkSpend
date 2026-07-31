@@ -51,6 +51,14 @@ date_default_timezone_set($timezone);
 // Cache directory — override with CACHE_DIR in .env if /tmp is volatile on your host
 $GLOBALS['cacheDir'] = rtrim(env('CACHE_DIR', sys_get_temp_dir()), '/\\');
 
+// Admin key — required to access privileged endpoints (e.g. getSystemLog.php)
+// Set a long random string in .env: ADMIN_KEY=<random>
+$GLOBALS['adminKey'] = env('ADMIN_KEY', '');
+
+// Vehicle telemetry API key — required by receive_vehicle_data.php
+// Set in .env: VEHICLE_API_KEY=<random>  and configure the same value in Home Assistant
+$GLOBALS['vehicleApiKey'] = env('VEHICLE_API_KEY', '');
+
 // Debug Mode
 $debugMode = env('DEBUG', 'false') === 'true';
 
@@ -62,4 +70,52 @@ ini_set('log_errors', 1);
 // Error Logging Path
 $logPath = env('LOG_PATH', '/var/log/php_errors.log');
 ini_set('error_log', $logPath);
+
+// ============================================================================
+// Security Headers — sent on every response (HTML + JSON API)
+// ============================================================================
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+
+// ============================================================================
+// CSRF Protection
+// ============================================================================
+
+// Start PHP session if not already started (used solely for CSRF token)
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
+    session_start();
+}
+
+// Generate a CSRF token once per session
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+/**
+ * Verify CSRF token on state-mutating requests (POST/PUT/PATCH/DELETE).
+ * Call at the top of every mutating endpoint.
+ * On failure: emits HTTP 403 JSON and exits.
+ */
+function csrfVerify(): void {
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        return;
+    }
+    $token   = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $session = $_SESSION['csrf_token']        ?? '';
+    if (!$session || !hash_equals($session, $token)) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Ugyldig CSRF-token']);
+        exit;
+    }
+}
 ?>

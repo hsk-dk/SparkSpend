@@ -8,6 +8,7 @@ require 'includes/QueryBuilder.php';
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
   <title>SparkSpend</title>
   <link rel="icon" type="image/svg+xml" href="includes/favicon.svg">
   <!-- PWA -->
@@ -202,6 +203,7 @@ require 'includes/QueryBuilder.php';
     </div>
 
     <!-- Heatpump Dashboard Card -->
+    <div class="dashboard-card" id="hp-dashboard-card" onclick="SparkNav.navigateTo('jordvarme-section')">
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-fire"></i></span>
         <div>
@@ -911,13 +913,14 @@ require 'includes/QueryBuilder.php';
     elspotArea: '<?= htmlspecialchars($GLOBALS['elspotArea'] ?? '', ENT_QUOTES) ?>',
     elspotGln:  '<?= htmlspecialchars($GLOBALS['elspotGln']  ?? '', ENT_QUOTES) ?>',
     weatherLat: '<?= htmlspecialchars($GLOBALS['weatherLat'] ?? '', ENT_QUOTES) ?>',
-    weatherLon: '<?= htmlspecialchars($GLOBALS['weatherLon'] ?? '', ENT_QUOTES) ?>'
+    weatherLon: '<?= htmlspecialchars($GLOBALS['weatherLon'] ?? '', ENT_QUOTES) ?>',
+    adminKey:   '<?= htmlspecialchars($GLOBALS['adminKey']   ?? '', ENT_QUOTES) ?>'
   };</script>
   <script src="includes/app.js?v=20260528"></script>
 
   <!-- Module Scripts -->
   <script src="includes/nav.js?v=20260601c"></script>
-  <script src="includes/dashboard.js?v=20260601c"></script>
+  <script src="includes/dashboard.js?v=20260601d"></script>
   <script src="includes/elbil.js?v=20260601d"></script>
   <script src="includes/jordvarme.js?v=20260601"></script>
   <script src="includes/hus.js?v=20260601"></script>
@@ -985,7 +988,7 @@ require 'includes/QueryBuilder.php';
       function _loadLog() {
           logContent.innerHTML = '<span class="text-muted">Indlæser log\u2026</span>';
           logMeta.textContent = '';
-          fetch('getSystemLog.php?lines=80')
+          fetch('getSystemLog.php?lines=80&key=' + encodeURIComponent(window.sparkConfig.adminKey || ''))
               .then(r => r.json())
               .then(d => {
                   logLoaded = true;

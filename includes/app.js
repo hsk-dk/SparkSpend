@@ -264,7 +264,20 @@ function _handleAuthExpiry() {
 
 (function _installFetchInterceptor() {
     const _nativeFetch = window.fetch;
+    const _getCsrfToken = () =>
+        document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
     window.fetch = async function(input, init) {
+        // Attach CSRF token to all state-mutating requests
+        const method = ((init && init.method) || 'GET').toUpperCase();
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+            const token = _getCsrfToken();
+            if (token) {
+                init = init ? Object.assign({}, init) : {};
+                init.headers = Object.assign({}, init.headers || {}, { 'X-CSRF-Token': token });
+            }
+        }
+
         const response = await _nativeFetch(input, init);
 
         // Direct auth failure

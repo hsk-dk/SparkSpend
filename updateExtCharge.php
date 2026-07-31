@@ -16,6 +16,7 @@ require 'includes/DatabaseManager.php';
 require 'includes/QueryBuilder.php';
 
 header('Content-Type: application/json');
+csrfVerify();
 
 try {
     $json = file_get_contents('php://input');

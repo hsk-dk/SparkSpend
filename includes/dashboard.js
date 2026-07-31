@@ -327,6 +327,102 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
     });
 }
 
+let _forecastChart = null;
+
+async function loadElspotForecast() {
+    const area = window.sparkConfig?.elspotArea || '';
+    const gln  = window.sparkConfig?.elspotGln  || '';
+    const card = document.getElementById('elspot-forecast-card');
+    if (!area || !gln || !card) return;
+
+    const now      = new Date();
+    const today    = now.toISOString().slice(0, 10);
+    const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+    const tmrStr   = tomorrow.toISOString().slice(0, 10);
+
+    try {
+        const res = await fetch(
+            `getElspotPrices.php?start=${today}&end=${tmrStr}` +
+            `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`
+        );
+        if (!res.ok) return;
+        const data  = await res.json();
+        const hours = (data.records || []).filter(r => r.date === tmrStr).sort((a, b) => a.hour - b.hour);
+        if (hours.length === 0) return; // day-ahead not yet published
+
+        card.style.display = '';
+        const meta = document.getElementById('elspot-forecast-meta');
+        if (meta) meta.textContent = tmrStr + ' · ' + hours.length + ' timer';
+
+        // Find cheapest consecutive 2-hour window
+        let bestIdx = 0, bestSum = Infinity;
+        for (let i = 0; i <= hours.length - 2; i++) {
+            const s = hours[i].kr_kwh + hours[i + 1].kr_kwh;
+            if (s < bestSum) { bestSum = s; bestIdx = i; }
+        }
+        const cheapH1   = hours[bestIdx].hour;
+        const cheapH2   = hours[bestIdx + 1].hour;
+        const cheapAvg  = bestSum / 2;
+        const cheapEl   = document.getElementById('elspot-cheapest-window');
+        if (cheapEl) {
+            cheapEl.innerHTML =
+                `<span class="badge bg-success me-1"><i class="fas fa-bolt"></i></span>` +
+                `Billigste 2-timers ladevindue: <strong>${String(cheapH1).padStart(2,'0')}:00–${String(cheapH2 + 1).padStart(2,'0')}:00</strong>` +
+                ` · gns. ${cheapAvg.toFixed(3)} kr/kWh`;
+        }
+
+        // ApexCharts bar chart
+        const chartEl = document.getElementById('elspot-forecast-chart');
+        if (!chartEl) return;
+
+        const minPrice = Math.min(...hours.map(h => h.kr_kwh));
+        const maxPrice = Math.max(...hours.map(h => h.kr_kwh));
+        const range    = maxPrice - minPrice || 1;
+
+        const colors = hours.map(h => {
+            const t = (h.kr_kwh - minPrice) / range; // 0=cheap, 1=expensive
+            if (t < 0.33) return '#22c55e';
+            if (t < 0.66) return '#f59e0b';
+            return '#ef4444';
+        });
+
+        if (_forecastChart) { _forecastChart.destroy(); _forecastChart = null; }
+        _forecastChart = new ApexCharts(chartEl, {
+            series: [{ name: 'kr/kWh', data: hours.map(h => Math.round(h.kr_kwh * 1000) / 1000) }],
+            chart:  { type: 'bar', height: 180, toolbar: { show: false }, animations: { enabled: false } },
+            colors: colors,
+            plotOptions: { bar: { distributed: true, borderRadius: 2, columnWidth: '80%' } },
+            dataLabels: { enabled: false },
+            legend:     { show: false },
+            xaxis: {
+                categories: hours.map(h => String(h.hour).padStart(2, '0') + ':00'),
+                labels: { rotate: -45, style: { fontSize: '9px' } },
+                tickAmount: 6,
+            },
+            yaxis: { labels: { formatter: v => v.toFixed(2) }, title: { text: 'kr/kWh', style: { fontSize: '11px' } } },
+            tooltip: {
+                y: { formatter: v => v.toFixed(3) + ' kr/kWh' },
+                x: { formatter: (_, { dataPointIndex }) => {
+                    const h = hours[dataPointIndex];
+                    return `${String(h.hour).padStart(2,'0')}:00–${String(h.hour+1).padStart(2,'0')}:00`;
+                }}
+            },
+            annotations: {
+                xaxis: [{
+                    x: String(cheapH1).padStart(2, '0') + ':00',
+                    x2: String(cheapH2).padStart(2, '0') + ':00',
+                    fillColor: '#22c55e',
+                    opacity: 0.15,
+                    label: { text: 'Billigst', style: { color: '#166534', background: '#dcfce7', fontSize: '10px' } }
+                }]
+            }
+        });
+        _forecastChart.render();
+    } catch (e) {
+        console.warn('loadElspotForecast:', e);
+    }
+}
+
 async function _enrichCardsWithCost(hp, hus) {
     const area = window.sparkConfig?.elspotArea || '';
     const gln  = window.sparkConfig?.elspotGln  || '';
