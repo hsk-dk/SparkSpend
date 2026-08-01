@@ -16,11 +16,9 @@
  * Usage: php cron/sync_housepowerlog_data.php
  */
 
-chdir(__DIR__ . '/..');
-
-require 'includes/configuration.php';
-require 'includes/DatabaseManager.php';
-require 'includes/MySQLManager.php';
+require __DIR__ . '/../includes/configuration.php';
+require __DIR__ . '/../includes/DatabaseManager.php';
+require __DIR__ . '/../includes/MySQLManager.php';
 
 // ── Lock file ──────────────────────────────────────────────────────────────
 $lockFile   = __DIR__ . '/sync_housepowerlog.lock';
@@ -114,7 +112,7 @@ function getLastSync(PDO $db): ?string {
  *   convert to kWh before storage in SQLite.
  */
 function fetchRecords(PDO $mysqlDb, ?string $afterTimestamp): array {
-    $table     = $GLOBALS['mysqlHousePowerTable'] ?? 'powerloghus';
+    $table     = Config::get('mysqlHousePowerTable', 'powerloghus');
     $batchSize = $afterTimestamp ? 1000 : 50000;
     $offset    = 0;
     $all       = [];

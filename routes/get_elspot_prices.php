@@ -51,7 +51,7 @@ if ($end < $start) {
 // ─── File cache ──────────────────────────────────────────────────────────────
 
 $cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|' . $format . '|v' . CACHE_VERSION);
-$_cacheDir = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+$_cacheDir = Config::cacheDir();
 $cacheFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_' . $cacheKey . '.json';
 
 if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < CACHE_TTL_SECONDS) {
@@ -61,7 +61,8 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < CACHE_TTL_SECO
 
 // ─── Helper: fetch from Energi Data Service ──────────────────────────────────
 
-function eds_fetch(string $dataset, array $params): array {
+// Returns array of records, or null on rate-limit (429).
+function eds_fetch(string $dataset, array $params): ?array {
     $url = EDS_BASE_URL . $dataset . '?' . http_build_query($params);
     $ctx = stream_context_create([
         'http' => [
@@ -77,6 +78,13 @@ function eds_fetch(string $dataset, array $params): array {
         return [];
     }
     $statusLine = $http_response_header[0] ?? 'unknown';
+
+    // Detect rate-limiting — return null so callers can stop gracefully
+    if (str_contains($statusLine, '429')) {
+        error_log("getElspotPrices eds_fetch: rate-limited (429) for $dataset — will use partial data");
+        return null;
+    }
+
     $data = json_decode($raw, true);
     $count = is_array($data) ? count($data['records'] ?? []) : 0;
     if ($count === 0) {
@@ -125,54 +133,72 @@ function tariff_avg_for_date(array $records, string $date): float {
     return 0.0;
 }
 
-// ─── 1. Spot prices ─────────────────────────────────────────────────────────
+// ─── 1. Spot prices (chunked to avoid EDS timeout on large date ranges) ─────
 
 $hoursByDay = [];
 
-// 1a. Legacy: Elspotprices
+// Helper: split a date range into max N-day chunks
+function _dateChunks(string $from, string $to, int $maxDays = 90): array {
+    $chunks = [];
+    $cursor = $from;
+    while ($cursor <= $to) {
+        $chunkEnd = date('Y-m-d', min(strtotime($to), strtotime($cursor . " +{$maxDays} days -1 day")));
+        $chunks[] = [$cursor, $chunkEnd];
+        $cursor = date('Y-m-d', strtotime($chunkEnd . ' +1 day'));
+    }
+    return $chunks;
+}
+
+// 1a. Legacy: Elspotprices (before ELSPOT_CUTOFF)
 if ($start <= ELSPOT_CUTOFF) {
-    $elspotEnd   = min($end, ELSPOT_CUTOFF);
-    $spotRecords = eds_fetch('Elspotprices', [
-        'start'   => $start,
-        'end'     => $elspotEnd . 'T23:59',
-        'filter'  => json_encode(['PriceArea' => $area]),
-        'columns' => 'HourDK,SpotPriceDKK',
-        'limit'   => 0,
-    ]);
-    foreach ($spotRecords as $rec) {
-        $hourDK = (string)($rec['HourDK'] ?? '');
-        $day    = substr($hourDK, 0, 10);
-        if ($day === '') continue;
-        $hour = (int)substr($hourDK, 11, 2);
-        $spot = floatval($rec['SpotPriceDKK'] ?? 0) / 1000.0;
-        $hoursByDay[$day][] = ['h' => $hour, 's' => $spot];
+    $elspotEnd = min($end, ELSPOT_CUTOFF);
+    foreach (_dateChunks($start, $elspotEnd) as [$chunkStart, $chunkEnd]) {
+        $spotRecords = eds_fetch('Elspotprices', [
+            'start'   => $chunkStart,
+            'end'     => $chunkEnd . 'T23:59',
+            'filter'  => json_encode(['PriceArea' => $area]),
+            'columns' => 'HourDK,SpotPriceDKK',
+            'limit'   => 0,
+        ]);
+        if ($spotRecords === null) break; // rate-limited — use what we have
+        foreach ($spotRecords as $rec) {
+            $hourDK = (string)($rec['HourDK'] ?? '');
+            $day    = substr($hourDK, 0, 10);
+            if ($day === '') continue;
+            $hour = (int)substr($hourDK, 11, 2);
+            $spot = floatval($rec['SpotPriceDKK'] ?? 0) / 1000.0;
+            $hoursByDay[$day][] = ['h' => $hour, 's' => $spot];
+        }
     }
 }
 
-// 1b. Current: DayAheadPrices
+// 1b. Current: DayAheadPrices (from 2025-10-01 onwards)
 $daStart = max($start, '2025-10-01');
 if ($daStart <= $end) {
-    $dayAheadRecords = eds_fetch('DayAheadPrices', [
-        'start'   => $daStart,
-        'end'     => $end . 'T23:59',
-        'filter'  => json_encode(['PriceArea' => $area]),
-        'columns' => 'TimeDK,DayAheadPriceDKK',
-        'limit'   => 0,
-    ]);
-    $hourAccum = [];
-    foreach ($dayAheadRecords as $rec) {
-        $timeDK = (string)($rec['TimeDK'] ?? '');
-        $day    = substr($timeDK, 0, 10);
-        if ($day === '') continue;
-        $hour = (int)substr($timeDK, 11, 2);
-        $spot = floatval($rec['DayAheadPriceDKK'] ?? 0) / 1000.0;
-        $hourAccum[$day][$hour]['sum'] = ($hourAccum[$day][$hour]['sum'] ?? 0.0) + $spot;
-        $hourAccum[$day][$hour]['cnt'] = ($hourAccum[$day][$hour]['cnt'] ?? 0)   + 1;
-    }
-    foreach ($hourAccum as $day => $hours) {
-        ksort($hours);
-        foreach ($hours as $hour => $acc) {
-            $hoursByDay[$day][] = ['h' => $hour, 's' => $acc['sum'] / $acc['cnt']];
+    foreach (_dateChunks($daStart, $end) as [$chunkStart, $chunkEnd]) {
+        $dayAheadRecords = eds_fetch('DayAheadPrices', [
+            'start'   => $chunkStart,
+            'end'     => $chunkEnd . 'T23:59',
+            'filter'  => json_encode(['PriceArea' => $area]),
+            'columns' => 'TimeDK,DayAheadPriceDKK',
+            'limit'   => 0,
+        ]);
+        if ($dayAheadRecords === null) break; // rate-limited — use what we have
+        $hourAccum = [];
+        foreach ($dayAheadRecords as $rec) {
+            $timeDK = (string)($rec['TimeDK'] ?? '');
+            $day    = substr($timeDK, 0, 10);
+            if ($day === '') continue;
+            $hour = (int)substr($timeDK, 11, 2);
+            $spot = floatval($rec['DayAheadPriceDKK'] ?? 0) / 1000.0;
+            $hourAccum[$day][$hour]['sum'] = ($hourAccum[$day][$hour]['sum'] ?? 0.0) + $spot;
+            $hourAccum[$day][$hour]['cnt'] = ($hourAccum[$day][$hour]['cnt'] ?? 0)   + 1;
+        }
+        foreach ($hourAccum as $day => $hours) {
+            ksort($hours);
+            foreach ($hours as $hour => $acc) {
+                $hoursByDay[$day][] = ['h' => $hour, 's' => $acc['sum'] / $acc['cnt']];
+            }
         }
     }
 }
@@ -184,7 +210,7 @@ $systemtarifRecords = eds_fetch('DatahubPricelist', [
     'columns' => PRICE_COLUMNS,
     'limit'   => 50,
     'sort'    => 'ValidFrom desc',
-]);
+]) ?? [];
 
 // ─── 3. Residential nettarif from user's DSO ────────────────────────────────
 
@@ -194,7 +220,7 @@ $nettarifAll = eds_fetch('DatahubPricelist', [
     'end'     => $end,
     'limit'   => 500,
     'sort'    => 'ValidFrom desc',
-]);
+]) ?? [];
 
 $netPatterns     = ['nettarif c', 'nettarif a lav', 'nettarif a'];
 $nettarifRecords = [];

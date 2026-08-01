@@ -68,7 +68,8 @@ $query = "
         state,
         stopReason,
         socPercentage,
-        socLimit
+        socLimit,
+        pairingSource
     FROM charges
     $internalWhereStr
     UNION ALL
@@ -85,7 +86,8 @@ $query = "
         NULL AS state,
         NULL AS stopReason,
         NULL AS socPercentage,
-        NULL AS socLimit
+        NULL AS socLimit,
+        NULL AS pairingSource
     FROM ext_charges
     $externalWhereStr
     ORDER BY datetime ASC

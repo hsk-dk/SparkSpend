@@ -301,9 +301,6 @@ require 'includes/QueryBuilder.php';
     </div>
     <div id="anomaly-list"></div>
   </div>
-  <div id="anomaly-ok" class="anomaly-ok" style="display:none">
-    <i class="fas fa-check-circle"></i> Ingen afvigelser detekteret
-  </div>
 
   <!-- Elspot Forecast Widget -->
   <div id="elspot-forecast-card" class="card p-4 mt-4" style="display:none">
@@ -573,7 +570,13 @@ require 'includes/QueryBuilder.php';
     <!-- Time-of-use heatmap card -->
     <div class="card p-4 mt-4" id="touHeatmapCard">
       <h3>Elspot-tidsmønster</h3>
-      <p class="text-muted small mb-3">Gennemsnitlig elpris (kr/kWh inkl. afgifter) og dine ladninger fordelt på time og ugedag — seneste 90 dage.</p>
+      <p class="text-muted small mb-2">Gennemsnitlig elpris (kr/kWh inkl. afgifter) og dine ladninger fordelt på time og ugedag.</p>
+      <div class="hp-mode-nav mb-3" id="touPeriodNav">
+        <button class="hp-mode-btn" data-tou-days="30">30 dage</button>
+        <button class="hp-mode-btn active" data-tou-days="90">90 dage</button>
+        <button class="hp-mode-btn" data-tou-days="180">6 mdr</button>
+        <button class="hp-mode-btn" data-tou-days="365">1 år</button>
+      </div>
       <div id="touHeatmapContainer">
         <p class="text-muted small">Kræver elspot-konfiguration (ELSPOT_AREA + ELSPOT_GLN).</p>
       </div>
@@ -910,11 +913,11 @@ require 'includes/QueryBuilder.php';
   <!-- App Utilities -->
   <!-- Server configuration for JS modules (area/GLN from .env, never from user input) -->
   <script>window.sparkConfig = {
-    elspotArea: '<?= htmlspecialchars($GLOBALS['elspotArea'] ?? '', ENT_QUOTES) ?>',
-    elspotGln:  '<?= htmlspecialchars($GLOBALS['elspotGln']  ?? '', ENT_QUOTES) ?>',
-    weatherLat: '<?= htmlspecialchars($GLOBALS['weatherLat'] ?? '', ENT_QUOTES) ?>',
-    weatherLon: '<?= htmlspecialchars($GLOBALS['weatherLon'] ?? '', ENT_QUOTES) ?>',
-    adminKey:   '<?= htmlspecialchars($GLOBALS['adminKey']   ?? '', ENT_QUOTES) ?>'
+    elspotArea: '<?= htmlspecialchars(Config::elspotArea(), ENT_QUOTES) ?>',
+    elspotGln:  '<?= htmlspecialchars(Config::elspotGln(), ENT_QUOTES) ?>',
+    weatherLat: '<?= htmlspecialchars(Config::weatherLat(), ENT_QUOTES) ?>',
+    weatherLon: '<?= htmlspecialchars(Config::weatherLon(), ENT_QUOTES) ?>',
+    adminKey:   '<?= htmlspecialchars(Config::adminKey(), ENT_QUOTES) ?>'
   };</script>
   <script src="includes/app.js?v=20260528"></script>
 
@@ -1159,7 +1162,7 @@ require 'includes/QueryBuilder.php';
 
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
+      navigator.serviceWorker.register('/sw.js.php');
     }
   </script>
 </body>

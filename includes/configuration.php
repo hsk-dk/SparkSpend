@@ -7,60 +7,15 @@
  */
 
 // Load environment variables from .env file
-require_once 'env.php';
+require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/Config.php';
 
-// Monta API Credentials - loaded from .env
-$clientId = env('MONTA_CLIENT_ID');
-$clientSecret = env('MONTA_CLIENT_SECRET');
-
-// Validate that credentials are configured
-if (empty($clientId) || empty($clientSecret)) {
-    die('Error: MONTA_CLIENT_ID and MONTA_CLIENT_SECRET must be configured in .env file');
-}
-
-// Monta API Endpoints (static, no changes needed)
-$authEndpoint = 'https://public-api.monta.com/api/v1/auth/token';
-$dataEndpoint = 'https://public-api.monta.com/api/v1/charges';
-
-// Database Paths - loaded from .env
-$GLOBALS['dbPath'] = env('CHARGING_DB_PATH', 'data/charging_data.db');
-$GLOBALS['powerlogDbPath'] = env('POWERLOG_DB_PATH', 'data/powerlog_data.db');
-
-// MySQL Heat Pump Configuration - loaded from .env
-$GLOBALS['mysqlHeatpumpHost'] = env('MYSQL_HEATPUMP_HOST');
-$GLOBALS['mysqlHeatpumpPort'] = env('MYSQL_HEATPUMP_PORT', '3306');
-$GLOBALS['mysqlHeatpumpUser'] = env('MYSQL_HEATPUMP_USER');
-$GLOBALS['mysqlHeatpumpPassword'] = env('MYSQL_HEATPUMP_PASSWORD', '');
-$GLOBALS['mysqlHeatpumpDatabase'] = env('MYSQL_HEATPUMP_DATABASE');
-$GLOBALS['mysqlHeatpumpTable'] = env('MYSQL_HEATPUMP_TABLE', 'powerlog');
-$GLOBALS['mysqlHousePowerTable'] = env('MYSQL_HOUSEPOWERLOG_TABLE', 'powerloghus');
-$GLOBALS['heatpumpSyncInterval'] = env('HEATPUMP_SYNC_INTERVAL', '300'); // Default: 5 minutes
-
-// Electricity cost settings — spot price area and grid operator GLN
-$GLOBALS['elspotArea'] = env('ELSPOT_AREA', 'DK2');
-$GLOBALS['elspotGln']  = env('ELSPOT_GLN',  '');
-
-// Weather data — GPS coordinates for degree-day (HDD) calculation via Open-Meteo
-$GLOBALS['weatherLat'] = env('WEATHER_LAT', '');
-$GLOBALS['weatherLon'] = env('WEATHER_LON', '');
+// Load all config values into the Config class
+Config::load();
 
 // Timezone Configuration
 $timezone = env('TIMEZONE', 'Europe/Copenhagen');
 date_default_timezone_set($timezone);
-
-// Cache directory — override with CACHE_DIR in .env if /tmp is volatile on your host
-$GLOBALS['cacheDir'] = rtrim(env('CACHE_DIR', sys_get_temp_dir()), '/\\');
-
-// Admin key — required to access privileged endpoints (e.g. getSystemLog.php)
-// Set a long random string in .env: ADMIN_KEY=<random>
-$GLOBALS['adminKey'] = env('ADMIN_KEY', '');
-
-// Vehicle telemetry API key — required by receive_vehicle_data.php
-// Set in .env: VEHICLE_API_KEY=<random>  and configure the same value in Home Assistant
-$GLOBALS['vehicleApiKey'] = env('VEHICLE_API_KEY', '');
-
-// Debug Mode
-$debugMode = env('DEBUG', 'false') === 'true';
 
 // Error Reporting Configuration
 error_reporting(E_ALL);

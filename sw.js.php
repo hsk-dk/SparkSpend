@@ -1,5 +1,42 @@
+<?php
 /**
- * SparkSpend Service Worker
+ * Auto-versioned Service Worker generator.
+ *
+ * Generates sw.js with a cache version derived from the content hash of all
+ * cacheable static files. When any JS/CSS/PHP file changes, the hash changes,
+ * the browser detects a new SW, and all caches are purged on activate.
+ *
+ * No manual version bumping needed — deploy and forget.
+ */
+
+header('Content-Type: application/javascript');
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('X-Content-Type-Options: nosniff');
+
+// Compute content hash from all cacheable source files
+$files = array_merge(
+    glob(__DIR__ . '/includes/*.js')  ?: [],
+    glob(__DIR__ . '/includes/*.css') ?: [],
+    glob(__DIR__ . '/routes/*.php')   ?: [],
+    [
+        __DIR__ . '/index.php',
+        __DIR__ . '/api.php',
+        __DIR__ . '/manifest.json',
+    ]
+);
+
+// Filter to existing files only
+$files = array_filter($files, 'file_exists');
+
+// Hash based on file contents — only changes when code actually changes
+$hashes = array_map(function($f) { return md5_file($f); }, $files);
+sort($hashes); // deterministic order
+$version = 'sparkspend-' . substr(md5(implode('', $hashes)), 0, 10);
+?>
+/**
+ * SparkSpend Service Worker (auto-versioned)
+ *
+ * Cache version: <?= $version ?> (generated from content hash)
  *
  * Caching strategy by request type:
  *   Navigation (HTML)       — network-first, fallback to cached shell
@@ -7,11 +44,9 @@
  *   Local PHP API (GET)     — network-first, cache fallback (offline shows last data)
  *   CDN / cross-origin      — cache-first (Bootstrap, Chart.js etc. rarely change)
  *   POST / mutation         — always network, never cached
- *
- * Bump CACHE version to invalidate all caches on a new deployment.
  */
 
-const CACHE = 'sparkspend-v10';
+const CACHE = '<?= $version ?>';
 
 // Minimal precache — app shell needed to bootstrap offline
 const PRECACHE = [
@@ -22,8 +57,6 @@ const PRECACHE = [
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', event => {
-  // Use individual add() so one failing URL (e.g. auth-redirected manifest)
-  // does not abort the entire install.
   event.waitUntil(
     caches.open(CACHE).then(cache =>
       Promise.all(PRECACHE.map(url => cache.add(url).catch(() => {})))
@@ -59,8 +92,6 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(request)
         .then(response => {
-          // Clone synchronously before returning — cloning inside a deferred
-          // caches.open().then() callback races with the browser consuming the body.
           if (response.ok) {
             const toCache = response.clone();
             caches.open(CACHE).then(c => c.put(request, toCache));
@@ -96,7 +127,6 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(request)
         .then(response => {
-          // Clone synchronously — same timing issue as navigate block.
           if (response.ok) {
             const toCache = response.clone();
             caches.open(CACHE).then(c => c.put(request, toCache));
@@ -124,7 +154,7 @@ self.addEventListener('fetch', event => {
             if (response.ok) cache.put(request, response.clone());
             return response;
           })
-          .catch(() => new Response('', { status: 503 })); // keep respondWith happy on network failure
+          .catch(() => new Response('', { status: 503 }));
         return cached || networkFetch;
       })
     )

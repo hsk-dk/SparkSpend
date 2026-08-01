@@ -8,7 +8,7 @@
  */
 
 // Rate-limit: max 1 sync request per 30 seconds
-$_cacheDir    = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+$_cacheDir    = Config::cacheDir();
 $_cooldownFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_cooldown.lock';
 if (file_exists($_cooldownFile) && (time() - filemtime($_cooldownFile)) < 30) {
     http_response_code(429);
@@ -44,7 +44,7 @@ $logPath = escapeshellarg($logFile);
 $started = 0;
 
 // Invalidate all file caches
-$_cacheDir = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+$_cacheDir = Config::cacheDir();
 foreach (glob($_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_*.json') ?: [] as $_f) {
     @unlink($_f);
 }

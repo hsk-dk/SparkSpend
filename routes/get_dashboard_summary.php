@@ -5,9 +5,9 @@
  * for the current month + 14-day sparklines.
  */
 
-// ─── 60-second file cache ─────────────────────────────────────────────────────
+// ─── 5-minute file cache ──────────────────────────────────────────────────────
 $_dashCacheKey = 'dashboard_' . date('Y-m-d');
-$_cached = QueryBuilder::fileCacheRead($_dashCacheKey, 60);
+$_cached = QueryBuilder::fileCacheRead($_dashCacheKey, 300);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 

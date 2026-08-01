@@ -9,7 +9,7 @@
  */
 
 // Admin key guard — fail closed if key is not configured or does not match.
-$adminKey     = $GLOBALS['adminKey'] ?? '';
+$adminKey     = Config::adminKey();
 $authHeader   = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
 $submittedKey = str_starts_with($authHeader, 'Bearer ')
     ? substr($authHeader, 7)

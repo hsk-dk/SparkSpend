@@ -9,11 +9,9 @@
  */
 
 // Set working directory and include dependencies
-chdir(__DIR__ . '/..');
-
-require 'includes/configuration.php';
-require 'includes/DatabaseManager.php';
-require 'includes/MySQLManager.php';
+require __DIR__ . '/../includes/configuration.php';
+require __DIR__ . '/../includes/DatabaseManager.php';
+require __DIR__ . '/../includes/MySQLManager.php';
 
 // Prevent concurrent syncs with lock file
 $lockFile = __DIR__ . '/sync_heatpump.lock';
@@ -106,7 +104,7 @@ function getLastSyncTimestamp(PDO $sqliteDb): ?string {
  * @throws Exception If query fails
  */
 function fetchNewHeatpumpData(PDO $mysqlDb, ?string $afterTimestamp): array {
-    $tableName = env('MYSQL_HEATPUMP_TABLE', 'powerlog');
+    $tableName = Config::get('mysqlHeatpumpTable', 'powerlog');
     $allRecords = [];
 
     // Use larger batch for initial sync (no afterTimestamp), smaller for incremental

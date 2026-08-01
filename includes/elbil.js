@@ -511,13 +511,19 @@ const elbilApp = (() => {
             row.dataset.vehicleId = charge.vehicleId;
             if (charge.providerId) row.dataset.providerId = charge.providerId;
 
+            // Pairing confidence indicator for internal charges
+            let pairingBadge = '';
+            if (charge.source === 'internal' && charge.pairingSource === 'default') {
+                pairingBadge = ' <span class="text-warning" data-bs-toggle="tooltip" title="Bil kunne ikke bestemmes automatisk — klik Rediger for at rette">⚠️</span>';
+            }
+
             row.innerHTML = `
                 <td>${fmtDate}</td>
                 <td>${kwh.toFixed(2)} kWh</td>
                 ${sessionCell}
                 <td>${pris.toFixed(2)} kr</td>
                 <td>${priceIcon ? priceIcon + ' ' : ''}${pPerKwh.toFixed(2)} kr/kWh${priceText ? ' <small>' + priceText + '</small>' : ''}</td>
-                <td>${appUtils.escapeHtml(vName)}</td>
+                <td>${appUtils.escapeHtml(vName)}${pairingBadge}</td>
                 <td>${icon}${stateBadge}</td>
                 <td><button class="btn btn-sm btn-secondary" data-action="edit">Rediger</button></td>
             `;
@@ -1377,13 +1383,22 @@ const elbilApp = (() => {
         if (subId === 'elbil-analyse' && !touLoaded) {
             touLoaded = true;
             fetchTouHeatmap();
+
+            // Period selector for TOU heatmap
+            document.querySelectorAll('#touPeriodNav [data-tou-days]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('#touPeriodNav .hp-mode-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    fetchTouHeatmap(parseInt(this.dataset.touDays, 10));
+                });
+            });
         }
     }
 
     // -------------------------------------------------------------------------
     // Time-of-use heatmap (Elspot-tidsmønster)
     // -------------------------------------------------------------------------
-    async function fetchTouHeatmap() {
+    async function fetchTouHeatmap(days = 90) {
         const area = window.sparkConfig?.elspotArea || '';
         const gln  = window.sparkConfig?.elspotGln  || '';
         const container = document.getElementById('touHeatmapContainer');
@@ -1392,8 +1407,8 @@ const elbilApp = (() => {
 
         const now    = new Date();
         const end    = now.toISOString().slice(0, 10);
-        const d90    = new Date(now); d90.setDate(now.getDate() - 89);
-        const start  = d90.toISOString().slice(0, 10);
+        const dStart = new Date(now); dStart.setDate(now.getDate() - (days - 1));
+        const start  = dStart.toISOString().slice(0, 10);
 
         container.innerHTML = '<p class="text-muted small">Indlæser elspot-data…</p>';
 

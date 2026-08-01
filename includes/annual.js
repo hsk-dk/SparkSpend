@@ -53,8 +53,11 @@ const annualApp = (() => {
                 _renderTable(data);
             })
             .catch(err => {
-                const msg = window.appUtils?.escapeHtml?.(err.message) ?? err.message;
-                loadingEl.innerHTML = '<span class="text-danger">Fejl: ' + msg + '</span>';
+                loadingEl.innerHTML = '';
+                const span = document.createElement('span');
+                span.className = 'text-danger';
+                span.textContent = 'Fejl: ' + err.message;
+                loadingEl.appendChild(span);
                 console.error('annualApp:', err);
             });
     }

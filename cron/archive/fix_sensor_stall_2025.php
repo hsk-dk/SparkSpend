@@ -120,7 +120,7 @@ foreach ($frozenRows as $i => $row) {
 if ($commit) {
     $db->commit();
     // Invalidate caches
-    $cacheDir = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+    $cacheDir = Config::cacheDir();
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_*.json') ?: [] as $f) {
         @unlink($f);
     }

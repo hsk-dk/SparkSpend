@@ -116,7 +116,7 @@ foreach ($rows as $row) {
 if ($commit) {
     $db->commit();
     // Invalidate all file caches
-    $cacheDir = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+    $cacheDir = Config::cacheDir();
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_*.json') ?: [] as $f) {
         @unlink($f);
     }

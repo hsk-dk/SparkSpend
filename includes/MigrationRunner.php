@@ -13,6 +13,8 @@
  *   MigrationRunner::status($db, '/path/to/migrations/charges');
  */
 
+require_once __DIR__ . '/Config.php';
+
 class MigrationRunner {
 
     /**
@@ -75,7 +77,7 @@ class MigrationRunner {
      * @return array Applied migrations (empty if skipped or none pending)
      */
     public static function runIfDue(PDO $db, string $migrationsDir, int $ttl = 3600): array {
-        $cacheDir  = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+        $cacheDir  = Config::cacheDir();
         $flagFile  = $cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_migrations_' . md5($migrationsDir) . '.flag';
 
         if (file_exists($flagFile) && (time() - filemtime($flagFile)) < $ttl) {

@@ -11,6 +11,7 @@ let _hpSparkChart  = null;
 let _husSparkChart = null;
 let _hpWeatherAbort = null;
 let _costEnrichAbort = null;
+let _dashRefreshInterval = null;
 
 async function loadDashboard() {
     const cards = ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'];
@@ -85,23 +86,25 @@ function renderEvCard(ev) {
         let html = '';
         if (showTrends && ev.pct_change_kwh !== null) {
             const up = ev.pct_change_kwh >= 0;
+            const prevKwh = Math.round(ev.month_kwh / (1 + ev.pct_change_kwh / 100)) || 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_kwh)}% kWh vs. samme periode sidst måned</div>`;
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_kwh)}% kWh vs. forrige mdr (${prevKwh}→${Math.round(ev.month_kwh)})</div>`;
         }
         if (showTrends && ev.pct_change_cost !== null) {
             const up = ev.pct_change_cost >= 0;
+            const prevCost = Math.round(ev.month_cost / (1 + ev.pct_change_cost / 100)) || 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_cost)}% pris vs. samme periode sidst måned</div>`;
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_cost)}% pris vs. forrige mdr (${prevCost}→${Math.round(ev.month_cost)} kr)</div>`;
         }
         if (showTrends && ev.pct_change_year_kwh !== null) {
             const up = ev.pct_change_year_kwh >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_kwh)}% kWh vs. samme måned sidste år</div>`;
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_kwh)}% kWh vs. sidste år</div>`;
         }
         if (showTrends && ev.pct_change_year_cost !== null) {
             const up = ev.pct_change_year_cost >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_cost)}% pris vs. samme måned sidste år</div>`;
+                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_cost)}% pris vs. sidste år</div>`;
         }
         // Driver note: flag if external charging share shifted significantly vs. prev period
         if (showTrends && ev.prev_ext_kwh_pct !== null && ev.month_kwh > 0) {
@@ -142,13 +145,13 @@ function renderHeatpumpCard(hp) {
             const up = hp.pct_change >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hp.pct_change)}% vs. samme periode sidst måned</div>`;
+                    `${Math.abs(hp.pct_change)}% vs. forrige mdr</div>`;
         }
         if (showTrends && hp.pct_change_year !== null) {
             const up = hp.pct_change_year >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hp.pct_change_year)}% vs. samme måned sidste år</div>`;
+                    `${Math.abs(hp.pct_change_year)}% vs. sidste år</div>`;
         }
         trendEl.innerHTML = html;
         trendEl.className = 'dash-trend';
@@ -184,13 +187,13 @@ function renderHusCard(hus) {
             const up = hus.pct_change >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hus.pct_change)}% vs. samme periode sidst måned</div>`;
+                    `${Math.abs(hus.pct_change)}% vs. forrige mdr</div>`;
         }
         if (showTrends && hus.pct_change_year !== null) {
             const up = hus.pct_change_year >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hus.pct_change_year)}% vs. samme måned sidste år</div>`;
+                    `${Math.abs(hus.pct_change_year)}% vs. sidste år</div>`;
         }
         trendEl.innerHTML = html;
         trendEl.className = 'dash-trend';
@@ -348,7 +351,17 @@ async function loadElspotForecast() {
         if (!res.ok) return;
         const data  = await res.json();
         const hours = (data.records || []).filter(r => r.date === tmrStr).sort((a, b) => a.hour - b.hour);
-        if (hours.length === 0) return; // day-ahead not yet published
+        if (hours.length === 0) {
+            // Day-ahead prices not yet published — show informational message
+            card.style.display = '';
+            const chartEl = document.getElementById('elspot-forecast-chart');
+            if (chartEl) chartEl.innerHTML = '<p class="text-muted text-center py-3">Morgendagens priser offentliggøres normalt ca. kl. 13:00</p>';
+            const windowEl = document.getElementById('elspot-cheapest-window');
+            if (windowEl) windowEl.innerHTML = '';
+            const meta = document.getElementById('elspot-forecast-meta');
+            if (meta) meta.textContent = tmrStr;
+            return;
+        }
 
         card.style.display = '';
         const meta = document.getElementById('elspot-forecast-meta');
@@ -560,15 +573,10 @@ function _renderAnomalies(anomalies) {
 
     if (visible.length === 0) {
         panel.style.display = 'none';
-        // Show "alt normalt" confirmation from day 5 onwards
-        const okEl = document.getElementById('anomaly-ok');
-        if (okEl) okEl.style.display = new Date().getDate() >= 5 ? '' : 'none';
         return;
     }
-    const okEl2 = document.getElementById('anomaly-ok');
-    if (okEl2) okEl2.style.display = 'none';
 
-    // Update tab badge dots
+    // Update tab badge dots (always, even if panel is dismissed)
     anomalies.forEach(a => {
         const el = document.getElementById('anomaly-badge-' + a.category);
         if (el && a.severity !== 'info') {
@@ -576,6 +584,12 @@ function _renderAnomalies(anomalies) {
             el.style.display = '';
         }
     });
+
+    // Check if user has dismissed these exact anomalies this month
+    if (_isAnomalyDismissed(visible)) {
+        panel.style.display = 'none';
+        return;
+    }
 
     // Colour the panel header based on worst severity
     const hasCritical = visible.some(a => a.severity === 'critical');
@@ -606,5 +620,67 @@ function _renderAnomalies(anomalies) {
         </div>`;
     }).join('');
 
+    // Add dismiss button
+    let dismissBtn = panel.querySelector('.anomaly-dismiss-btn');
+    if (!dismissBtn) {
+        dismissBtn = document.createElement('button');
+        dismissBtn.className = 'anomaly-dismiss-btn';
+        dismissBtn.innerHTML = '<i class="fas fa-times"></i> Afvis';
+        dismissBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _dismissAnomalies(visible);
+        });
+        panel.appendChild(dismissBtn);
+    } else {
+        // Re-bind with current visible list
+        dismissBtn.onclick = (e) => { e.stopPropagation(); _dismissAnomalies(visible); };
+    }
+
     panel.style.display = '';
+}
+
+// =============================================================================
+// Dashboard Auto-Refresh (5 minutes, only when Oversigt tab is active + visible)
+// =============================================================================
+
+function startDashboardAutoRefresh() {
+    if (_dashRefreshInterval) return;
+    _dashRefreshInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+            loadDashboard();
+        }
+    }, 300_000); // 5 minutes
+}
+
+function stopDashboardAutoRefresh() {
+    if (_dashRefreshInterval) {
+        clearInterval(_dashRefreshInterval);
+        _dashRefreshInterval = null;
+    }
+}
+
+// =============================================================================
+// Anomaly Dismiss — persistent until new month or severity change
+// =============================================================================
+
+function _getAnomalyDismissKey() {
+    return 'anomaly_dismissed_' + new Date().toISOString().slice(0, 7);
+}
+
+function _isAnomalyDismissed(anomalies) {
+    const key = _getAnomalyDismissKey();
+    const dismissed = localStorage.getItem(key);
+    if (!dismissed) return false;
+    const currentSig = anomalies.map(a => a.category + ':' + a.severity).sort().join('|');
+    return dismissed === currentSig;
+}
+
+function _dismissAnomalies(anomalies) {
+    const key = _getAnomalyDismissKey();
+    const sig = anomalies.map(a => a.category + ':' + a.severity).sort().join('|');
+    localStorage.setItem(key, sig);
+    const panel = document.getElementById('anomaly-panel');
+    if (panel) panel.style.display = 'none';
+    // Don't show "Ingen afvigelser" after dismiss — that would be misleading.
+    // Tab badges remain visible as a subtle reminder.
 }

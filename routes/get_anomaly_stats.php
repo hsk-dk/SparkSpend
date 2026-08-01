@@ -20,7 +20,7 @@ if ($_cached !== null) { echo $_cached; exit; }
  */
 function _anomalyFetchHddSum(string $start, string $end, float $lat, float $lon): ?float
 {
-    $cacheDir  = rtrim($GLOBALS['cacheDir'] ?? sys_get_temp_dir(), '/\\');
+    $cacheDir  = rtrim(Config::cacheDir(), '/\\');
     $cacheKey  = md5($start . '|' . $end . '|' . round($lat, 4) . '|' . round($lon, 4) . '|v1');
     $cacheFile = $cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_weather_' . $cacheKey . '.json';
 
@@ -198,8 +198,8 @@ usort($anomalies, fn($a, $b) => $severityRank[$a['severity']] <=> $severityRank[
 // Possible cause: weather vs. consumption
 // =========================================================================
 if (!empty($anomalies)) {
-    $lat = (float)($GLOBALS['weatherLat'] ?? 0);
-    $lon = (float)($GLOBALS['weatherLon'] ?? 0);
+    $lat = (float)(Config::weatherLat());
+    $lon = (float)(Config::weatherLon());
     if ($lat !== 0.0 || $lon !== 0.0) {
         $hddCur = _anomalyFetchHddSum($curMonthStart, $curMonthEnd, $lat, $lon);
         $hddLy  = _anomalyFetchHddSum($lyMonthStart,  $lyMonthEnd,  $lat, $lon);

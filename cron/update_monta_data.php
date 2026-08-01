@@ -71,36 +71,60 @@ function getAccessToken($clientId, $clientSecret, $authEndpoint) {
     }
 }
 
-// Funktion til at hente data fra Monta API
+// Funktion til at hente data fra Monta API (with pagination)
 function getChargingData($accessToken, $dataEndpoint, $fromDate, $toDate) {
-    //echo "Henter data fra API...\n";
-    $queryParams = http_build_query([
-        'fromDate' => $fromDate,
-        'toDate'   => $toDate,
-        'page'     => 0,
-        'perPage'  => 100
-    ]);
-    $ch = curl_init($dataEndpoint . "?" . $queryParams);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-        'Authorization: Bearer ' . $accessToken
-    ));
+    $allCharges = [];
+    $page       = 0;
+    $perPage    = 100;
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    while (true) {
+        $queryParams = http_build_query([
+            'fromDate' => $fromDate,
+            'toDate'   => $toDate,
+            'page'     => $page,
+            'perPage'  => $perPage
+        ]);
+        $ch = curl_init($dataEndpoint . "?" . $queryParams);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Authorization: Bearer ' . $accessToken
+        ));
 
-    if ($httpCode === 429) {
-        logMsg("Monta API rate-limit (429) — afventer næste kørsel.", 'WARN');
-        return null;
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 429) {
+            logMsg("Monta API rate-limit (429) — afventer næste kørsel.", 'WARN');
+            return null;
+        }
+
+        if ($httpCode !== 200) {
+            logMsg("Fejl ved hentning af data: HTTP " . $httpCode . " (page {$page})", 'ERROR');
+            exit(1);
+        }
+
+        $decoded = json_decode($response, true);
+        $batch   = $decoded['data'] ?? [];
+        $allCharges = array_merge($allCharges, $batch);
+
+        // Last page: fewer results than requested
+        if (count($batch) < $perPage) break;
+
+        $page++;
+
+        // Safety limit: max 20,000 charges per sync run
+        if ($page > 200) {
+            logMsg("Pagination safety limit reached (page {$page}) — will continue on next run.", 'WARN');
+            break;
+        }
     }
 
-    if ($httpCode !== 200) {
-        logMsg("Fejl ved hentning af data: HTTP " . $httpCode, 'ERROR');
-        exit(1);
+    if ($page > 0) {
+        logMsg("Fetched " . count($allCharges) . " charges across " . ($page + 1) . " pages.");
     }
 
-    return json_decode($response, true);
+    return ['data' => $allCharges];
 }
 
 // Cache vehicle count for the lifetime of this script — avoids one DB query per charge.
@@ -114,15 +138,15 @@ function _getVehicleCount(): int {
     return $_vehicleCount;
 }
 
-function getVehicleForCharge($cablePluggedInAt) {
+function getVehicleForCharge($cablePluggedInAt): array {
     $db = DatabaseManager::getChargesDb();
 
     // All timestamps are now stored as UTC Z-suffix. PHP's strtotime() handles
     // this correctly for timestamp comparison.
     $targetTime = strtotime($cablePluggedInAt);
     if ($targetTime === false) {
-        error_log("getVehicleForCharge: could not parse Monta timestamp: $cablePluggedInAt");
-        return 1;
+        logMsg("getVehicleForCharge: could not parse timestamp: $cablePluggedInAt", 'WARN');
+        return ['vehicleId' => 1, 'source' => 'default'];
     }
 
     // Fetch the 500 most recent vehicle_charges rows and compare in PHP
@@ -133,7 +157,7 @@ function getVehicleForCharge($cablePluggedInAt) {
     $bestVehicleId = 1;
     $bestDiff      = PHP_INT_MAX;
     foreach ($rows as $row) {
-        if ($row['cablePluggedInAt'] === null) continue;  // skip NULL rows (avoids PHP 8 deprecation)
+        if ($row['cablePluggedInAt'] === null) continue;
         $storedTime = strtotime($row['cablePluggedInAt']);
         if ($storedTime === false) continue;
         $diff = abs($targetTime - $storedTime);
@@ -144,15 +168,13 @@ function getVehicleForCharge($cablePluggedInAt) {
     }
 
     if ($bestDiff >= 3600) {
-        // Only warn when there are multiple vehicles — with a single vehicle, defaulting
-        // to vehicleId=1 is always correct and the message is just noise.
         if (_getVehicleCount() > 1) {
-            error_log("getVehicleForCharge: no vehicle_charges row within 1 hour of $cablePluggedInAt (closest diff: {$bestDiff}s) — defaulting to vehicleId=1");
+            logMsg("getVehicleForCharge: no match within 1h of $cablePluggedInAt (closest: {$bestDiff}s) — defaulting to vehicleId=1", 'WARN');
         }
-        return 1;
+        return ['vehicleId' => 1, 'source' => 'default'];
     }
 
-    return $bestVehicleId;
+    return ['vehicleId' => $bestVehicleId, 'source' => 'matched'];
 }
 
 /**
@@ -181,8 +203,19 @@ function saveChargingData($db, $data) {
         $charge['startedAt']       = _toUtcZ($charge['startedAt'] ?? null);
         $charge['stoppedAt']       = _toUtcZ($charge['stoppedAt'] ?? null);
 
-        // Find den rigtige bil baseret på kabeltilslutningstidspunktet
-        $vehicleId = getVehicleForCharge($charge['cablePluggedInAt']);
+        // Determine vehicleId: prioritize Monta API's field (Partner API only),
+        // then HA time-match, then default. Public API does not include vehicleId.
+        $montaVehicleId = isset($charge['vehicleId']) ? intval($charge['vehicleId']) : 0;
+        $pairingSource  = 'default';
+
+        if ($montaVehicleId > 0) {
+            $vehicleId     = $montaVehicleId;
+            $pairingSource = 'api';
+        } else {
+            $pairing       = getVehicleForCharge($charge['cablePluggedInAt']);
+            $vehicleId     = $pairing['vehicleId'];
+            $pairingSource = $pairing['source'];
+        }
 
         // Keep vehicles table current. Extract name from API response if available
         // (Monta may return vehicle info in future API versions or under different keys).
@@ -201,15 +234,26 @@ function saveChargingData($db, $data) {
         }
 
         // Check if record already exists
-        $checkStmt = $db->prepare("SELECT vehicleId FROM charges WHERE id = ?");
+        $checkStmt = $db->prepare("SELECT vehicleId, pairingSource FROM charges WHERE id = ?");
         $checkStmt->execute([$charge['id']]);
         $existingCharge = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if ($existingCharge) {
-            // Record exists: UPDATE only API fields, preserve vehicleId if user manually changed it
-            // Only update vehicleId if it's still the default (0 or not set)
+            // Record exists: preserve vehicleId if user manually changed it
             $existingVehicleId = $existingCharge['vehicleId'];
-            $vehicleIdToUse = ($existingVehicleId == 0 || $existingVehicleId == null) ? $vehicleId : $existingVehicleId;
+            $existingSource    = $existingCharge['pairingSource'] ?? 'legacy';
+
+            // Never overwrite a manual pairing; otherwise use the new determined value
+            if ($existingSource === 'manual') {
+                $vehicleIdToUse   = $existingVehicleId;
+                $pairingSourceUse = 'manual';
+            } elseif ($existingVehicleId == 0 || $existingVehicleId == null) {
+                $vehicleIdToUse   = $vehicleId;
+                $pairingSourceUse = $pairingSource;
+            } else {
+                $vehicleIdToUse   = $vehicleId;
+                $pairingSourceUse = $pairingSource;
+            }
 
             $updateStmt = $db->prepare("UPDATE charges SET
                 chargePointId = ?,
@@ -225,7 +269,8 @@ function saveChargingData($db, $data) {
                 stopReason = ?,
                 socPercentage = ?,
                 socLimit = ?,
-                vehicleId = ?
+                vehicleId = ?,
+                pairingSource = ?
                 WHERE id = ?");
 
             $updateStmt->execute([
@@ -243,15 +288,16 @@ function saveChargingData($db, $data) {
                 $socPercentage,
                 $charge['socLimit'],
                 $vehicleIdToUse,
+                $pairingSourceUse,
                 $charge['id']
             ]);
         } else {
-            // Record doesn't exist: INSERT new record with auto-detected vehicleId
+            // Record doesn't exist: INSERT new record
             $insertStmt = $db->prepare("INSERT INTO charges
                 (id, chargePointId, createdAt, updatedAt, cablePluggedInAt, startedAt, stoppedAt, state,
-                consumedKwh, kwhLimit, startMeterKwh, endMeterKwh, cost, stopReason, socPercentage, socLimit, vehicleId)
+                consumedKwh, kwhLimit, startMeterKwh, endMeterKwh, cost, stopReason, socPercentage, socLimit, vehicleId, pairingSource)
                 VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $insertStmt->execute([
                 $charge['id'],
@@ -270,7 +316,8 @@ function saveChargingData($db, $data) {
                 $charge['stopReason'],
                 $socPercentage,
                 $charge['socLimit'],
-                $vehicleId
+                $vehicleId,
+                $pairingSource
             ]);
         }
     }
@@ -282,6 +329,17 @@ function saveChargingData($db, $data) {
 }
 
 // ── Sync execution ───────────────────────────────────────────────────────────
+
+// Validate Monta credentials are configured
+$clientId     = Config::montaClientId();
+$clientSecret = Config::montaClientSecret();
+$authEndpoint = Config::montaAuthEndpoint();
+$dataEndpoint = Config::montaDataEndpoint();
+
+if (empty($clientId) || empty($clientSecret)) {
+    logMsg("MONTA_CLIENT_ID / MONTA_CLIENT_SECRET not configured in .env — skipping sync.", 'ERROR');
+    exit(1);
+}
 
 // Hent adgangstoken
 logMsg("Starting Monta sync (from: {$newFromDate})…");

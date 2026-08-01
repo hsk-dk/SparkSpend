@@ -1453,16 +1453,38 @@ header {
   font-style: italic;
 }
 
-/* Loading skeleton — pulsing placeholder while dashboard data is fetching */
+/* Loading skeleton — shimmer placeholder while dashboard data is fetching */
+@keyframes dash-shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
 @keyframes dash-pulse {
   0%, 100% { opacity: 0.45; }
   50%       { opacity: 0.15; }
 }
 
-.dash-loading .dash-stat-value,
+.dash-loading .dash-stat-value {
+  color: transparent;
+  background: linear-gradient(90deg, rgba(148,163,184,0.12) 25%, rgba(148,163,184,0.24) 50%, rgba(148,163,184,0.12) 75%);
+  background-size: 400px 100%;
+  animation: dash-shimmer 1.4s ease-in-out infinite;
+  border-radius: 4px;
+  min-width: 48px;
+  display: inline-block;
+}
+
 .dash-loading .dash-meta,
 .dash-loading .dash-trend {
   animation: dash-pulse 1.3s ease-in-out infinite;
+}
+
+.dash-loading .dash-sparkline canvas {
+  opacity: 0.15;
+}
+
+.dash-loading .dash-split-wrap {
+  opacity: 0.2;
 }
 
 /* ===== EV SUB-NAVIGATION ===== */
@@ -1673,19 +1695,6 @@ header {
   font-weight: 600;
 }
 
-.anomaly-ok {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: #16a34a;
-  padding: 6px 10px;
-  background: rgba(220, 252, 231, 0.7);
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  border-radius: 8px;
-}
-
 .anomaly-panel-header {
   display: flex;
   align-items: center;
@@ -1829,4 +1838,77 @@ header {
     gap: 0;
     justify-content: center;
   }
+}
+
+/* ===== SMALL MOBILE (<400px) ===== */
+
+@media (max-width: 400px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .dashboard-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .dash-stats {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .dash-stat {
+    min-width: 0;
+  }
+
+  .dash-stat-value {
+    font-size: var(--text-base, 1rem);
+  }
+
+  .dash-sparkline canvas {
+    max-height: 40px;
+  }
+
+  .dash-split-wrap {
+    margin-top: 8px;
+  }
+
+  .header-right .button-create-charge span {
+    display: none;
+  }
+
+  .card {
+    padding: 16px !important;
+  }
+
+  .sub-nav {
+    gap: 4px;
+    padding: 8px 0 12px;
+  }
+
+  .sub-nav-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+
+/* ===== ANOMALY DISMISS BUTTON ===== */
+
+.anomaly-dismiss-btn {
+  display: block;
+  margin: 12px auto 0;
+  padding: 6px 16px;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  color: #64748b;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.anomaly-dismiss-btn:hover {
+  background: rgba(148, 163, 184, 0.25);
+  color: #334155;
 }

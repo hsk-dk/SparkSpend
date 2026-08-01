@@ -9,7 +9,7 @@
 
 // API key authentication — required. If VEHICLE_API_KEY is not set in .env,
 // the endpoint rejects all requests (fail closed).
-$apiKey = $GLOBALS['vehicleApiKey'] ?? '';
+$apiKey = Config::vehicleApiKey();
 if ($apiKey === '') {
     http_response_code(503);
     echo json_encode(['success' => false, 'error' => 'Endpoint not configured — set VEHICLE_API_KEY in .env']);

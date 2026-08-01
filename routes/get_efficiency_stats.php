@@ -29,7 +29,7 @@ if ($dateRange) {
     try {
         $dateFilters = QueryBuilder::parseDateRange($dateRange);
     } catch (\Throwable $e) {
-        error_log("Invalid date range in getEfficiencyStats: " . $e->getMessage());
+        // Single-date or malformed range — ignore silently, show all data
         $dateFilters = null;
     }
 }
@@ -112,12 +112,16 @@ $extCharges = QueryBuilder::getExternalCharges(
 $allCharges = [];
 
 foreach ($charges as $row) {
+    if (empty($row['datetime'])) continue;
     $row['datetime'] = strtotime($row['datetime']);
+    if ($row['datetime'] === false) continue;
     $allCharges[] = $row;
 }
 
 foreach ($extCharges as $row) {
+    if (empty($row['datetime'])) continue;
     $row['datetime'] = strtotime($row['datetime']);
+    if ($row['datetime'] === false) continue;
     $allCharges[] = $row;
 }
 

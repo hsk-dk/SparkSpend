@@ -21,7 +21,7 @@ class DatabaseManager {
      */
     public static function getChargesDb(): PDO {
         if (self::$chargesDb === null) {
-            self::$chargesDb = self::connect($GLOBALS['dbPath'] ?? 'data/charging_data.db', 'charges');
+            self::$chargesDb = self::connect(Config::dbPath(), 'charges');
         }
         return self::$chargesDb;
     }
@@ -34,7 +34,7 @@ class DatabaseManager {
      */
     public static function getPowerlogDb(): PDO {
         if (self::$powerlogDb === null) {
-            self::$powerlogDb = self::connect($GLOBALS['powerlogDbPath'] ?? 'data/powerlog_data.db', 'powerlog');
+            self::$powerlogDb = self::connect(Config::powerlogDbPath(), 'powerlog');
         }
         return self::$powerlogDb;
     }

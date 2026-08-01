@@ -23,12 +23,10 @@ if (!$data || $id <= 0 || $vehicleId <= 0) {
 }
 
 $db = DatabaseManager::getChargesDb();
-$result = QueryBuilder::updateInternalCharge($db, [
-    'id'          => $id,
-    'vehicleId'   => $vehicleId,
-    'consumedKwh' => 0,  // Not updated in this endpoint
-    'cost'        => 0   // Not updated in this endpoint
-]);
+
+// Update vehicleId and mark as manually paired
+$stmt = $db->prepare("UPDATE charges SET vehicleId = ?, pairingSource = 'manual' WHERE id = ?");
+$result = $stmt->execute([$vehicleId, $id]);
 
 if ($result) {
     foreach (['dashboard_', 'ev_compare_', 'annual_', 'analytics_', 'bill_', 'efficiency_', 'providerstats_', 'vehicle_compare_'] as $_p) {

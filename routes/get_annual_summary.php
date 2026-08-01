@@ -23,41 +23,28 @@ $chargesDb  = DatabaseManager::getChargesDb();
 $powerlogDb = DatabaseManager::getPowerlogDb();
 
 // =========================================================================
-// EV — internal charges: raw fetch, proportional midnight-split by year
+// EV — internal charges: SQL aggregation by year (using stoppedAt date).
+// For annual totals, the midnight-split precision is unnecessary — at most
+// 1-2 charges per year cross the Dec 31 → Jan 1 boundary.
 // =========================================================================
 $intByYear = [];
-$rows = $chargesDb->query("
-    SELECT startedAt, stoppedAt,
-           COALESCE(consumedKwh, 0) AS kwh,
-           COALESCE(cost, 0) AS cost
+$stmt = $chargesDb->query("
+    SELECT strftime('%Y', stoppedAt) AS year,
+           COUNT(*)                   AS cnt,
+           COALESCE(SUM(consumedKwh), 0) AS kwh,
+           COALESCE(SUM(cost), 0)        AS cost
     FROM charges
     WHERE startedAt IS NOT NULL AND stoppedAt IS NOT NULL
-")->fetchAll(PDO::FETCH_ASSOC);
-
-foreach ($rows as $row) {
-    $splits = QueryBuilder::splitChargeByDays(
-        $row['startedAt'], $row['stoppedAt'],
-        floatval($row['kwh']), floatval($row['cost'])
-    );
-    $countedYears = [];
-    foreach ($splits as $day => $slice) {
-        $year = substr($day, 0, 4);
-        if (!isset($intByYear[$year])) {
-            $intByYear[$year] = ['cnt' => 0, 'kwh' => 0.0, 'cost' => 0.0];
-        }
-        $intByYear[$year]['kwh']  += $slice['kwh'];
-        $intByYear[$year]['cost'] += $slice['cost'];
-        if (!in_array($year, $countedYears)) {
-            $intByYear[$year]['cnt']++;
-            $countedYears[] = $year;
-        }
-    }
+    GROUP BY strftime('%Y', stoppedAt)
+    ORDER BY year
+");
+foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $intByYear[$row['year']] = [
+        'cnt'  => intval($row['cnt']),
+        'kwh'  => round(floatval($row['kwh']), 2),
+        'cost' => round(floatval($row['cost']), 2),
+    ];
 }
-foreach ($intByYear as &$data) {
-    $data['kwh']  = round($data['kwh'], 2);
-    $data['cost'] = round($data['cost'], 2);
-}
-unset($data);
 ksort($intByYear);
 
 // =========================================================================

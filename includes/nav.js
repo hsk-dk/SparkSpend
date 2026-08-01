@@ -66,6 +66,9 @@ const SparkNav = (() => {
             } else {
                 _resizeSection('oversigt-section');
             }
+            startDashboardAutoRefresh();
+        } else {
+            stopDashboardAutoRefresh();
         }
         if (tabId === 'elbil-section') {
             // Restore last visited sub-tab (sessionStorage, set by switchSubTab)

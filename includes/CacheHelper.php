@@ -6,6 +6,8 @@
  * Cache files are stored in the system temp dir (or CACHE_DIR from .env).
  */
 
+require_once __DIR__ . '/Config.php';
+
 class CacheHelper {
 
     /**
@@ -16,7 +18,7 @@ class CacheHelper {
      * @return string|null Cached JSON string, or null on cache miss.
      */
     public static function read(string $key, int $ttl): ?string {
-        $dir  = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+        $dir  = Config::cacheDir();
         $file = $dir . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
         if (file_exists($file) && (time() - filemtime($file)) < $ttl) {
             $content = file_get_contents($file);
@@ -32,7 +34,7 @@ class CacheHelper {
      * @param string $json The JSON string to cache.
      */
     public static function write(string $key, string $json): void {
-        $dir  = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+        $dir  = Config::cacheDir();
         $file = $dir . DIRECTORY_SEPARATOR . 'sparkspend_' . $key . '.json';
         $handle = @fopen($file, 'c');
         if ($handle === false) return;
@@ -52,7 +54,7 @@ class CacheHelper {
      * @param string $prefix The key prefix to match (e.g. 'dashboard_').
      */
     public static function invalidatePattern(string $prefix): void {
-        $dir     = $GLOBALS['cacheDir'] ?? sys_get_temp_dir();
+        $dir     = Config::cacheDir();
         $pattern = $dir . DIRECTORY_SEPARATOR . 'sparkspend_' . $prefix . '*.json';
         foreach (glob($pattern) ?: [] as $file) {
             @unlink($file);
