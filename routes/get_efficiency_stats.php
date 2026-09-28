@@ -13,7 +13,7 @@
 
 // ─── 5-minute file cache ─────────────────────────────────────────────────────────────
 $_effCacheKey = 'efficiency_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
-$_cached = QueryBuilder::fileCacheRead($_effCacheKey, 300);
+$_cached = QueryBuilder::fileCacheRead($_effCacheKey, CacheHelper::TTL_MEDIUM);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -23,14 +23,15 @@ $db = DatabaseManager::getChargesDb();
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
 $dateRange = isset($_GET['dateRange']) ? $_GET['dateRange'] : '';
 
-// Parse date range using QueryBuilder
+// Parse date range using QueryBuilder. A non-empty but unparseable range is a
+// clear filter intent, so reject it with 400 rather than silently returning
+// all data (which would look like a valid — but wrong — result).
 $dateFilters = null;
-if ($dateRange) {
+if ($dateRange !== '') {
     try {
         $dateFilters = QueryBuilder::parseDateRange($dateRange);
     } catch (\Throwable $e) {
-        // Single-date or malformed range — ignore silently, show all data
-        $dateFilters = null;
+        jsonError('Ugyldigt dateRange-format. Forventet: "YYYY-MM-DD til YYYY-MM-DD".', 400);
     }
 }
 

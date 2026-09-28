@@ -35,6 +35,22 @@ const husApp = (() => {
         let husChart     = null;
         let lastData     = null;
 
+        // ── Electricity price settings & cost state ──────────────────────────
+        function getElSettings() {
+            return {
+                area: window.sparkConfig?.elspotArea || '',
+                gln:  window.sparkConfig?.elspotGln  || '',
+            };
+        }
+        function elSettingsReady() {
+            const s = getElSettings();
+            return s.area !== '' && s.gln !== '';
+        }
+        // Cost state: date string (YYYY-MM-DD) → kr/kWh, populated by fetchElCosts()
+        let activeCostMap    = {};
+        // Representative component breakdown for the period (from getElspotPrices.php)
+        let activeComponents = null;
+
         // DOM refs
         const canvas        = document.getElementById('husChart');
         const noDataEl      = document.getElementById('husNoData');
@@ -119,6 +135,8 @@ const husApp = (() => {
             canvas.style.display    = 'none';
             if (yearContainer) yearContainer.style.display = 'none';
             statsContent.innerHTML  = '<p>Indlæser data...</p>';
+            // Reset cost state for the new period; fetchElCosts repopulates it.
+            activeCostMap = {}; activeComponents = null;
 
             fetch(buildUrl())
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -133,12 +151,78 @@ const husApp = (() => {
                     renderChart(resp);
                     renderStats(resp);
                     canvas.style.display = '';
+                    // Estimated cost enrichment (async, best-effort) — re-renders
+                    // stats + chart tooltip once daily kr/kWh rates arrive.
+                    fetchElCosts();
                 })
                 .catch(err => {
                     console.error('husApp fetch:', err);
                     errorEl.style.display = '';
                     statsContent.innerHTML = '<p class="text-muted">Kunne ikke hente data.</p>';
                 });
+        }
+
+        // ── Electricity cost estimation ──────────────────────────────────────
+        // Fetches all-in kr/kWh (spot + tariffs + elafgift + moms) from
+        // getElspotPrices.php for the current period and populates activeCostMap.
+        // Mirrors the mechanism in jordvarme.js. Note: the spot-price route uses
+        // the heat-pump procesformål elafgift rate, so the Rest/El-bil part of
+        // the house estimate is an approximation (boligelafgift is higher).
+        function fetchElCosts() {
+            if (!elSettingsReady()) return;
+            const { area, gln } = getElSettings();
+            const today = new Date().toISOString().slice(0, 10);
+
+            let start, end;
+            if (currentMode === 'daily') {
+                const [y, m]  = currentMonth.split('-').map(Number);
+                const lastDay = new Date(y, m, 0).getDate();
+                start = currentMonth + '-01';
+                end   = currentMonth + '-' + String(lastDay).padStart(2, '0');
+                if (end > today) end = today;
+            } else if (currentMode === 'monthly') {
+                start = currentYear + '-01-01';
+                end   = currentYear === String(new Date().getFullYear())
+                            ? today : currentYear + '-12-31';
+            } else {
+                // compare / ytd — derive year range from the data actually present
+                const data = (lastData && lastData.data) || [];
+                let minYear = new Date().getFullYear() - 2;
+                if (data.length > 0) {
+                    const years = data.map(d => parseInt(d.year)).filter(y => !isNaN(y));
+                    if (years.length > 0) minYear = Math.min(...years);
+                }
+                start = minYear + '-01-01';
+                end   = today;
+            }
+
+            const params = new URLSearchParams({ start, end, area, gln });
+            fetch('api.php?action=elspot-prices&' + params)
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(data => {
+                    activeCostMap    = {};
+                    activeComponents = data.components || null;
+                    (data.records || []).forEach(r => { activeCostMap[r.date] = parseFloat(r.kr_kwh); });
+                    if (!lastData) return;
+                    // Re-render stats with cost now available. For daily/monthly
+                    // also refresh the stacked chart (in-place update adds kr to
+                    // the tooltip). Skip the chart for compare/ytd — cost only
+                    // affects the stats table there, and re-rendering would
+                    // destroy/recreate the line chart (visible blink).
+                    renderStats(lastData);
+                    if (currentMode === 'daily' || currentMode === 'monthly') {
+                        renderChart(lastData);
+                    }
+                })
+                .catch(err => console.error('husApp fetchElCosts:', err));
+        }
+
+        // Average kr/kWh across the days of a given YYYY-MM prefix (0 if none).
+        function _avgRateForMonth(monthPrefix) {
+            const rates = Object.entries(activeCostMap)
+                .filter(([d]) => d.startsWith(monthPrefix))
+                .map(([, r]) => r);
+            return rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
         }
 
         // ── Sync status ──────────────────────────────────────────────────────
@@ -166,6 +250,16 @@ const husApp = (() => {
             if (husChart && husChart.config.type !== 'bar') { husChart.destroy(); husChart = null; }
 
             const rows = resp.days || resp.months || [];
+            const costsReady = elSettingsReady() && Object.keys(activeCostMap).length > 0;
+            // Per-period estimated cost (kr) for the total bar, or null if no rates yet
+            const costVals = costsReady
+                ? rows.map(d => {
+                    const rate = currentMode === 'daily'
+                        ? (activeCostMap[d.day] || 0)
+                        : _avgRateForMonth(d.month);
+                    return (d.hus ?? 0) * rate;
+                })
+                : null;
 
             if (currentMode === 'daily') {
                 _renderStacked(
@@ -173,7 +267,8 @@ const husApp = (() => {
                     rows.map(d => d.hp   ?? 0),
                     rows.map(d => d.ev   ?? 0),
                     rows.map(d => d.rest ?? 0),
-                    rows.map(d => d.hus  ?? 0)
+                    rows.map(d => d.hus  ?? 0),
+                    costVals
                 );
             } else {
                 _renderStacked(
@@ -181,12 +276,13 @@ const husApp = (() => {
                     rows.map(d => d.hp   ?? 0),
                     rows.map(d => d.ev   ?? 0),
                     rows.map(d => d.rest ?? 0),
-                    rows.map(d => d.hus  ?? 0)
+                    rows.map(d => d.hus  ?? 0),
+                    costVals
                 );
             }
         }
 
-        function _renderStacked(labels, hpVals, evVals, restVals, husVals) {
+        function _renderStacked(labels, hpVals, evVals, restVals, husVals, costVals = null) {
             const hasHus = husVals.some(v => v > 0);
 
             const datasets = [];
@@ -226,17 +322,24 @@ const husApp = (() => {
                 });
             }
 
+            // Tooltip footer: total kWh + estimated kr (when rates available)
+            const footerFn = items => {
+                const idx = items[0]?.dataIndex;
+                if (idx === undefined) return '';
+                const total = hpVals[idx] + evVals[idx] + (hasHus ? restVals[idx] : 0);
+                const lines = [`Total: ${total.toFixed(1)} kWh`];
+                if (costVals && costVals[idx] > 0) {
+                    lines.push(`ca. ${appUtils.formatCurrency(costVals[idx])}`);
+                }
+                return lines;
+            };
+
             if (husChart) {
                 // In-place update — avoids destroy/recreate when same mode re-renders
                 husChart.data.labels = labels;
                 husChart.data.datasets.length = 0;
                 datasets.forEach(ds => husChart.data.datasets.push(ds));
-                husChart.options.plugins.tooltip.callbacks.footer = items => {
-                    const idx = items[0]?.dataIndex;
-                    if (idx === undefined) return '';
-                    const total = hpVals[idx] + evVals[idx] + (hasHus ? restVals[idx] : 0);
-                    return `Total: ${total.toFixed(1)} kWh`;
-                };
+                husChart.options.plugins.tooltip.callbacks.footer = footerFn;
                 husChart.update('none');
                 return;
             }
@@ -251,12 +354,7 @@ const husApp = (() => {
                         datalabels: { display: false },
                         tooltip: {
                             callbacks: {
-                                footer: items => {
-                                    const idx = items[0]?.dataIndex;
-                                    if (idx === undefined) return '';
-                                    const total = hpVals[idx] + evVals[idx] + (hasHus ? restVals[idx] : 0);
-                                    return `Total: ${total.toFixed(1)} kWh`;
-                                }
+                                footer: footerFn
                             }
                         }
                     },
@@ -454,27 +552,76 @@ const husApp = (() => {
 
                 const pct = (val, tot) => tot > 0 ? ` (${Math.round(val / tot * 100)} %)` : '';
 
+                // ── Estimated cost per component (spot-price based) ──────────
+                // Price each row's kWh by that period's rate: daily → the day's
+                // rate; monthly → average rate across the month's days.
+                const costsReady = elSettingsReady() && Object.keys(activeCostMap).length > 0;
+                const rateFor = d => (mode === 'daily')
+                    ? (activeCostMap[d.day] || 0)
+                    : _avgRateForMonth(d.month);
+                let costHus = 0, costEv = 0, costHp = 0, costRest = 0;
+                if (costsReady) {
+                    rows.forEach(d => {
+                        const rate = rateFor(d);
+                        costHus  += (d.hus  ?? 0) * rate;
+                        costEv   += (d.ev   ?? 0) * rate;
+                        costHp   += (d.hp   ?? 0) * rate;
+                        costRest += (d.rest ?? 0) * rate;
+                    });
+                }
+                const kr = v => appUtils.formatCurrency(v);
+                // kr cell appended to a component <dd>; blank until costs load
+                const krCell = (val) => {
+                    if (!elSettingsReady()) return '';
+                    if (!costsReady)        return ` <span class="text-muted">· …</span>`;
+                    return ` <span class="text-muted">· ca. ${kr(val)}</span>`;
+                };
+
                 let html = '<dl class="stat-list">';
                 if (hasHus) {
-                    html += `<dt>Hus total</dt><dd>${totHus.toFixed(1)} kWh</dd>`;
+                    html += `<dt>Hus total</dt><dd>${totHus.toFixed(1)} kWh${krCell(costHus)}</dd>`;
                     html += `
                         <dt><span class="stat-dot" style="background:${COLOR_HP}"></span> Jordvarme</dt>
-                        <dd>${totHp.toFixed(1)} kWh${pct(totHp, totHus)}</dd>
+                        <dd>${totHp.toFixed(1)} kWh${pct(totHp, totHus)}${krCell(costHp)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_EV}"></span> El-bil</dt>
-                        <dd>${totEv.toFixed(1)} kWh${pct(totEv, totHus)}</dd>
+                        <dd>${totEv.toFixed(1)} kWh${pct(totEv, totHus)}${krCell(costEv)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_REST}"></span> Restforbrug</dt>
-                        <dd>${totRest.toFixed(1)} kWh${pct(totRest, totHus)}</dd>
+                        <dd>${totRest.toFixed(1)} kWh${pct(totRest, totHus)}${krCell(costRest)}</dd>
                     `;
                 } else {
                     html += `
                         <dt><span class="stat-dot" style="background:${COLOR_HP}"></span> Jordvarme</dt>
-                        <dd>${totHp.toFixed(1)} kWh</dd>
+                        <dd>${totHp.toFixed(1)} kWh${krCell(costHp)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_EV}"></span> El-bil</dt>
-                        <dd>${totEv.toFixed(1)} kWh</dd>
+                        <dd>${totEv.toFixed(1)} kWh${krCell(costEv)}</dd>
                         <dt colspan="2" class="text-muted small">Hus-måler ikke synkroniseret endnu</dt>
                     `;
                 }
                 html += '</dl>';
+
+                // Estimated total cost + component breakdown (mirrors jordvarme)
+                if (elSettingsReady()) {
+                    if (costsReady && costHus > 0) {
+                        const c = activeComponents;
+                        let breakdown = '';
+                        if (c) {
+                            const netLabel = (c.nettarif_records === 0)
+                                ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
+                                : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
+                            breakdown = `<div class="text-muted" style="font-size:10px;line-height:1.4;margin-top:2px">` +
+                                `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · ` +
+                                `Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</div>`;
+                        }
+                        html += `<div class="hus-cost-summary" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08)">` +
+                            `<strong>Estimeret elomkostning: ${kr(costHus)}</strong>` +
+                            `<div class="text-muted" style="font-size:10px">Restforbrug er en approksimation — bruger samme sats som VP; boligelafgift er højere.</div>` +
+                            breakdown +
+                            `</div>`;
+                    } else if (!costsReady) {
+                        html += `<div class="text-muted small" style="margin-top:8px">` +
+                            `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Beregner elomkostning…</div>`;
+                    }
+                }
                 statsContent.innerHTML = html;
 
             } else if (mode === 'compare' || mode === 'ytd') {
@@ -486,10 +633,25 @@ const husApp = (() => {
                 });
                 const years = Object.keys(yearTotals).sort().reverse();
 
+                // Estimated cost per year (kr) from activeCostMap. ytd rows have
+                // no month field, so cost is only computed for compare mode.
+                const costsReady = mode === 'compare'
+                    && elSettingsReady() && Object.keys(activeCostMap).length > 0;
+                const yearCosts = {};
+                if (costsReady) {
+                    data.forEach(d => {
+                        const monthPrefix = d.year + '-' + String(d.month || '').padStart(2, '0');
+                        const rate = _avgRateForMonth(monthPrefix);
+                        yearCosts[d.year] = (yearCosts[d.year] || 0) + parseFloat(d.kwh) * rate;
+                    });
+                }
+
                 let html = '<dl class="stat-list">';
                 years.forEach(y => {
-                    const suffix = mode === 'ytd' ? ' (ÅTD)' : '';
-                    html += `<dt>${y}${suffix}</dt><dd>${yearTotals[y].toFixed(1)} kWh</dd>`;
+                    const suffix  = mode === 'ytd' ? ' (ÅTD)' : '';
+                    const costTxt = costsReady && yearCosts[y] > 0
+                        ? ` <span class="text-muted">· ca. ${appUtils.formatCurrency(yearCosts[y])}</span>` : '';
+                    html += `<dt>${y}${suffix}</dt><dd>${yearTotals[y].toFixed(1)} kWh${costTxt}</dd>`;
                 });
                 if (years.length === 0) html += '<dt colspan="2" class="text-muted">Ingen hus-data</dt>';
                 html += '</dl>';

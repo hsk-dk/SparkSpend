@@ -12,6 +12,7 @@
 require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
 require __DIR__ . '/../includes/MySQLManager.php';
+require_once __DIR__ . '/../includes/QueryBuilder.php';
 
 // Prevent concurrent syncs with lock file
 $lockFile = __DIR__ . '/sync_heatpump.lock';
@@ -31,6 +32,11 @@ if (file_exists($lockFile)) {
 
 // Create lock file
 touch($lockFile);
+
+// Declared before the try so the catch block can safely reference it even if
+// the connection itself fails (avoids a fatal "undefined variable" inside the
+// error handler).
+$sqliteDb = null;
 
 try {
     // Connect to databases
@@ -59,13 +65,21 @@ try {
 
         // Update sync timestamp based on MAX logdate from the records we just synced
         updateSyncTimestamp($sqliteDb, $recordCount, $newRecords);
+
+        // Drop meter/aggregate caches so freshly synced kWh shows up immediately
+        // rather than waiting out the hourly TTL.
+        QueryBuilder::invalidateMeterCaches();
     }
 
     logMessage("Heat pump data sync completed successfully", 'INFO');
 
 } catch (Exception $e) {
     logMessage("Sync failed: " . $e->getMessage(), 'ERROR');
-    recordSyncError($sqliteDb, $e->getMessage());
+    // Only record to sync_log if the SQLite connection was established;
+    // otherwise the error is already in cron.log via logMessage above.
+    if ($sqliteDb instanceof PDO) {
+        recordSyncError($sqliteDb, $e->getMessage());
+    }
 } finally {
     // Remove lock file
     if (file_exists($lockFile)) {

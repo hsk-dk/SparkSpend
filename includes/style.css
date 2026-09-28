@@ -1912,3 +1912,60 @@ header {
   background: rgba(148, 163, 184, 0.25);
   color: #334155;
 }
+
+/* ===== TOTAL COST ESTIMATE CARD ===== */
+
+.total-cost-card {
+  margin-top: 16px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.total-cost-card .total-cost-icon {
+  font-size: 1.2rem;
+}
+
+.total-cost-card .total-cost-amount {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.total-cost-card .total-cost-breakdown {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+/* ===== SPARKLINE TREND MICRO TEXT ===== */
+
+.dash-trend-micro {
+  display: block;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.dash-trend-micro.trend-rising { color: #ef4444; }
+.dash-trend-micro.trend-falling { color: #22c55e; }
+.dash-trend-micro.trend-stable { color: #94a3b8; }
+
+/* ===== SEASON BADGE ===== */
+
+.dash-season-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.dash-season-badge.season-normal { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
+.dash-season-badge.season-high { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+.dash-season-badge.season-low { background: rgba(59, 130, 246, 0.12); color: #2563eb; }

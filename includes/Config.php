@@ -67,6 +67,29 @@ class Config {
 
             // Debug mode
             'debug' => env('DEBUG', 'false') === 'true',
+
+            // Auto-run DB migrations on web requests. Default true (preserves
+            // existing behaviour). Set AUTO_MIGRATE=false in production to run
+            // migrations only via the explicit `php migrate.php` deploy step,
+            // avoiding schema changes on a random end-user request.
+            'autoMigrate' => env('AUTO_MIGRATE', 'true') !== 'false',
+
+            // ── Electricity tax / tariff constants ───────────────────────────
+            // VAT multiplier (moms). Overridable via env for future rate changes.
+            'vatFactor'    => (float) env('VAT_FACTOR', '1.25'),
+            // Energinet's GLN (systemtarif lookup) — stable, but centralised here.
+            'energinetGln' => env('ENERGINET_GLN', '5790000432752'),
+            // Legacy Elspotprices → DayAheadPrices dataset cutover date.
+            'elspotCutoff' => env('ELSPOT_CUTOFF', '2025-09-30'),
+            // Reduced electricity tax for heat pumps (procesformål), kr/kWh,
+            // versioned by effective-from date. Add new rows as rates change;
+            // the applicable rate is the newest whose date <= the queried date.
+            // Source: skat.dk. Override the whole set is not supported via env —
+            // edit this table when a new annual rate is published.
+            'elafgiftHpByDate' => [
+                '2024-01-01' => 0.0087,
+                '2025-01-01' => 0.0088,
+            ],
         ];
     }
 
@@ -124,6 +147,46 @@ class Config {
 
     public static function debug(): bool {
         return (bool) self::get('debug', false);
+    }
+
+    public static function autoMigrate(): bool {
+        return (bool) self::get('autoMigrate', true);
+    }
+
+    // =========================================================================
+    // Electricity tax / tariff helpers
+    // =========================================================================
+
+    public static function vatFactor(): float {
+        return (float) self::get('vatFactor', 1.25);
+    }
+
+    public static function energinetGln(): string {
+        return self::get('energinetGln', '5790000432752');
+    }
+
+    public static function elspotCutoff(): string {
+        return self::get('elspotCutoff', '2025-09-30');
+    }
+
+    /**
+     * Reduced heat-pump electricity tax (procesformål), kr/kWh, applicable on
+     * the given date (YYYY-MM-DD). Returns the newest rate whose effective-from
+     * date is <= $date, so historical calculations use the correct rate.
+     */
+    public static function elafgiftHp(string $date): float {
+        self::ensureLoaded();
+        $table = self::$values['elafgiftHpByDate'] ?? ['2025-01-01' => 0.0088];
+        ksort($table);
+        $rate = reset($table); // fallback: earliest known rate
+        foreach ($table as $from => $value) {
+            if ($from <= $date) {
+                $rate = $value;
+            } else {
+                break;
+            }
+        }
+        return (float) $rate;
     }
 
     public static function montaClientId(): string {

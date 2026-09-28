@@ -11,7 +11,7 @@
 
 // ─── 5-minute file cache (keyed by date) ──────────────────────────────────────
 $_cacheKey = 'anomaly_' . date('Y-m-d');
-$_cached   = QueryBuilder::fileCacheRead($_cacheKey, 300);
+$_cached   = QueryBuilder::fileCacheRead($_cacheKey, CacheHelper::TTL_MEDIUM);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 

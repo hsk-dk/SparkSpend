@@ -6,13 +6,15 @@
  * into daily average prices (kr/kWh) for heat pump cost estimation.
  */
 
-define('ENERGINET_GLN',     '5790000432752');
 define('EDS_BASE_URL',      'https://api.energidataservice.dk/dataset/');
-define('VAT_FACTOR',        1.25);
 define('CACHE_TTL_SECONDS', 21600); // 6 hours
-define('CACHE_VERSION',    7);
-define('ELSPOT_CUTOFF',   '2025-09-30');
-define('ELAFGIFT_HP_KR_KWH', 0.0088); // 2025 procesformål rate
+define('CACHE_VERSION',    8);      // bumped: elafgift now date-versioned via Config
+
+// Tax/tariff constants — sourced from Config so they can be updated centrally
+// and versioned by year (see includes/Config.php). No longer hardcoded here.
+$VAT_FACTOR    = Config::vatFactor();
+$ENERGINET_GLN = Config::energinetGln();
+$ELSPOT_CUTOFF = Config::elspotCutoff();
 
 // All 24 hourly price columns used in DatahubPricelist queries
 define('PRICE_COLUMNS', 'Price1,Price2,Price3,Price4,Price5,Price6,Price7,Price8,' .
@@ -149,9 +151,9 @@ function _dateChunks(string $from, string $to, int $maxDays = 90): array {
     return $chunks;
 }
 
-// 1a. Legacy: Elspotprices (before ELSPOT_CUTOFF)
-if ($start <= ELSPOT_CUTOFF) {
-    $elspotEnd = min($end, ELSPOT_CUTOFF);
+// 1a. Legacy: Elspotprices (before cutover date)
+if ($start <= $ELSPOT_CUTOFF) {
+    $elspotEnd = min($end, $ELSPOT_CUTOFF);
     foreach (_dateChunks($start, $elspotEnd) as [$chunkStart, $chunkEnd]) {
         $spotRecords = eds_fetch('Elspotprices', [
             'start'   => $chunkStart,
@@ -206,7 +208,7 @@ if ($daStart <= $end) {
 // ─── 2. Energinet systemtarif ────────────────────────────────────────────────
 
 $systemtarifRecords = eds_fetch('DatahubPricelist', [
-    'filter'  => json_encode(['GLN_Number' => ENERGINET_GLN, 'Note' => 'Systemtarif']),
+    'filter'  => json_encode(['GLN_Number' => $ENERGINET_GLN, 'Note' => 'Systemtarif']),
     'columns' => PRICE_COLUMNS,
     'limit'   => 50,
     'sort'    => 'ValidFrom desc',
@@ -254,13 +256,14 @@ while ($cursor <= $endDate) {
     if (empty($hours)) {
         $krKwh = 0.0;
     } else {
+        // Heat-pump electricity tax applicable on this specific date (year-versioned).
+        $ela = Config::elafgiftHp($date);
         $sum = 0.0;
         foreach ($hours as $entry) {
             $h         = $entry['h'];
             $sys       = tariff_for_hour($systemtarifRecords, $date, $h);
-            $ela       = ELAFGIFT_HP_KR_KWH;
             $net       = tariff_for_hour($nettarifRecords,    $date, $h);
-            $hourKrKwh = ($entry['s'] + $sys + $ela + $net) * VAT_FACTOR;
+            $hourKrKwh = ($entry['s'] + $sys + $ela + $net) * $VAT_FACTOR;
             $sum      += $hourKrKwh;
             $hourlyRecords[] = ['date' => $date, 'hour' => $entry['h'], 'kr_kwh' => round($hourKrKwh, 4)];
         }
@@ -285,11 +288,11 @@ $spotAvgStart = count($startHours) > 0
 $components = [
     'spot_avg_kr_kwh'      => round($spotAvgStart, 4),
     'systemtarif_kr_kwh'   => tariff_avg_for_date($systemtarifRecords, $start),
-    'elafgift_kr_kwh'      => ELAFGIFT_HP_KR_KWH,
+    'elafgift_kr_kwh'      => Config::elafgiftHp($start),
     'nettarif_kr_kwh'      => tariff_avg_for_date($nettarifRecords,    $start),
     'nettarif_records'     => count($nettarifRecords),
     'spot_hours'           => array_sum(array_map('count', $hoursByDay)),
-    'vat_factor'           => VAT_FACTOR,
+    'vat_factor'           => $VAT_FACTOR,
 ];
 
 // ─── 6. Cache and respond ────────────────────────────────────────────────────

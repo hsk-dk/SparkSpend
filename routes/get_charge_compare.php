@@ -8,7 +8,7 @@
 
 // ─── 1-hour file cache (resets at midnight) ───────────────────────────────────
 $_compareCacheKey = 'ev_compare_' . date('Y-m-d');
-$_cached = QueryBuilder::fileCacheRead($_compareCacheKey, 3600);
+$_cached = QueryBuilder::fileCacheRead($_compareCacheKey, CacheHelper::TTL_LONG);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 

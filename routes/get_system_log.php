@@ -8,13 +8,23 @@
  *   lines  int  Number of tail lines to return (default 80, max 200)
  */
 
-// Admin key guard — fail closed if key is not configured or does not match.
-$adminKey     = Config::adminKey();
-$authHeader   = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-$submittedKey = str_starts_with($authHeader, 'Bearer ')
-    ? substr($authHeader, 7)
-    : ($_GET['key'] ?? ''); // fallback to query param for backwards compat
-if ($adminKey === '' || !hash_equals($adminKey, $submittedKey)) {
+// Access guard — require a valid session CSRF token (proof the request comes
+// from a page we served). This keeps the log at the same protection level as
+// the rest of the API (assumed behind the auth proxy) WITHOUT exposing a
+// long-lived admin secret to the browser.
+//
+// An optional ADMIN_KEY (Bearer header) is still accepted for server-to-server
+// / CLI access (e.g. monitoring), so the endpoint stays usable without a session.
+$sessionToken  = $_SESSION['csrf_token'] ?? '';
+$submittedCsrf = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+$csrfOk        = $sessionToken !== '' && hash_equals($sessionToken, $submittedCsrf);
+
+$adminKey    = Config::adminKey();
+$authHeader  = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+$bearer      = str_starts_with($authHeader, 'Bearer ') ? substr($authHeader, 7) : '';
+$adminKeyOk  = $adminKey !== '' && hash_equals($adminKey, $bearer);
+
+if (!$csrfOk && !$adminKeyOk) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Adgang nægtet']);
     exit;

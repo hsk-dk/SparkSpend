@@ -6,7 +6,7 @@
  */
 
 // ─── 30-second cache ──────────────────────────────────────────────────────────
-$_cached = QueryBuilder::fileCacheRead('syncstatus', 30);
+$_cached = QueryBuilder::fileCacheRead('syncstatus', CacheHelper::TTL_SHORT);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 

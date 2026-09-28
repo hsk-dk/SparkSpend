@@ -27,7 +27,7 @@ if (!empty($dateRange)) {
 
 // ─── 5-minute file cache ──────────────────────────────────────────────────
 $_cacheKey = 'vehicle_compare_' . md5($dateRange . '|' . $sortBy);
-$_cached   = QueryBuilder::fileCacheRead($_cacheKey, 300);
+$_cached   = QueryBuilder::fileCacheRead($_cacheKey, CacheHelper::TTL_MEDIUM);
 if ($_cached !== null) {
     echo $_cached;
     exit;

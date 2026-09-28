@@ -54,8 +54,10 @@ class EnvLoader {
             $key = trim($key, " \t\r\n");
             $value = trim($value, " \t\r\n");
 
-            // Skip empty keys or values
-            if (empty($key) || empty($value)) {
+            // Skip lines with an empty key only. An empty VALUE (or the literal
+            // "0") is a deliberate setting and must be preserved — using empty()
+            // here would wrongly drop both and fall back to defaults.
+            if ($key === '') {
                 continue;
             }
 

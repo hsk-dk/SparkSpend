@@ -11,5 +11,5 @@ if ($id <= 0 || $name === '') {
 
 $db = DatabaseManager::getChargesDb();
 QueryBuilder::updateProvider($db, $id, $name);
-QueryBuilder::fileCacheInvalidatePattern('providerstats_');
+QueryBuilder::invalidateProviderCaches();
 echo json_encode(['success' => true]);

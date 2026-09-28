@@ -14,7 +14,7 @@
 $_annualCacheKey = 'annual_' . date('Y-m-d');
 $_skipCache = !empty($_GET['nocache']);
 if (!$_skipCache) {
-    $_cached = QueryBuilder::fileCacheRead($_annualCacheKey, 3600);
+    $_cached = QueryBuilder::fileCacheRead($_annualCacheKey, CacheHelper::TTL_LONG);
     if ($_cached !== null) { echo $_cached; exit; }
 }
 // ─────────────────────────────────────────────────────────────────────────────

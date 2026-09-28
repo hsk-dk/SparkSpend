@@ -34,7 +34,7 @@ async function loadDashboard() {
         // Anomaly detection runs after card data is available (async, best-effort)
         loadAnomalies();
         // Async cost enrichment for VP and Hus cards
-        _enrichCardsWithCost(data.heatpump, data.hus || null);
+        _enrichCardsWithCost(data.heatpump, data.hus || null, data.ev || null);
         // Elspot day-ahead forecast widget
         loadElspotForecast();
         // Sync-status enrichment — async, non-blocking
@@ -62,7 +62,7 @@ function renderEvCard(ev) {
     _setText(card, '.dash-stat-kwh', ev.month_kwh.toFixed(1) + ' kWh');
     _setText(card, '.dash-stat-cost', ev.month_cost.toFixed(0) + ' kr');
     _setText(card, '.dash-stat-cpkwh', ev.cost_per_kwh !== null ? ev.cost_per_kwh.toFixed(2) + ' kr/kWh' : '—');
-    _setText(card, '.dash-projected', ev.projected_cost !== null ? 'Forventet: ' + ev.projected_cost + ' kr' : '');
+    _setText(card, '.dash-projected', ev.projected_cost !== null ? `Forventet: ${ev.projected_cost} kr` : '');
 
     // Home / external split bar
     const splitWrap = card.querySelector('.dash-split-wrap');
@@ -122,6 +122,7 @@ function renderEvCard(ev) {
 
     const evSparkStart = new Date(); evSparkStart.setDate(evSparkStart.getDate() - 29); evSparkStart.setHours(0,0,0,0);
     _evSparkChart = _renderSparkline('ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart);
+    _renderSparklineTrend('ev-dashboard-card', ev.sparkline);
     _renderProgress('ev-budget-progress', 'ev-budget-fill', 'ev-budget-label',
         ev.month_cost, localStorage.getItem('sparkspend_budget_ev_kr'), 'kr');
 }
@@ -135,7 +136,9 @@ function renderHeatpumpCard(hp) {
     _setText(card, '.dash-period', month);
     _setText(card, '.dash-stat-kwh', hp.month_kwh.toFixed(1) + ' kWh');
     _setText(card, '.dash-stat-daily', hp.daily_avg_kwh !== null ? hp.daily_avg_kwh.toFixed(1) + ' kWh' : '—');
-    _setText(card, '.dash-projected', hp.projected_kwh !== null ? 'Forventet: ' + hp.projected_kwh.toFixed(1) + ' kWh' : '');
+    _setText(card, '.dash-projected', hp.projected_kwh !== null
+        ? `Forventet: ${hp.projected_kwh.toFixed(0)} kWh (forrige: ${hp.prev_month_kwh.toFixed(0)})`
+        : '');
 
     const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
@@ -159,6 +162,8 @@ function renderHeatpumpCard(hp) {
 
     const hpSparkStart = new Date(); hpSparkStart.setDate(hpSparkStart.getDate() - 29); hpSparkStart.setHours(0,0,0,0);
     _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, hpSparkStart);
+    _renderSparklineTrend('hp-dashboard-card', hp.sparkline);
+    _renderSeasonBadge(card, hp.pct_change_year);
     _renderProgress('hp-budget-progress', 'hp-budget-fill', 'hp-budget-label',
         hp.month_kwh, localStorage.getItem('sparkspend_budget_hp_kwh'), 'kWh');
 
@@ -177,7 +182,10 @@ function renderHusCard(hus) {
     _setText(card, '.dash-period', month);
     _setText(card, '.dash-stat-kwh', hus.month_kwh.toFixed(1) + ' kWh');
     _setText(card, '.dash-stat-daily', hus.daily_avg_kwh !== null ? hus.daily_avg_kwh.toFixed(1) + ' kWh' : '—');
-    _setText(card, '.dash-projected', hus.projected_kwh !== null ? 'Forventet: ' + hus.projected_kwh.toFixed(1) + ' kWh' : '');
+    const husPrevEst = hus.pct_change !== null ? Math.round(hus.month_kwh / (1 + hus.pct_change / 100)) || null : null;
+    _setText(card, '.dash-projected', hus.projected_kwh !== null
+        ? `Forventet: ${hus.projected_kwh.toFixed(0)} kWh` + (husPrevEst ? ` (forrige: ${husPrevEst})` : '')
+        : '');
 
     const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
@@ -216,13 +224,20 @@ function renderHusCard(hus) {
         if (restFill) restFill.style.width  = restPct.toFixed(1) + '%';
         const evLbl   = splitWrap.querySelector('.dash-split-ev-lbl');
         const restLbl = splitWrap.querySelector('.dash-split-rest-lbl');
-        if (evLbl)   evLbl.textContent   = evPct   >= 5 ? 'EV ' + evPct.toFixed(0)   + '%' : '';
-        if (restLbl) restLbl.textContent = restPct >= 5 ? 'Rest ' + restPct.toFixed(0) + '%' : '';
+        // Compact percentage labels for all three components
+        const pctParts = [];
+        if (evPct >= 3) pctParts.push('EV ' + evPct.toFixed(0) + '%');
+        if (hpPct >= 3) pctParts.push('VP ' + hpPct.toFixed(0) + '%');
+        if (restPct >= 3) pctParts.push('Rest ' + restPct.toFixed(0) + '%');
+        if (evLbl) evLbl.textContent = pctParts.slice(0, 2).join(' \u00b7 ');
+        if (restLbl) restLbl.textContent = pctParts.length > 2 ? pctParts[2] : '';
         splitWrap.style.display = '';
     }
 
     const husSparkStart = new Date(); husSparkStart.setDate(husSparkStart.getDate() - 29); husSparkStart.setHours(0,0,0,0);
     _husSparkChart = _renderSparkline('hus-sparkline', hus.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
+    _renderSparklineTrend('hus-dashboard-card', hus.sparkline);
+    _renderSeasonBadge(card, hus.pct_change_year);
     _renderProgress('hus-budget-progress', 'hus-budget-fill', 'hus-budget-label',
         hus.month_kwh, localStorage.getItem('sparkspend_budget_hus_kwh'), 'kWh');
 }
@@ -342,6 +357,8 @@ async function loadElspotForecast() {
     const today    = now.toISOString().slice(0, 10);
     const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
     const tmrStr   = tomorrow.toISOString().slice(0, 10);
+    const tmrLabel = tomorrow.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'short' });
+    const todLabel = now.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'short' });
 
     try {
         const res = await fetch(
@@ -349,13 +366,39 @@ async function loadElspotForecast() {
             `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`
         );
         if (!res.ok) return;
-        const data  = await res.json();
-        const hours = (data.records || []).filter(r => r.date === tmrStr).sort((a, b) => a.hour - b.hour);
+        const data    = await res.json();
+        const allRows = (data.records || []);
+
+        // Prefer tomorrow's day-ahead prices; if not published yet, fall back to
+        // the rest of today so the widget is never blank.
+        let hours = allRows.filter(r => r.date === tmrStr).sort((a, b) => a.hour - b.hour);
+        const showingTomorrow = hours.length > 0;
+        let forecastLabel = tmrLabel;
+        let titlePrefix = 'Elpris i morgen';
+
+        if (!showingTomorrow) {
+            const curHour = now.getHours();
+            // Remaining hours of today (from the current hour onward)
+            hours = allRows
+                .filter(r => r.date === today && r.hour >= curHour)
+                .sort((a, b) => a.hour - b.hour);
+            // If nothing left today (late evening), show the full day instead
+            if (hours.length === 0) {
+                hours = allRows.filter(r => r.date === today).sort((a, b) => a.hour - b.hour);
+            }
+            forecastLabel = todLabel;
+            titlePrefix = 'Elpris i dag';
+        }
+
+        // Update the card heading to reflect which day we're showing
+        const titleEl = card.querySelector('h3');
+        if (titleEl) titleEl.textContent = titlePrefix;
+
         if (hours.length === 0) {
-            // Day-ahead prices not yet published — show informational message
+            // No price data at all — show informational message
             card.style.display = '';
             const chartEl = document.getElementById('elspot-forecast-chart');
-            if (chartEl) chartEl.innerHTML = '<p class="text-muted text-center py-3">Morgendagens priser offentliggøres normalt ca. kl. 13:00</p>';
+            if (chartEl) chartEl.innerHTML = '<p class="text-muted text-center py-3">Ingen elpriser tilgængelige lige nu</p>';
             const windowEl = document.getElementById('elspot-cheapest-window');
             if (windowEl) windowEl.innerHTML = '';
             const meta = document.getElementById('elspot-forecast-meta');
@@ -365,7 +408,10 @@ async function loadElspotForecast() {
 
         card.style.display = '';
         const meta = document.getElementById('elspot-forecast-meta');
-        if (meta) meta.textContent = tmrStr + ' · ' + hours.length + ' timer';
+        if (meta) {
+            meta.textContent = forecastLabel + ' · ' + hours.length + ' timer' +
+                (showingTomorrow ? '' : ' · morgendagens priser offentliggøres ca. kl. 13:00');
+        }
 
         // Find cheapest consecutive 2-hour window
         let bestIdx = 0, bestSum = Infinity;
@@ -436,7 +482,7 @@ async function loadElspotForecast() {
     }
 }
 
-async function _enrichCardsWithCost(hp, hus) {
+async function _enrichCardsWithCost(hp, hus, ev) {
     const area = window.sparkConfig?.elspotArea || '';
     const gln  = window.sparkConfig?.elspotGln  || '';
     if (!area || !gln) return;
@@ -477,9 +523,52 @@ async function _enrichCardsWithCost(hp, hus) {
             const el = document.getElementById('hus-cost-stat');
             if (el) {
                 el.querySelector('.dash-est-cost').textContent = cost + ' kr';
-                el.title = `Estimeret: ${hus.month_kwh.toFixed(1)} kWh × ${avgKrKwh.toFixed(3)} kr/kWh\n(approksimation — bruger VP-elpriser; boligelafgift er højere)`;
+                el.title = `Estimeret: ${hus.month_kwh.toFixed(1)} kWh \u00d7 ${avgKrKwh.toFixed(3)} kr/kWh\n(approksimation \u2014 bruger VP-elpriser; boligelafgift er h\u00f8jere)`;
                 el.style.display = '';
             }
+        }
+
+        // #1 — Total electricity cost estimate (projected for full month)
+        // Projections come from the server (get_dashboard_summary.php), which
+        // uses a pace-aware model that stays sensible even early in the month.
+        const evCard      = document.getElementById('ev-dashboard-card');
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const dayOfMonth  = now.getDate();
+        const _linProj    = mtd => (dayOfMonth > 0 ? mtd / dayOfMonth * daysInMonth : mtd);
+
+        // Full-month projected kWh for VP and Hus (server value, linear fallback)
+        const hpProjectedKwh  = hp  ? (hp.projected_kwh  ?? _linProj(hp.month_kwh))   : 0;
+        const husProjectedKwh = hus ? (hus.projected_kwh ?? _linProj(hus.month_kwh))  : 0;
+        // EV home kWh has no dedicated server projection — extrapolate linearly
+        const evHomeKwh       = hus ? (hus.ev_home_kwh || 0) : 0;
+        const evHomeProjected = _linProj(evHomeKwh);
+
+        const hpCostProj  = Math.round(hpProjectedKwh * avgKrKwh);
+        const husCostProj = Math.round(husProjectedKwh * avgKrKwh);
+        // Rest = total hus projected minus VP minus EV hjemme (all projected to full month)
+        const restCostProj = Math.max(0, husCostProj - hpCostProj - Math.round(evHomeProjected * avgKrKwh));
+
+        // EV projected cost comes from Monta (not spot-based) — read straight
+        // from the JSON payload (server projection), no DOM scraping.
+        const evProjectedCost = ev
+            ? (ev.projected_cost != null ? ev.projected_cost : ev.month_cost)
+            : 0;
+        const totalCostProj = Math.round(evProjectedCost + hpCostProj + restCostProj);
+
+        if (totalCostProj > 0) {
+            const el = document.getElementById('total-cost-estimate');
+            if (el) {
+                el.innerHTML = `<span class="total-cost-icon">\u26a1</span>` +
+                    `<span class="total-cost-amount">Forventet elregning: ~${totalCostProj} kr</span>` +
+                    `<span class="total-cost-breakdown">EV: ~${Math.round(evProjectedCost)} \u00b7 VP: ~${hpCostProj} \u00b7 Rest: ~${restCostProj} kr</span>`;
+                el.style.display = '';
+            }
+        }
+
+        // #6 — Spotpris kontekst on EV card
+        if (evCard && avgKrKwh > 0) {
+            const cpkwhEl = evCard.querySelector('.dash-stat-cpkwh');
+            if (cpkwhEl) cpkwhEl.title = `Spotpris gns. denne mdr: ${avgKrKwh.toFixed(2)} kr/kWh (inkl. afgifter)`;
         }
     } catch (e) {
         if (e.name !== 'AbortError') console.warn('_enrichCardsWithCost:', e);
@@ -683,4 +772,62 @@ function _dismissAnomalies(anomalies) {
     if (panel) panel.style.display = 'none';
     // Don't show "Ingen afvigelser" after dismiss — that would be misleading.
     // Tab badges remain visible as a subtle reminder.
+}
+
+// =============================================================================
+// #5 — Sparkline Trend Detection
+// =============================================================================
+
+function _sparklineTrend(sparkline) {
+    if (!sparkline || sparkline.length < 20) return null;
+    const first10 = sparkline.slice(0, 10).reduce((s, v) => s + v, 0) / 10;
+    const last10  = sparkline.slice(-10).reduce((s, v) => s + v, 0) / 10;
+    if (first10 === 0 && last10 === 0) return null;
+    const pctChange = first10 > 0 ? ((last10 - first10) / first10) * 100 : (last10 > 0 ? 100 : 0);
+    if (pctChange > 15)  return { label: '\u2197 Stigende', cls: 'trend-rising' };
+    if (pctChange < -15) return { label: '\u2198 Faldende', cls: 'trend-falling' };
+    return { label: '\u2192 Stabilt', cls: 'trend-stable' };
+}
+
+function _renderSparklineTrend(cardId, sparkline) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    const container = card.querySelector('.dash-sparkline');
+    if (!container) return;
+
+    // Remove existing trend text
+    const existing = container.querySelector('.dash-trend-micro');
+    if (existing) existing.remove();
+
+    const trend = _sparklineTrend(sparkline);
+    if (!trend) return;
+
+    const el = document.createElement('span');
+    el.className = 'dash-trend-micro ' + trend.cls;
+    el.textContent = trend.label;
+    container.appendChild(el);
+}
+
+// =============================================================================
+// #4 — Season Normal Badge (normal/high/low vs. last year same period)
+// =============================================================================
+
+function _renderSeasonBadge(card, pctChangeYear) {
+    if (!card || pctChangeYear === null) return;
+    const dailyEl = card.querySelector('.dash-stat-daily');
+    if (!dailyEl) return;
+
+    // Remove existing badge
+    const existing = dailyEl.querySelector('.dash-season-badge');
+    if (existing) existing.remove();
+
+    let cls, text;
+    if (pctChangeYear > 30)       { cls = 'season-high'; text = 'over normalt'; }
+    else if (pctChangeYear < -20) { cls = 'season-low';  text = 'under normalt'; }
+    else return; // normal range — don't show badge
+
+    const badge = document.createElement('span');
+    badge.className = 'dash-season-badge ' + cls;
+    badge.textContent = text;
+    dailyEl.appendChild(badge);
 }

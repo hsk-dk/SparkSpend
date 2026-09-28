@@ -1,13 +1,26 @@
 <?php
 /**
- * QueryBuilder — Backwards-Compatible Facade
+ * QueryBuilder — Data-Access Facade (the app's single data-layer entry point)
  *
- * This class delegates to domain-specific repository classes.
- * Existing callers (endpoints, cron scripts) continue working without changes.
- * New code should call the domain classes directly:
+ * This is the sanctioned API that all endpoints and cron scripts call. It is a
+ * thin, stable facade over the domain classes, which hold the actual logic:
  *
  *   VehicleRepository, ProviderRepository, ChargeRepository,
  *   PowerlogRepository, CacheHelper, DateHelper
+ *
+ * Why route everything through here:
+ *   - One consistent call site (QueryBuilder::…) across the whole codebase, so
+ *     the internal repository structure can change without touching callers.
+ *   - The domain classes stay focused and independently testable.
+ *
+ * Guidelines for maintainers:
+ *   - Callers use QueryBuilder::… (do NOT mix direct repository calls into
+ *     endpoints — keep a single, uniform entry point).
+ *   - When you add a repository method that endpoints need, add a matching
+ *     one-line delegate here. Keep this class delegation-only: NO logic.
+ *   - Exception: cache TTL *constants* are referenced directly as
+ *     CacheHelper::TTL_SHORT / TTL_MEDIUM / TTL_LONG (a facade can delegate
+ *     methods, not constants). Method calls still go through QueryBuilder.
  */
 
 require_once __DIR__ . '/VehicleRepository.php';
@@ -156,5 +169,20 @@ class QueryBuilder {
 
     public static function fileCacheInvalidatePattern(string $prefix): void {
         CacheHelper::invalidatePattern($prefix);
+    }
+
+    /** Invalidate every cache that depends on charge data. */
+    public static function invalidateChargeCaches(): void {
+        CacheHelper::invalidateChargeCaches();
+    }
+
+    /** Invalidate every cache that depends on provider data. */
+    public static function invalidateProviderCaches(): void {
+        CacheHelper::invalidateProviderCaches();
+    }
+
+    /** Invalidate every cache that depends on meter/consumption data. */
+    public static function invalidateMeterCaches(): void {
+        CacheHelper::invalidateMeterCaches();
     }
 }

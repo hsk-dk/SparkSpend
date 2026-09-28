@@ -13,7 +13,7 @@
 // ─── 1-hour file cache (skip sync_status mode — changes frequently) ───────────────
 $_hpCacheKey = 'heatpump_' . md5($_SERVER['QUERY_STRING'] ?? '');
 if (($_GET['mode'] ?? '') !== 'sync_status') {
-    $_cached = QueryBuilder::fileCacheRead($_hpCacheKey, 3600);
+    $_cached = QueryBuilder::fileCacheRead($_hpCacheKey, CacheHelper::TTL_LONG);
     if ($_cached !== null) { echo $_cached; exit; }
 }
 // ─────────────────────────────────────────────────────────────────────────────

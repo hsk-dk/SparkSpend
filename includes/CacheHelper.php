@@ -10,6 +10,15 @@ require_once __DIR__ . '/Config.php';
 
 class CacheHelper {
 
+    // ── Standard cache lifetimes (seconds) ──────────────────────────────────
+    // Use these instead of scattering magic TTL numbers across route handlers.
+    /** Volatile data that changes often (e.g. sync status). */
+    public const TTL_SHORT  = 30;
+    /** Derived stats that tolerate a few minutes of staleness. */
+    public const TTL_MEDIUM = 300;   // 5 minutes
+    /** Heavy aggregates / meter data refreshed at most hourly. */
+    public const TTL_LONG   = 3600;  // 1 hour
+
     /**
      * Read from the shared JSON file cache.
      *
@@ -49,6 +58,29 @@ class CacheHelper {
     }
 
     /**
+     * Cache key prefixes affected by a change to charge data (internal/external).
+     * Single source of truth — used by invalidateChargeCaches().
+     */
+    public const CHARGE_CACHE_PREFIXES = [
+        'dashboard_', 'ev_compare_', 'annual_', 'analytics_',
+        'bill_', 'efficiency_', 'providerstats_', 'vehicle_compare_',
+    ];
+
+    /**
+     * Cache key prefixes affected by a change to provider data.
+     */
+    public const PROVIDER_CACHE_PREFIXES = ['providerstats_'];
+
+    /**
+     * Cache key prefixes affected by a meter/consumption sync
+     * (heat pump + house power). Also covers the aggregate/dashboard views
+     * that combine meter data, so freshly synced kWh shows up immediately.
+     */
+    public const METER_CACHE_PREFIXES = [
+        'heatpump_', 'housepower_', 'dashboard_', 'annual_', 'anomaly_', 'bill_',
+    ];
+
+    /**
      * Delete all cache files whose key starts with the given prefix.
      *
      * @param string $prefix The key prefix to match (e.g. 'dashboard_').
@@ -59,5 +91,41 @@ class CacheHelper {
         foreach (glob($pattern) ?: [] as $file) {
             @unlink($file);
         }
+    }
+
+    /**
+     * Invalidate every cache prefix listed in the given set.
+     *
+     * @param string[] $prefixes List of key prefixes.
+     */
+    public static function invalidatePrefixes(array $prefixes): void {
+        foreach ($prefixes as $prefix) {
+            self::invalidatePattern($prefix);
+        }
+    }
+
+    /**
+     * Invalidate all caches that depend on charge data. Call from any endpoint
+     * that creates/updates/deletes internal or external charges, so the list of
+     * affected caches lives in exactly one place.
+     */
+    public static function invalidateChargeCaches(): void {
+        self::invalidatePrefixes(self::CHARGE_CACHE_PREFIXES);
+    }
+
+    /**
+     * Invalidate all caches that depend on provider data.
+     */
+    public static function invalidateProviderCaches(): void {
+        self::invalidatePrefixes(self::PROVIDER_CACHE_PREFIXES);
+    }
+
+    /**
+     * Invalidate all caches that depend on meter/consumption data. Call after a
+     * heat pump / house power sync so newly synced kWh isn't hidden behind the
+     * hourly TTL.
+     */
+    public static function invalidateMeterCaches(): void {
+        self::invalidatePrefixes(self::METER_CACHE_PREFIXES);
     }
 }

@@ -81,5 +81,8 @@ try {
 } catch (\Throwable $e) {
     http_response_code(500);
     error_log("API [{$action}] error: " . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    // Never leak internal messages/paths to the client in production.
+    // Full detail is in the error log; enable DEBUG in .env to surface it.
+    $clientError = Config::debug() ? $e->getMessage() : 'Der opstod en intern fejl';
+    echo json_encode(['success' => false, 'error' => $clientError]);
 }

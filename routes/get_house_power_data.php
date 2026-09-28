@@ -27,7 +27,7 @@ function _extEvByKey(PDO $chargesDb, string $from, string $to, string $keyFmt): 
 // ─── 1-hour file cache (skip sync_status mode — changes frequently) ───────────────
 $_hwCacheKey = 'housepower_' . md5($_SERVER['QUERY_STRING'] ?? '');
 if (($_GET['mode'] ?? '') !== 'sync_status') {
-    $_cached = QueryBuilder::fileCacheRead($_hwCacheKey, 3600);
+    $_cached = QueryBuilder::fileCacheRead($_hwCacheKey, CacheHelper::TTL_LONG);
     if ($_cached !== null) { echo $_cached; exit; }
 }
 // ─────────────────────────────────────────────────────────────────────────────

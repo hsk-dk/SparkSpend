@@ -7,7 +7,7 @@
 
 // ─── 5-minute file cache ──────────────────────────────────────────────────────
 $_dashCacheKey = 'dashboard_' . date('Y-m-d');
-$_cached = QueryBuilder::fileCacheRead($_dashCacheKey, 300);
+$_cached = QueryBuilder::fileCacheRead($_dashCacheKey, CacheHelper::TTL_MEDIUM);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -38,10 +38,44 @@ $sparkStart         = $currentStartDt->format('Y-m-d');
 $sparkWindowStart   = $todayDt->modify('-29 days')->format('Y-m-d');
 $prevStart          = $prevStartDt->format('Y-m-d');
 $prevEnd       = $prevEndDt->format('Y-m-d');
+$prevMonthEnd  = $prevMonthEndDt->format('Y-m-d');
 $lastYearPeriodStart = $lastYearPeriodStartDt->format('Y-m-d');
 $lastYearPeriodEnd   = $lastYearPeriodEndDt->format('Y-m-d');
 $lastYearMonthStart  = $lastYearPeriodStart;
 $lastYearMonthEnd    = $lastYearMonthEndDt->format('Y-m-d');
+
+$daysThisMonth = (int)date('d');
+$daysInMonth   = (int)date('t');
+
+/**
+ * Full-month projection from month-to-date data.
+ *
+ * A naive linear run-rate ($mtd / $daysThisMonth * $daysInMonth) reads far
+ * too low early in the month because a couple of sparse/low days get scaled
+ * up by ~30. When we know the previous month's same-period MTD and its full
+ * total, we instead project by pace: assume we finish at the same fraction
+ * of last month's full total that our current pace implies. This is
+ * seasonally aware (handles heating ramp-up) and stable from day 1.
+ *
+ *   projected = prevFull * (thisMtd / prevMtd)
+ *
+ * Falls back to the linear run-rate when previous-month data is unavailable.
+ */
+if (!function_exists('projectFullMonth')) {
+function projectFullMonth(float $mtd, float $prevMtd, float $prevFull): ?float {
+    global $daysThisMonth, $daysInMonth;
+    if ($daysThisMonth <= 0) return null;
+    $runRate = $mtd / $daysThisMonth * $daysInMonth;
+    if ($prevMtd > 0 && $prevFull > 0) {
+        $paceProjection = $prevFull * ($mtd / $prevMtd);
+        // Blend pace projection with run-rate, leaning on pace early in the
+        // month (when run-rate is noisiest) and on run-rate late in the month.
+        $progress = min(1.0, $daysThisMonth / $daysInMonth);
+        return $paceProjection * (1 - $progress) + $runRate * $progress;
+    }
+    return $runRate;
+}
+}
 
 // =========================================================================
 // EV — internal charges: raw fetch, proportional midnight-split
@@ -57,6 +91,7 @@ $stmtInt->execute([$today, $lastYearMonthStart]);
 
 $intMonthCnt  = 0;  $intMonthKwh  = 0.0;  $intMonthCost = 0.0;
 $intPrevKwh   = 0.0; $intPrevCost  = 0.0;
+$intPrevFullKwh = 0.0; $intPrevFullCost = 0.0;
 $intLYKwh     = 0.0; $intLYCost    = 0.0;
 $evByDay      = [];
 
@@ -79,6 +114,10 @@ foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $intPrevKwh  += $slice['kwh'];
             $intPrevCost += $slice['cost'];
         }
+        if ($day >= $prevStart && $day <= $prevMonthEnd) {
+            $intPrevFullKwh  += $slice['kwh'];
+            $intPrevFullCost += $slice['cost'];
+        }
         if ($day >= $lastYearPeriodStart && $day <= $lastYearPeriodEnd) {
             $intLYKwh  += $slice['kwh'];
             $intLYCost += $slice['cost'];
@@ -97,6 +136,8 @@ $extMonthKwh   = 0.0;
 $extMonthCost  = 0.0;
 $extPrevKwh    = 0.0;
 $extPrevCost   = 0.0;
+$extPrevFullKwh  = 0.0;
+$extPrevFullCost = 0.0;
 $extLYKwh      = 0.0;
 $extLYCost     = 0.0;
 $extByDay      = [];
@@ -112,6 +153,10 @@ foreach ($extRows as $row) {
     if ($day >= $prevStart && $day <= $prevEnd) {
         $extPrevKwh  += floatval($row['kwh']);
         $extPrevCost += floatval($row['pris']);
+    }
+    if ($day >= $prevStart && $day <= $prevMonthEnd) {
+        $extPrevFullKwh  += floatval($row['kwh']);
+        $extPrevFullCost += floatval($row['pris']);
     }
     if ($day >= $lastYearPeriodStart && $day <= $lastYearPeriodEnd) {
         $extLYKwh  += floatval($row['kwh']);
@@ -147,6 +192,9 @@ $hpCurrent  = round(array_sum(array_filter($hpDailyMap, function($v, $k) use ($s
 $hpPrevMap        = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevEnd);
 $hpPrev           = round(array_sum($hpPrevMap), 2);
 
+$hpPrevFullMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevMonthEnd);
+$hpPrevFull       = round(array_sum($hpPrevFullMap), 2);
+
 $hpLastYearMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lastYearMonthStart, $lastYearMonthEnd);
 $hpLastYear       = round(array_sum($hpLastYearMap), 2);
 
@@ -173,6 +221,7 @@ for ($i = 29; $i >= 0; $i--) {
 // =========================================================================
 $husCurrentKwh = null;
 $husPrevKwh    = null;
+$husPrevFullKwh= null;
 $husLastYearKwh= null;
 $husSparkline  = null;
 
@@ -184,6 +233,9 @@ try {
 
     $husPrevMap     = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevEnd);
     $husPrevKwh     = round(array_sum($husPrevMap), 2);
+
+    $husPrevFullMap = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevMonthEnd);
+    $husPrevFullKwh = round(array_sum($husPrevFullMap), 2);
 
     $husLYMap       = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearPeriodStart, $lastYearPeriodEnd);
     $husLastYearKwh = round(array_sum($husLYMap), 2);
@@ -204,16 +256,18 @@ try {
 // =========================================================================
 $totalKwh    = floatval($intMonth['kwh'])  + floatval($extMonth['kwh']);
 $totalCost   = floatval($intMonth['cost']) + floatval($extMonth['cost']);
-$daysInMonth = (int)date('t');
 
 $prevTotalCost = floatval($intPrev['cost']) + $extPrevCost;
 $lyTotalCost   = floatval($intLY['cost'])   + $extLYCost;
 $prevTotalKwh  = floatval($intPrev['kwh'])  + $extPrevKwh;
 $lyTotalKwh    = floatval($intLY['kwh'])    + $extLYKwh;
 
+$prevFullCost  = $intPrevFullCost + $extPrevFullCost;
+
 $evCostPerKwh        = $totalKwh > 0      ? round($totalCost / $totalKwh, 3) : null;
 $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
-$evProjected         = $daysThisMonth > 0 ? round($totalCost / $daysThisMonth * $daysInMonth) : null;
+$_evProjectedRaw     = projectFullMonth($totalCost, $prevTotalCost, $prevFullCost);
+$evProjected         = $_evProjectedRaw !== null ? round($_evProjectedRaw) : null;
 $evPctChangeKwh      = $prevTotalKwh  > 0 ? round(($totalKwh - $prevTotalKwh) / $prevTotalKwh * 100, 1) : null;
 $evPctChangeKwhYear  = $lyTotalKwh    > 0 ? round(($totalKwh - $lyTotalKwh)   / $lyTotalKwh   * 100, 1) : null;
 $evPctChangeCost     = $prevTotalCost > 0 ? round(($totalCost - $prevTotalCost) / $prevTotalCost * 100, 1) : null;
@@ -229,12 +283,14 @@ $extCpKwh   = $extKwh  > 0 ? round($extCost  / $extKwh,  3) : null;
 $prevExtPct = $prevTotalKwh > 0 ? round($extPrevKwh / $prevTotalKwh * 100, 1) : null;
 
 $hpDailyAvg     = $daysThisMonth > 0 ? round($hpCurrent / $daysThisMonth, 2) : null;
-$hpProjected    = $daysThisMonth > 0 ? round($hpCurrent  / $daysThisMonth * $daysInMonth, 1) : null;
+$_hpProjectedRaw = projectFullMonth($hpCurrent, $hpPrev, $hpPrevFull);
+$hpProjected     = $_hpProjectedRaw !== null ? round($_hpProjectedRaw, 1) : null;
 
 $husDailyAvg    = ($husCurrentKwh !== null && $daysThisMonth > 0)
                     ? round($husCurrentKwh / $daysThisMonth, 2) : null;
-$husProjected   = ($husCurrentKwh !== null && $daysThisMonth > 0)
-                    ? round($husCurrentKwh / $daysThisMonth * $daysInMonth, 1) : null;
+$_husProjectedRaw = $husCurrentKwh !== null
+                    ? projectFullMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh)) : null;
+$husProjected   = $_husProjectedRaw !== null ? round($_husProjectedRaw, 1) : null;
 $husPctChange   = ($husCurrentKwh !== null && $husPrevKwh > 0)
                     ? round(($husCurrentKwh - $husPrevKwh) / $husPrevKwh * 100, 1) : null;
 $husPctChangeYear = ($husCurrentKwh !== null && $husLastYearKwh > 0)
@@ -266,6 +322,7 @@ $response = json_encode([
     'heatpump' => [
         'month_kwh'           => round($hpCurrent, 2),
         'prev_month_kwh'      => round($hpPrev, 2),
+        'prev_month_full_kwh' => round($hpPrevFull, 2),
         'last_year_month_kwh' => round($hpLastYear, 2),
         'last_year_period_kwh'=> round($hpLastYearPeriod, 2),
         'pct_change'          => $hpPctChange,

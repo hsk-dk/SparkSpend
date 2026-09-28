@@ -293,6 +293,9 @@ require 'includes/QueryBuilder.php';
 
   </div>
 
+  <!-- Total Electricity Cost Estimate -->
+  <div id="total-cost-estimate" class="total-cost-card" style="display:none"></div>
+
   <!-- Anomaly Detection Panel -->
   <div id="anomaly-panel" class="anomaly-panel" style="display:none">
     <div class="anomaly-panel-header">
@@ -817,7 +820,7 @@ require 'includes/QueryBuilder.php';
       <div class="row mb-2">
         <div class="col-lg-9 col-md-12">
           <canvas id="annualChart"></canvas>
-          <p id="annualKrNote" class="text-muted small mt-1" style="display:none">Viser kun EV-pris — jordvarme og husforbrug kræver elspot-konfiguration for omkostningsberegning.</p>
+          <p id="annualKrNote" class="text-muted small mt-1" style="display:none">Viser kun EV-pris — sæt ELSPOT_AREA og ELSPOT_GLN i .env for at estimere jordvarme- og husomkostninger.</p>
         </div>
       </div>
       <div id="annualTable"></div>
@@ -917,7 +920,7 @@ require 'includes/QueryBuilder.php';
     elspotGln:  '<?= htmlspecialchars(Config::elspotGln(), ENT_QUOTES) ?>',
     weatherLat: '<?= htmlspecialchars(Config::weatherLat(), ENT_QUOTES) ?>',
     weatherLon: '<?= htmlspecialchars(Config::weatherLon(), ENT_QUOTES) ?>',
-    adminKey:   '<?= htmlspecialchars(Config::adminKey(), ENT_QUOTES) ?>'
+    csrfToken:  '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>'
   };</script>
   <script src="includes/app.js?v=20260528"></script>
 
@@ -992,11 +995,11 @@ require 'includes/QueryBuilder.php';
           logContent.innerHTML = '<span class="text-muted">Indlæser log\u2026</span>';
           logMeta.textContent = '';
           fetch('api.php?action=system-log&lines=80', {
-                  headers: { 'Authorization': 'Bearer ' + (window.sparkConfig.adminKey || '') }
+                  headers: { 'X-CSRF-Token': (window.sparkConfig.csrfToken || '') }
               })
               .then(r => {
                   if (!r.ok && r.status === 403) {
-                      throw new Error('Admin-nøgle mangler eller er forkert — sæt ADMIN_KEY i .env');
+                      throw new Error('Adgang nægtet — genindlæs siden og prøv igen.');
                   }
                   return r.json();
               })

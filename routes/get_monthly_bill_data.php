@@ -11,7 +11,7 @@
 // ─── 5-minute file cache (keyed by numMonths + date) ───────────────────────────
 $_billNumMonths = max(1, min(60, intval($_GET['months'] ?? 24)));
 $_billCacheKey  = 'bill_' . $_billNumMonths . '_' . date('Y-m-d');
-$_cached = QueryBuilder::fileCacheRead($_billCacheKey, 300);
+$_cached = QueryBuilder::fileCacheRead($_billCacheKey, CacheHelper::TTL_MEDIUM);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 

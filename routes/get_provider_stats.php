@@ -9,7 +9,7 @@
 
 // ─── 5-minute file cache ─────────────────────────────────────────────────────────────
 $_provCacheKey = 'providerstats_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
-$_cached = QueryBuilder::fileCacheRead($_provCacheKey, 300);
+$_cached = QueryBuilder::fileCacheRead($_provCacheKey, CacheHelper::TTL_MEDIUM);
 if ($_cached !== null) { echo $_cached; exit; }
 // ─────────────────────────────────────────────────────────────────────────────
 

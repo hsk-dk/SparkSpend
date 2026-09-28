@@ -29,9 +29,7 @@ $stmt = $db->prepare("UPDATE charges SET vehicleId = ?, pairingSource = 'manual'
 $result = $stmt->execute([$vehicleId, $id]);
 
 if ($result) {
-    foreach (['dashboard_', 'ev_compare_', 'annual_', 'analytics_', 'bill_', 'efficiency_', 'providerstats_', 'vehicle_compare_'] as $_p) {
-        QueryBuilder::fileCacheInvalidatePattern($_p);
-    }
+    QueryBuilder::invalidateChargeCaches();
     http_response_code(200);
     echo json_encode([
         'success' => true,

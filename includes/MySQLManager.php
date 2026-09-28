@@ -3,7 +3,7 @@
  * MySQL Connection Manager
  *
  * Provides singleton pattern for MySQL database connections.
- * Loads credentials from environment variables and manages PDO instances.
+ * Loads credentials via Config (which reads from .env) and manages PDO instances.
  */
 
 // Load environment configuration
@@ -32,12 +32,13 @@ class MySQLManager {
      * @throws Exception If connection fails
      */
     private static function connect(): PDO {
-        // Load credentials from environment using env() function
-        $host = env('MYSQL_HEATPUMP_HOST');
-        $port = env('MYSQL_HEATPUMP_PORT', '3306');
-        $user = env('MYSQL_HEATPUMP_USER');
-        $password = env('MYSQL_HEATPUMP_PASSWORD', '');
-        $database = env('MYSQL_HEATPUMP_DATABASE');
+        // Load credentials via Config (single source of configuration truth)
+        // rather than reading env() directly here.
+        $host     = Config::get('mysqlHeatpumpHost');
+        $port     = Config::get('mysqlHeatpumpPort', '3306');
+        $user     = Config::get('mysqlHeatpumpUser');
+        $password = Config::get('mysqlHeatpumpPassword', '');
+        $database = Config::get('mysqlHeatpumpDatabase');
 
         // Validate required credentials
         if (!$host || !$user || !$database) {

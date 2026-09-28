@@ -65,9 +65,7 @@ $result = QueryBuilder::insertExternalCharge($db, [
 ]);
 
 if ($result['success']) {
-    foreach (['dashboard_', 'ev_compare_', 'annual_', 'analytics_', 'bill_', 'efficiency_', 'providerstats_', 'vehicle_compare_'] as $_p) {
-        QueryBuilder::fileCacheInvalidatePattern($_p);
-    }
+    QueryBuilder::invalidateChargeCaches();
     http_response_code(201);
     echo json_encode([
         'success' => true,

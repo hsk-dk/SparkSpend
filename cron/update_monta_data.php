@@ -52,6 +52,9 @@ function getAccessToken($clientId, $clientSecret, $authEndpoint) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, array('Accept: application/json','Content-Type: application/json'));
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    // Timeouts so a hanging Monta endpoint can't block the whole cron run.
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -84,15 +87,39 @@ function getChargingData($accessToken, $dataEndpoint, $fromDate, $toDate) {
             'page'     => $page,
             'perPage'  => $perPage
         ]);
-        $ch = curl_init($dataEndpoint . "?" . $queryParams);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-            'Authorization: Bearer ' . $accessToken
-        ));
+        // Fetch one page with timeouts + simple back-off on transient 5xx errors.
+        $response = false;
+        $httpCode = 0;
+        $curlErr  = '';
+        $maxAttempts = 3;
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $ch = curl_init($dataEndpoint . "?" . $queryParams);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                'Authorization: Bearer ' . $accessToken
+            ));
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            // Retry on network failure or transient 5xx; break otherwise.
+            $transient = ($response === false) || ($httpCode >= 500 && $httpCode <= 599);
+            if (!$transient || $attempt === $maxAttempts) {
+                break;
+            }
+            $backoff = 2 ** $attempt; // 2s, 4s
+            logMsg("Transient fejl (HTTP {$httpCode}" . ($curlErr ? ", {$curlErr}" : '') . ") på side {$page} — forsøg {$attempt}/{$maxAttempts}, venter {$backoff}s.", 'WARN');
+            sleep($backoff);
+        }
+
+        if ($response === false) {
+            logMsg("Netværksfejl mod Monta API på side {$page}: {$curlErr} — afventer næste kørsel.", 'ERROR');
+            return null;
+        }
 
         if ($httpCode === 429) {
             logMsg("Monta API rate-limit (429) — afventer næste kørsel.", 'WARN');
@@ -367,5 +394,12 @@ $now   = date('Y-m-d H:i:s');
 $db->prepare("INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last_sync_count, updated_at, error_message)
               VALUES ('monta', ?, ?, ?, NULL)")
    ->execute([$now, $count, $now]);
+
+// Drop charge-dependent caches so newly synced charges show up immediately
+// rather than waiting out the TTL (dashboard, analytics, annual, etc.).
+if ($count > 0) {
+    QueryBuilder::invalidateChargeCaches();
+}
+
 logMsg("Sync completed. {$count} charges synced.");
 // ─────────────────────────────────────────────────────────────────────────────

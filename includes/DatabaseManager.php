@@ -78,10 +78,15 @@ class DatabaseManager {
             $db->exec("PRAGMA journal_mode=WAL");
             $db->exec("PRAGMA busy_timeout=5000");
 
-            // Run database migrations (checked at most once per hour to avoid overhead)
-            require_once dirname(__FILE__) . '/MigrationRunner.php';
-            $migrationsDir = dirname(dirname(__FILE__)) . '/migrations/' . $dbType;
-            MigrationRunner::runIfDue($db, $migrationsDir, 3600);
+            // Run database migrations automatically (checked at most once per
+            // hour to avoid overhead). Can be disabled with AUTO_MIGRATE=false so
+            // production relies on the explicit `php migrate.php` deploy step
+            // instead of migrating on a web request.
+            if (Config::autoMigrate()) {
+                require_once dirname(__FILE__) . '/MigrationRunner.php';
+                $migrationsDir = dirname(dirname(__FILE__)) . '/migrations/' . $dbType;
+                MigrationRunner::runIfDue($db, $migrationsDir, 3600);
+            }
 
             return $db;
         } catch (PDOException $e) {

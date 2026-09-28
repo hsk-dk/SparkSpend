@@ -27,7 +27,7 @@ $showZeroKwh = (isset($_GET['showZeroKwh']) && $_GET['showZeroKwh'] === 'true') 
 
 // ─── 5-minute file cache ──────────────────────────────────────────────────
 $_analyticsCacheKey = 'analytics_' . md5($filter . '|' . $dateRange . '|' . $groupBy . '|' . ($showZeroKwh ? '1' : '0'));
-$_cached = QueryBuilder::fileCacheRead($_analyticsCacheKey, 300);
+$_cached = QueryBuilder::fileCacheRead($_analyticsCacheKey, CacheHelper::TTL_MEDIUM);
 if ($_cached !== null) {
     echo $_cached;
     exit;

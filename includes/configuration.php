@@ -32,6 +32,14 @@ ini_set('error_log', $logPath);
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');
+
+// NOTE on script-src 'unsafe-inline': the UI relies on inline event-handler
+// attributes (onclick=…) on buttons/cards and in JS-rendered HTML. A nonce- or
+// hash-based CSP does NOT cover inline handlers, and per the CSP spec a nonce
+// would actually cause browsers to IGNORE 'unsafe-inline' — breaking those
+// handlers. Tightening script-src therefore requires first migrating every
+// inline handler to addEventListener across index.php and the JS modules.
+// Tracked as a larger hardening task; kept as-is here to avoid breaking the UI.
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com cdnjs.cloudflare.com; font-src fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data: auth.useful.dk; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com");
 
 // ============================================================================

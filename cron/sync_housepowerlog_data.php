@@ -19,6 +19,7 @@
 require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
 require __DIR__ . '/../includes/MySQLManager.php';
+require_once __DIR__ . '/../includes/QueryBuilder.php';
 
 // ── Lock file ──────────────────────────────────────────────────────────────
 $lockFile   = __DIR__ . '/sync_housepowerlog.lock';
@@ -39,6 +40,10 @@ if (file_exists($lockFile)) {
 touch($lockFile);
 
 // ── Main ───────────────────────────────────────────────────────────────────
+// Declared before the try so the catch block can safely reference it even if
+// the connection itself fails.
+$sqliteDb = null;
+
 try {
     $mysqlDb  = MySQLManager::getHeatpumpDb();   // powerloghus lives in same DB
     $sqliteDb = DatabaseManager::getPowerlogDb();
@@ -59,6 +64,9 @@ try {
         logMsg("Fetched {$count} records to sync.");
         $inserted = insertRecords($sqliteDb, $records);
         logMsg("Inserted/updated {$inserted} records.");
+
+        // Drop meter/aggregate caches so freshly synced kWh shows up immediately.
+        QueryBuilder::invalidateMeterCaches();
     }
 
     // Always update sync_log so getSyncStatus.php reflects when the script last ran,
@@ -69,6 +77,11 @@ try {
 
 } catch (Exception $e) {
     logMsg("Sync failed: " . $e->getMessage(), 'ERROR');
+    // Record the error in sync_log so getSyncStatus.php can surface it,
+    // matching the heatpump sync's behaviour. Only if SQLite connected.
+    if ($sqliteDb instanceof PDO) {
+        saveSyncError($sqliteDb, $e->getMessage());
+    }
 } finally {
     if (file_exists($lockFile)) {
         unlink($lockFile);
@@ -250,6 +263,32 @@ function saveLastSync(PDO $db, int $count, array $records): void {
         }
     } catch (Exception $e) {
         logMsg("Could not update sync timestamp: " . $e->getMessage(), 'WARN');
+    }
+}
+
+/**
+ * Record a sync error in sync_log without disturbing the existing watermark,
+ * so getSyncStatus.php can report a failing sync.
+ */
+function saveSyncError(PDO $db, string $message): void {
+    try {
+        $existing = $db->prepare("SELECT last_sync_timestamp, last_sync_count FROM sync_log WHERE source = 'housepowerlog'");
+        $existing->execute();
+        $row = $existing->fetch();
+
+        $stmt = $db->prepare("
+            INSERT OR REPLACE INTO sync_log
+                (source, last_sync_timestamp, last_sync_count, updated_at, error_message)
+            VALUES ('housepowerlog', ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $row ? $row['last_sync_timestamp'] : null,
+            $row ? (int) $row['last_sync_count'] : 0,
+            date('Y-m-d H:i:s'),
+            mb_substr($message, 0, 500),
+        ]);
+    } catch (Exception $e) {
+        logMsg("Could not record sync error: " . $e->getMessage(), 'WARN');
     }
 }
 
