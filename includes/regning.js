@@ -41,19 +41,29 @@ const regningApp = (() => {
                 }
 
                 const { start, end } = billData.range;
-                const params = new URLSearchParams({ start, end, area, gln });
-                return fetch('api.php?action=elspot-prices&' + params)
-                    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                    .then(elData => {
-                        const costMap = {};
-                        (elData.records || []).forEach(r => { costMap[r.date] = parseFloat(r.kr_kwh); });
-                        _renderTable(tableWrapper, billData, costMap);
-                        _clearStatus(statusEl);
-                    });
+                // HIGH + LOW elafgift rates; the elvarme model blends them per
+                // month (first 333 kWh of VP+Rest high, rest low; EV always low).
+                const highParams = new URLSearchParams({ start, end, area, gln, tariff: 'high' });
+                const lowParams  = new URLSearchParams({ start, end, area, gln, tariff: 'low' });
+                return Promise.all([
+                    fetch('api.php?action=elspot-prices&' + highParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
+                    fetch('api.php?action=elspot-prices&' + lowParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
+                ]).then(([highData, lowData]) => {
+                    const highMap = {}, lowMap = {};
+                    (highData.records || []).forEach(r => { highMap[r.date] = parseFloat(r.kr_kwh); });
+                    (lowData.records  || []).forEach(r => { lowMap[r.date]  = parseFloat(r.kr_kwh); });
+                    const highKwhPerMonth = highData.components?.high_kwh_per_month ?? (4000 / 12);
+                    _renderTable(tableWrapper, billData, highMap, lowMap, highKwhPerMonth);
+                    _clearStatus(statusEl);
+                });
             })
             .catch(err => {
                 console.error('regningApp:', err);
-                _setStatus(statusEl, 'Fejl ved hentning af data: ' + err.message, 'text-danger');
+                _clearStatus(statusEl);
+                appUtils.showRetryError(tableWrapper, {
+                    message: 'Kunne ikke hente regningsdata: ' + err.message,
+                    onRetry: () => { initialized = false; init(); },
+                });
             });
     }
 
@@ -61,9 +71,9 @@ const regningApp = (() => {
     // Rendering
     // -------------------------------------------------------------------------
 
-    function _renderTable(wrapper, billData, costMap) {
+    function _renderTable(wrapper, billData, highMap, lowMap, highKwhPerMonth) {
         const { months, ev, hp, hus } = billData;
-        const hasCosts    = Object.keys(costMap).length > 0;
+        const hasCosts    = Object.keys(highMap).length > 0;
         const hasHus      = hus && Object.keys(hus).length > 0;
         const hasResidual = hasHus && hasCosts;
 
@@ -75,18 +85,29 @@ const regningApp = (() => {
             const evRow  = ev[m]  || { kwh: 0, cost: 0 };
             const hpRow  = hp[m]  || { kwh: 0 };
             const husRow = hus[m] || { kwh: 0 };
-            const hpCost = hasCosts ? hpRow.kwh * _monthAvgRate(costMap, m) : null;
+
+            // Elvarme model: first 333 kWh/month of VP+Rest at HIGH rate, rest
+            // at LOW; split back onto VP and Rest by kWh share.
+            const residualKwh = hasHus && husRow.kwh > 0
+                ? husRow.kwh - evRow.kwh - hpRow.kwh : null;
+            let hpCost = null, residualCost = null;
+            if (hasCosts) {
+                const c = appUtils.elvarmeCost({
+                    vpKwh: hpRow.kwh,
+                    restKwh: Math.max(0, residualKwh ?? 0),
+                    highRate: _monthAvgRate(highMap, m),
+                    lowRate:  _monthAvgRate(lowMap, m),
+                    highKwhPerMonth,
+                });
+                hpCost = c.vpCost;
+                residualCost = (hasResidual && residualKwh !== null) ? c.restCost : null;
+            }
 
             totEvKwh  += evRow.kwh;
             totEvCost += evRow.cost;
             totHpKwh  += hpRow.kwh;
             totHusKwh += husRow.kwh;
             if (hpCost !== null) totHpCost += hpCost;
-
-            const knownKwh    = evRow.kwh + hpRow.kwh;
-            const residualKwh = hasHus && husRow.kwh > 0 ? husRow.kwh - knownKwh : null;
-            const residualCost = hasResidual && residualKwh !== null
-                ? residualKwh * _monthAvgRate(costMap, m) : null;
             if (residualCost !== null) totResidualCost += residualCost;
 
             return `<tr>
@@ -147,7 +168,7 @@ const regningApp = (() => {
                     </tfoot>
                 </table>
             </div>
-            ${hasCosts ? '<p class="text-muted small mt-2 mb-0">* Estimeret baseret på spotpris, nettarif, systemtarif og reduceret elafgift for varmepumper (procesformål). El-bil kr er fra Monta.</p>' : ''}
+            ${hasCosts ? '<p class="text-muted small mt-2 mb-0">* Estimeret ud fra spotpris, nettarif, systemtarif, elafgift og moms. Elvarme-model: første 4.000 kWh/år (≈333 kWh/md) af VP+Restforbrug til fuld elafgift, resten til reduceret elvarmesats. El-bil kr er fra Monta.</p>' : ''}
         `;
     }
 
@@ -221,7 +242,7 @@ const fordelingApp = (() => {
                 const gln  = window.sparkConfig?.elspotGln  || '';
 
                 if (!area || !gln) {
-                    _render(billData, {}, false);
+                    _render(billData, {}, {}, (4000 / 12), false);
                     _setStatus(statusEl,
                         'Viser kWh-fordeling — sæt ELSPOT_AREA og ELSPOT_GLN i .env for kr-estimater.',
                         'text-muted');
@@ -229,26 +250,35 @@ const fordelingApp = (() => {
                 }
 
                 const { start, end } = billData.range;
-                const params = new URLSearchParams({ start, end, area, gln });
-                return fetch('api.php?action=elspot-prices&' + params)
-                    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                    .then(elData => {
-                        const costMap = {};
-                        (elData.records || []).forEach(r => { costMap[r.date] = parseFloat(r.kr_kwh); });
-                        _render(billData, costMap, true);
-                        _clearStatus(statusEl);
-                    });
+                // HIGH + LOW rates; blended per month via the elvarme model.
+                const highParams = new URLSearchParams({ start, end, area, gln, tariff: 'high' });
+                const lowParams  = new URLSearchParams({ start, end, area, gln, tariff: 'low' });
+                return Promise.all([
+                    fetch('api.php?action=elspot-prices&' + highParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
+                    fetch('api.php?action=elspot-prices&' + lowParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
+                ]).then(([highData, lowData]) => {
+                    const highMap = {}, lowMap = {};
+                    (highData.records || []).forEach(r => { highMap[r.date] = parseFloat(r.kr_kwh); });
+                    (lowData.records  || []).forEach(r => { lowMap[r.date]  = parseFloat(r.kr_kwh); });
+                    const highKwhPerMonth = highData.components?.high_kwh_per_month ?? (4000 / 12);
+                    _render(billData, highMap, lowMap, highKwhPerMonth, true);
+                    _clearStatus(statusEl);
+                });
             })
             .catch(err => {
                 console.error('fordelingApp:', err);
-                _setStatus(statusEl, 'Fejl ved hentning af data: ' + appUtils.escapeHtml(err.message), 'text-danger');
+                _clearStatus(statusEl);
+                appUtils.showRetryError(contentEl, {
+                    message: 'Kunne ikke hente fordelingsdata: ' + err.message,
+                    onRetry: () => { initialized = false; init(); },
+                });
             });
     }
 
     // -------------------------------------------------------------------------
     // Render
     // -------------------------------------------------------------------------
-    function _render(billData, costMap, hasCosts) {
+    function _render(billData, highMap, lowMap, highKwhPerMonth, hasCosts) {
         const { months, ev, hp, hus } = billData;
         const hasHus = hus && Object.keys(hus).length > 0;
 
@@ -266,18 +296,23 @@ const fordelingApp = (() => {
             labels.push(_monthShort(m));
 
             if (hasCosts) {
-                const rate     = _monthAvgRate(costMap, m);
-                const evCost   = evRow.cost;
-                const hpCost   = hpRow.kwh * rate;
+                // Elvarme model: VP+Rest first 333 kWh high, rest low.
                 const residKwh = hasHus && husRow.kwh > 0 ? husRow.kwh - evRow.kwh - hpRow.kwh : 0;
-                const restCost = Math.max(0, residKwh) * rate;
+                const c = appUtils.elvarmeCost({
+                    vpKwh: hpRow.kwh,
+                    restKwh: Math.max(0, residKwh),
+                    highRate: _monthAvgRate(highMap, m),
+                    lowRate:  _monthAvgRate(lowMap, m),
+                    highKwhPerMonth,
+                });
+                const evCost = evRow.cost;
 
                 evData.push(Math.round(evCost));
-                hpData.push(Math.round(hpCost));
-                restData.push(Math.round(restCost));
+                hpData.push(Math.round(c.vpCost));
+                restData.push(Math.round(c.restCost));
                 totEv   += evCost;
-                totHp   += hpCost;
-                totRest += Math.max(0, residKwh) * rate;
+                totHp   += c.vpCost;
+                totRest += c.restCost;
             } else {
                 evData.push(Math.round(evRow.kwh * 10) / 10);
                 hpData.push(Math.round(hpRow.kwh * 10) / 10);

@@ -12,9 +12,10 @@ class PowerlogRepository {
     /**
      * Compute daily kWh deltas from a cumulative-meter table using a LAG window function.
      *
-     * Negative deltas (meter resets) are clamped to 0.
-     * Abnormally large deltas (sensor stall recovery) are redistributed across
-     * the preceding gap period.
+     * Deltas are computed between consecutive (≈hourly) readings and summed per
+     * day, so a meter reset only loses the single reset interval rather than the
+     * whole day's post-reset consumption. Abnormally large deltas (sensor stall
+     * recovery) are redistributed across the preceding gap period.
      *
      * @param PDO    $db    SQLite connection (powerlog database)
      * @param string $table Table name — must be 'powerlogjord' or 'powerloghus'
@@ -32,23 +33,38 @@ class PowerlogRepository {
         // Max plausible daily consumption (kWh) per meter type.
         $maxDailyKwh = ($table === 'powerloghus') ? 150.0 : 80.0;
 
+        // Reading-level delta (readings are ~hourly). We diff each reading against
+        // the previous one and sum the positive increments per day. This is more
+        // accurate around meter resets than diffing daily MAX values: on a reset
+        // day, every post-reset reading still produces a valid positive delta, so
+        // the post-reset consumption is captured at hourly resolution instead of
+        // being dropped. A reset shows up as a single negative interval
+        // (curr < prev) whose consumption is unknown from the counter alone, so
+        // that one interval is skipped (treated as 0). Verified to produce
+        // identical results to the previous daily-MAX approach for normal
+        // (non-reset) data across the full history.
         $sql = "
-            WITH daily_max AS (
-                SELECT DATE(logdate) AS day,
-                       MAX(kwh)      AS max_kwh
+            WITH ordered AS (
+                SELECT logdate,
+                       kwh,
+                       LAG(kwh) OVER (ORDER BY logdate) AS prev_kwh
                 FROM $table
                 WHERE DATE(logdate) >= DATE(?, '-1 day')
                   AND DATE(logdate) <= ?
-                GROUP BY DATE(logdate)
             ),
-            daily_delta AS (
-                SELECT day,
-                       MAX(max_kwh - LAG(max_kwh) OVER (ORDER BY day), 0) AS delta_kwh
-                FROM daily_max
+            deltas AS (
+                SELECT DATE(logdate) AS day,
+                       CASE
+                           WHEN prev_kwh IS NULL     THEN 0
+                           WHEN kwh - prev_kwh < 0   THEN 0   -- reset interval: unknown
+                           ELSE kwh - prev_kwh
+                       END AS d
+                FROM ordered
             )
-            SELECT day, ROUND(delta_kwh, 2) AS kwh
-            FROM daily_delta
-            WHERE DATE(day) BETWEEN ? AND ?
+            SELECT day, ROUND(SUM(d), 2) AS kwh
+            FROM deltas
+            WHERE day BETWEEN ? AND ?
+            GROUP BY day
             ORDER BY day
         ";
         $stmt = $db->prepare($sql);

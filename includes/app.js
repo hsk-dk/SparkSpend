@@ -57,6 +57,35 @@ const initializeTooltips = () => {
 };
 
 /**
+ * Danish electricity-heating tax model. The meter can't tell purpose apart, so
+ * the first `highKwhPerMonth` kWh/month of VP+Rest consumption is taxed at the
+ * HIGH rate and the rest at the LOW (elvarme) rate. EV charging always uses the
+ * LOW rate (VP+Rest is assumed to consume the whole high-rate allowance).
+ *
+ * Returns the blended cost split back onto VP and Rest by their kWh share.
+ *
+ * @param {object} p
+ * @param {number} p.vpKwh   VP kWh for the month
+ * @param {number} p.restKwh Rest (household) kWh for the month
+ * @param {number} p.evKwh   EV home-charging kWh for the month (optional)
+ * @param {number} p.highRate kr/kWh HIGH rate (incl. tariffs+VAT)
+ * @param {number} p.lowRate  kr/kWh LOW rate
+ * @param {number} p.highKwhPerMonth kWh taxed at HIGH before LOW kicks in
+ * @returns {{vpCost:number, restCost:number, evCost:number, total:number}}
+ */
+const elvarmeCost = ({ vpKwh = 0, restKwh = 0, evKwh = 0, highRate, lowRate, highKwhPerMonth }) => {
+  const vpRest = Math.max(0, vpKwh) + Math.max(0, restKwh);
+  const highKwh = Math.min(vpRest, highKwhPerMonth);
+  const lowKwh = Math.max(0, vpRest - highKwh);
+  const vpRestCost = highKwh * highRate + lowKwh * lowRate;
+  // Split the blended cost back onto VP and Rest by their kWh share.
+  const vpCost = vpRest > 0 ? vpRestCost * (Math.max(0, vpKwh) / vpRest) : 0;
+  const restCost = vpRest > 0 ? vpRestCost * (Math.max(0, restKwh) / vpRest) : 0;
+  const evCost = Math.max(0, evKwh) * lowRate;
+  return { vpCost, restCost, evCost, total: vpRestCost + evCost };
+};
+
+/**
  * Format currency to Danish Krone format
  * @param {number} value - Value to format
  * @returns {string} Formatted value
@@ -310,16 +339,273 @@ function _handleAuthExpiry() {
     };
 })();
 
+// ============================================================================
+// TOAST NOTIFICATIONS
+// ============================================================================
+
+/**
+ * Show a transient toast notification in the corner of the screen.
+ *
+ * Toasts are the app-wide way to confirm async actions (sync, save, delete)
+ * that close a modal and would otherwise leave the user without feedback.
+ * The container is an aria-live region so screen readers announce the message.
+ *
+ * @param {string} message - Text to show (plain text; HTML is escaped)
+ * @param {'success'|'danger'|'info'} [type='success'] - Visual variant
+ * @param {number} [durationMs=3500] - Auto-dismiss delay (0 = sticky)
+ */
+const showToast = (message, type = 'success', durationMs = 3500) => {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    // Self-heal if the markup is missing so callers never crash.
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container';
+    container.setAttribute('role', 'status');
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'false');
+    document.body.appendChild(container);
+  }
+
+  const icons = {
+    success: 'fa-circle-check',
+    danger:  'fa-circle-exclamation',
+    info:    'fa-circle-info',
+  };
+  const toast = document.createElement('div');
+  toast.className = `spark-toast spark-toast-${type}`;
+  toast.innerHTML =
+    `<i class="fas ${icons[type] || icons.info} spark-toast-icon" aria-hidden="true"></i>` +
+    `<span class="spark-toast-msg">${escapeHtml(String(message))}</span>` +
+    `<button type="button" class="spark-toast-close" aria-label="Luk besked">` +
+      `<i class="fas fa-times" aria-hidden="true"></i></button>`;
+
+  const dismiss = () => {
+    toast.classList.remove('spark-toast-in');
+    toast.classList.add('spark-toast-out');
+    // Remove after the CSS transition; fall back to a timer if none runs.
+    const done = () => toast.remove();
+    toast.addEventListener('transitionend', done, { once: true });
+    setTimeout(done, 400);
+  };
+
+  toast.querySelector('.spark-toast-close').addEventListener('click', dismiss);
+  container.appendChild(toast);
+  // Force reflow so the enter transition plays.
+  requestAnimationFrame(() => toast.classList.add('spark-toast-in'));
+
+  if (durationMs > 0) setTimeout(dismiss, durationMs);
+  return { dismiss };
+};
+
+// ============================================================================
+// ERROR STATE WITH RETRY
+// ============================================================================
+
+/**
+ * Render a consistent error state with a "Prøv igen" button into a container.
+ *
+ * Replaces the many dead-end "Fejl: …" messages scattered across modules so a
+ * failed fetch always offers a way forward without a full page reload.
+ *
+ * @param {string|HTMLElement} target - Element or element id to render into
+ * @param {object} [opts]
+ * @param {string}  [opts.message='Kunne ikke hente data.'] - Error text
+ * @param {Function} [opts.onRetry] - Called when the user clicks "Prøv igen"
+ * @param {boolean} [opts.asTableRow=false] - Render as a <tr>/<td> (for tbody)
+ * @param {number}  [opts.colspan=1] - Column span when asTableRow is true
+ */
+const showRetryError = (target, opts = {}) => {
+  const {
+    message = 'Kunne ikke hente data.',
+    onRetry,
+    asTableRow = false,
+    colspan = 1,
+  } = opts;
+
+  const el = typeof target === 'string' ? document.getElementById(target) : target;
+  if (!el) return;
+
+  const safeMsg = escapeHtml(String(message));
+  const btnHtml = onRetry
+    ? `<button type="button" class="btn btn-sm btn-outline-danger spark-retry-btn">
+         <i class="fas fa-rotate-right me-1" aria-hidden="true"></i>Prøv igen</button>`
+    : '';
+
+  if (asTableRow) {
+    el.innerHTML =
+      `<tr><td colspan="${colspan}" class="text-center">
+        <div class="spark-error" role="alert">
+          <i class="fas fa-triangle-exclamation spark-error-icon" aria-hidden="true"></i>
+          <span class="spark-error-msg">${safeMsg}</span>
+          ${btnHtml}
+        </div></td></tr>`;
+  } else {
+    el.innerHTML =
+      `<div class="spark-error" role="alert">
+        <i class="fas fa-triangle-exclamation spark-error-icon" aria-hidden="true"></i>
+        <span class="spark-error-msg">${safeMsg}</span>
+        ${btnHtml}
+      </div>`;
+  }
+
+  if (onRetry) {
+    el.querySelector('.spark-retry-btn')?.addEventListener('click', () => onRetry());
+  }
+};
+
+// ============================================================================
+// EMPTY STATE
+// ============================================================================
+
+/**
+ * Render a consistent empty state (icon + message + optional action) so the
+ * "no data" case looks the same across the app and can point the user forward.
+ *
+ * @param {string|HTMLElement} target - Element or element id to render into
+ * @param {object} [opts]
+ * @param {string}  [opts.message='Ingen data at vise.'] - Explanation text
+ * @param {string}  [opts.icon='fa-inbox']  - Font Awesome icon (without "fas")
+ * @param {string}  [opts.actionLabel]      - Optional action button label
+ * @param {Function} [opts.onAction]        - Called when the action is clicked
+ * @param {boolean} [opts.asTableRow=false] - Render as a <tr>/<td>
+ * @param {number}  [opts.colspan=1]        - Column span when asTableRow
+ */
+const showEmptyState = (target, opts = {}) => {
+  const {
+    message = 'Ingen data at vise.',
+    icon = 'fa-inbox',
+    actionLabel,
+    onAction,
+    asTableRow = false,
+    colspan = 1,
+  } = opts;
+
+  const el = typeof target === 'string' ? document.getElementById(target) : target;
+  if (!el) return;
+
+  const btnHtml = (actionLabel && onAction)
+    ? `<button type="button" class="btn btn-sm btn-secondary spark-empty-btn">${escapeHtml(actionLabel)}</button>`
+    : '';
+  const inner =
+    `<div class="spark-empty">
+      <i class="fas ${escapeHtml(icon)} spark-empty-icon" aria-hidden="true"></i>
+      <span class="spark-empty-msg">${escapeHtml(String(message))}</span>
+      ${btnHtml}
+    </div>`;
+
+  el.innerHTML = asTableRow
+    ? `<tr><td colspan="${colspan}" class="text-center">${inner}</td></tr>`
+    : inner;
+
+  if (actionLabel && onAction) {
+    el.querySelector('.spark-empty-btn')?.addEventListener('click', () => onAction());
+  }
+};
+
+// ============================================================================
+// CONFIRM DIALOG
+// ============================================================================
+
+/**
+ * Promise-based confirmation dialog rendered as a styled Bootstrap modal.
+ *
+ * Replaces the native window.confirm() so destructive actions share one
+ * consistent, keyboard-accessible look across the app. Reuses a single
+ * reusable modal element (#confirmDialogModal), creating it on first use.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.title='Bekræft']       - Modal heading
+ * @param {string} [opts.message='Er du sikker?'] - Body text
+ * @param {string} [opts.confirmLabel='Bekræft'] - Confirm button label
+ * @param {string} [opts.cancelLabel='Annuller'] - Cancel button label
+ * @param {boolean} [opts.danger=true]           - Style confirm button as destructive
+ * @returns {Promise<boolean>} Resolves true if confirmed, false otherwise
+ */
+const confirmDialog = (opts = {}) => {
+  const {
+    title = 'Bekræft',
+    message = 'Er du sikker?',
+    confirmLabel = 'Bekræft',
+    cancelLabel = 'Annuller',
+    danger = true,
+  } = opts;
+
+  return new Promise((resolve) => {
+    // Fallback if Bootstrap is unavailable for any reason.
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+      resolve(window.confirm(message));
+      return;
+    }
+
+    let modalEl = document.getElementById('confirmDialogModal');
+    if (!modalEl) {
+      modalEl = document.createElement('div');
+      modalEl.id = 'confirmDialogModal';
+      modalEl.className = 'modal fade';
+      modalEl.tabIndex = -1;
+      modalEl.setAttribute('aria-hidden', 'true');
+      modalEl.innerHTML =
+        `<div class="modal-dialog modal-sm modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header py-2">
+              <h6 class="modal-title mb-0" data-confirm-title></h6>
+              <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Luk"></button>
+            </div>
+            <div class="modal-body" data-confirm-message></div>
+            <div class="modal-footer py-2">
+              <button type="button" class="btn btn-secondary btn-sm" data-confirm-cancel></button>
+              <button type="button" class="btn btn-sm" data-confirm-ok></button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(modalEl);
+    }
+
+    modalEl.querySelector('[data-confirm-title]').textContent = title;
+    modalEl.querySelector('[data-confirm-message]').textContent = message;
+    const cancelBtn = modalEl.querySelector('[data-confirm-cancel]');
+    const okBtn     = modalEl.querySelector('[data-confirm-ok]');
+    cancelBtn.textContent = cancelLabel;
+    okBtn.textContent     = confirmLabel;
+    okBtn.className        = 'btn btn-sm ' + (danger ? 'btn-danger' : 'btn-primary');
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    let settled = false;
+
+    const cleanup = (result) => {
+      if (settled) return;
+      settled = true;
+      okBtn.removeEventListener('click', onConfirm);
+      modalEl.removeEventListener('hidden.bs.modal', onHidden);
+      resolve(result);
+    };
+    const onConfirm = () => { cleanup(true); modal.hide(); };
+    const onHidden  = () => cleanup(false); // covers cancel, backdrop, Esc, close
+
+    okBtn.addEventListener('click', onConfirm);
+    modalEl.addEventListener('hidden.bs.modal', onHidden);
+    // Move focus to the confirm button once shown for keyboard users.
+    modalEl.addEventListener('shown.bs.modal', () => okBtn.focus(), { once: true });
+    modal.show();
+  });
+};
+
 // Export for use in index.php inline scripts
 window.appUtils = {
   debounce,
   handleFetchResponse,
   initializeTooltips,
   formatCurrency,
+  elvarmeCost,
   formatDate,
   escapeHtml,
   updateChartInstance,
   showFormMessage,
+  showToast,
+  confirmDialog,
+  showRetryError,
+  showEmptyState,
   validateForm,
   setLoadingState,
   parseDateRange,

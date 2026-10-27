@@ -166,17 +166,57 @@ const elbilApp = (() => {
         const toggleBtn      = document.getElementById('filterToggleBtn');
         const closeBtn       = document.getElementById('filterCloseBtn');
 
+        let _drawerKeydownHandler = null;
+
+        function _openFilterDrawer() {
+            filterDrawer.classList.add('open');
+            filterBackdrop.classList.add('visible');
+            document.body.classList.add('filter-open');
+            toggleBtn?.setAttribute('aria-expanded', 'true');
+
+            // Move focus into the drawer for keyboard users.
+            const firstField = filterDrawer.querySelector('select, input, button');
+            firstField?.focus();
+
+            // Escape to close + simple focus-trap within the drawer.
+            _drawerKeydownHandler = (e) => {
+                if (e.key === 'Escape') { _closeFilterDrawer(); return; }
+                if (e.key !== 'Tab') return;
+                const focusables = filterDrawer.querySelectorAll(
+                    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                );
+                if (!focusables.length) return;
+                const first = focusables[0];
+                const last  = focusables[focusables.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault(); last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault(); first.focus();
+                }
+            };
+            document.addEventListener('keydown', _drawerKeydownHandler);
+        }
+
+        function _closeFilterDrawer() {
+            const wasOpen = filterDrawer.classList.contains('open');
+            filterDrawer.classList.remove('open');
+            filterBackdrop.classList.remove('visible');
+            document.body.classList.remove('filter-open');
+            toggleBtn?.setAttribute('aria-expanded', 'false');
+            if (_drawerKeydownHandler) {
+                document.removeEventListener('keydown', _drawerKeydownHandler);
+                _drawerKeydownHandler = null;
+            }
+            // Return focus to the trigger so keyboard users keep their place.
+            if (wasOpen) toggleBtn?.focus();
+        }
+
         toggleBtn?.addEventListener('click', () => {
-            filterDrawer.classList.toggle('open');
-            filterBackdrop.classList.toggle('visible');
+            if (filterDrawer.classList.contains('open')) _closeFilterDrawer();
+            else _openFilterDrawer();
         });
         closeBtn?.addEventListener('click', _closeFilterDrawer);
         filterBackdrop?.addEventListener('click', _closeFilterDrawer);
-
-        function _closeFilterDrawer() {
-            filterDrawer.classList.remove('open');
-            filterBackdrop.classList.remove('visible');
-        }
 
         // Modal: edit internal charge
         document.getElementById('internalChargeForm').addEventListener('submit', _submitInternalCharge);
@@ -186,6 +226,16 @@ const elbilApp = (() => {
 
         // Modal: create external charge
         document.getElementById('exChargeForm').addEventListener('submit', _submitCreateCharge);
+
+        // Prefill the create-charge modal each time it opens: current time and
+        // the last used vehicle/provider, so the common case is one tap away.
+        const createModalEl = document.getElementById('createExChargeModal');
+        createModalEl?.addEventListener('show.bs.modal', _prefillCreateCharge);
+
+        // Live kr/kWh readout as the user types kWh + price (catches typos).
+        ['kwh', 'pris'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', _updateCreateCpkwh);
+        });
 
         // Modal: delete external charge
         document.getElementById('deleteExternalChargeButton').addEventListener('click', _deleteExternalCharge);
@@ -354,8 +404,12 @@ const elbilApp = (() => {
             _visibleRows  = _PAGE_SIZE;
             _applySortAndRender();
         } catch (e) {
-            chargeTableBodyEl.innerHTML =
-                `<tr><td colspan="8" class="text-center text-danger">Fejl: ${e.message}</td></tr>`;
+            appUtils.showRetryError(chargeTableBodyEl, {
+                message: 'Kunne ikke hente ladninger: ' + e.message,
+                onRetry: fetchCharges,
+                asTableRow: true,
+                colspan: 8,
+            });
         }
     }
 
@@ -412,7 +466,14 @@ const elbilApp = (() => {
     function _renderCharges(data) {
         chargeTableBodyEl.innerHTML = '';
         if (data.length === 0) {
-            chargeTableBodyEl.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Ingen ladninger fundet for den valgte periode  ·  <button type="button" class="btn btn-sm btn-secondary" onclick="elbilApp.resetFilters()">Nulstil filtre</button></td></tr>';
+            appUtils.showEmptyState(chargeTableBodyEl, {
+                message: 'Ingen ladninger fundet for den valgte periode.',
+                icon: 'fa-charging-station',
+                actionLabel: 'Nulstil filtre',
+                onAction: () => elbilApp.resetFilters(),
+                asTableRow: true,
+                colspan: 8,
+            });
             _updateSummary({}, 0, 0, 0, 0, 0, 0, 0, 0);
             return;
         }
@@ -483,7 +544,7 @@ const elbilApp = (() => {
             });
 
             // Duration + avg power (internal charges only — ext_charges have no startedAt/stoppedAt)
-            let sessionCell = '<td class="text-muted text-center">—</td>';
+            let sessionCell = '<td data-label="Varighed" class="text-muted text-center">—</td>';
             if (charge.startedAt && charge.stoppedAt) {
                 const durH = (new Date(charge.stoppedAt) - new Date(charge.startedAt)) / 3_600_000;
                 if (durH > 0.01) {
@@ -498,7 +559,7 @@ const elbilApp = (() => {
                             : `SoC: ${charge.socPercentage}%`;
                         socHtml = `<br><small class="text-muted">${socStr}</small>`;
                     }
-                    sessionCell  = `<td>${durStr}<br><small class="text-muted">Ø ${avgKw.toFixed(1)} kW</small>${socHtml}</td>`;
+                    sessionCell  = `<td data-label="Varighed">${durStr}<br><small class="text-muted">Ø ${avgKw.toFixed(1)} kW</small>${socHtml}</td>`;
                 }
             }
 
@@ -511,21 +572,28 @@ const elbilApp = (() => {
             row.dataset.vehicleId = charge.vehicleId;
             if (charge.providerId) row.dataset.providerId = charge.providerId;
 
-            // Pairing confidence indicator for internal charges
+            // Pairing confidence indicator for internal charges.
+            // 'default'/'legacy' = no automatic determination; 'uncertain' =
+            // timing was ambiguous or outside the match window (two cars share
+            // the charger, so timing is the only signal). Both warrant review.
             let pairingBadge = '';
-            if (charge.source === 'internal' && charge.pairingSource === 'default') {
-                pairingBadge = ' <span class="text-warning" data-bs-toggle="tooltip" title="Bil kunne ikke bestemmes automatisk — klik Rediger for at rette">⚠️</span>';
+            if (charge.source === 'internal' &&
+                (charge.pairingSource === 'default' || charge.pairingSource === 'uncertain')) {
+                const msg = charge.pairingSource === 'uncertain'
+                    ? 'Bil-kobling usikker (flere biler tæt i tid, eller ingen aflæsning i tidsvinduet) — klik Rediger for at bekræfte'
+                    : 'Bil kunne ikke bestemmes automatisk — klik Rediger for at rette';
+                pairingBadge = ` <span class="text-warning" data-bs-toggle="tooltip" title="${msg}">⚠️</span>`;
             }
 
             row.innerHTML = `
-                <td>${fmtDate}</td>
-                <td>${kwh.toFixed(2)} kWh</td>
+                <td data-label="Dato">${fmtDate}</td>
+                <td data-label="Forbrugt kWh">${kwh.toFixed(2)} kWh</td>
                 ${sessionCell}
-                <td>${pris.toFixed(2)} kr</td>
-                <td>${priceIcon ? priceIcon + ' ' : ''}${pPerKwh.toFixed(2)} kr/kWh${priceText ? ' <small>' + priceText + '</small>' : ''}</td>
-                <td>${appUtils.escapeHtml(vName)}${pairingBadge}</td>
-                <td>${icon}${stateBadge}</td>
-                <td><button class="btn btn-sm btn-secondary" data-action="edit">Rediger</button></td>
+                <td data-label="Pris">${pris.toFixed(2)} kr</td>
+                <td data-label="Pris pr kWh">${priceIcon ? priceIcon + ' ' : ''}${pPerKwh.toFixed(2)} kr/kWh${priceText ? ' <small>' + priceText + '</small>' : ''}</td>
+                <td data-label="Bil">${appUtils.escapeHtml(vName)}${pairingBadge}</td>
+                <td data-label="Type">${icon}${stateBadge}</td>
+                <td data-label="Handling"><button class="btn btn-sm btn-secondary" data-action="edit">Rediger</button></td>
             `;
             chargeTableBodyEl.appendChild(row);
         });
@@ -663,8 +731,8 @@ const elbilApp = (() => {
             const res    = await fetch('api.php?action=update-internal-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: document.getElementById('internalChargeId').value, vehicleId: document.getElementById('internalVehicleId').value }) });
             const result = await appUtils.handleFetchResponse(res);
             if (result.success) {
-                appUtils.showFormMessage('internalChargeMsg', 'Intern ladning opdateret!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('internalChargeModal')).hide();
+                appUtils.showToast('Intern ladning opdateret', 'success');
                 fetchCharges();
                 fetchVehicleComparison();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
@@ -690,8 +758,8 @@ const elbilApp = (() => {
             const res    = await fetch('api.php?action=update-ext-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const result = await appUtils.handleFetchResponse(res);
             if (result.success) {
-                appUtils.showFormMessage('externalChargeMsg', 'Ekstern ladning opdateret!', 'success');
                 bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
+                appUtils.showToast('Ekstern ladning opdateret', 'success');
                 fetchCharges();
                 fetchVehicleComparison();
                 fetchProviderStats();
@@ -718,9 +786,15 @@ const elbilApp = (() => {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             if (data.success) {
-                appUtils.showFormMessage('exChargeMsg', 'Ekstern ladning oprettet!', 'success');
+                // Remember choices to prefill the next time the modal opens.
+                try {
+                    if (payload.vehicleId)  sessionStorage.setItem('sparkspend_last_vehicle',  payload.vehicleId);
+                    if (payload.providerId) sessionStorage.setItem('sparkspend_last_provider', payload.providerId);
+                } catch (_) { /* storage may be unavailable � non-fatal */ }
                 form.reset();
+                _updateCreateCpkwh();
                 bootstrap.Modal.getInstance(document.getElementById('createExChargeModal')).hide();
+                appUtils.showToast('Ekstern ladning oprettet', 'success');
                 fetchCharges();
                 fetchVehicleComparison();
                 fetchProviderStats();
@@ -729,6 +803,51 @@ const elbilApp = (() => {
                 appUtils.showFormMessage('exChargeMsg', data.error || 'Fejl', 'danger');
             }
         } catch (err) { appUtils.showFormMessage('exChargeMsg', err.message, 'danger'); }
+    }
+
+    // Prefill the create-charge modal with sensible defaults on open.
+    function _prefillCreateCharge() {
+        // Time = now (only if empty, so a mid-edit reopen isn't clobbered).
+        const dtEl = document.getElementById('chargeDateTime');
+        if (dtEl && !dtEl.value) {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+                          `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+            dtEl._flatpickr ? dtEl._flatpickr.setDate(stamp, true) : (dtEl.value = stamp);
+        }
+        // Last used vehicle/provider.
+        try {
+            const lastV = sessionStorage.getItem('sparkspend_last_vehicle');
+            const lastP = sessionStorage.getItem('sparkspend_last_provider');
+            const vEl = document.getElementById('vehicleId');
+            const pEl = document.getElementById('providerId');
+            if (lastV && vEl && !vEl.value && vEl.querySelector(`option[value="${lastV}"]`)) vEl.value = lastV;
+            if (lastP && pEl && !pEl.value && pEl.querySelector(`option[value="${lastP}"]`)) pEl.value = lastP;
+        } catch (_) { /* storage unavailable � skip */ }
+        _updateCreateCpkwh();
+    }
+
+    // Live kr/kWh readout under the price field to catch obvious typos.
+    function _updateCreateCpkwh() {
+        const kwh  = parseFloat(document.getElementById('kwh')?.value);
+        const pris = parseFloat(document.getElementById('pris')?.value);
+        let el = document.getElementById('createCpkwhHint');
+        if (!el) {
+            const priceInput = document.getElementById('pris');
+            if (!priceInput) return;
+            el = document.createElement('div');
+            el.id = 'createCpkwhHint';
+            el.className = 'form-text small mt-1';
+            priceInput.insertAdjacentElement('afterend', el);
+        }
+        if (kwh > 0 && pris >= 0) {
+            el.textContent = `� ${(pris / kwh).toFixed(2)} kr/kWh`;
+            el.style.display = '';
+        } else {
+            el.textContent = '';
+            el.style.display = 'none';
+        }
     }
 
     async function _deleteExternalCharge() {
@@ -741,8 +860,8 @@ const elbilApp = (() => {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const result = await res.json();
                 if (result.success) {
-                    appUtils.showFormMessage('externalChargeMsg', 'Ladningen er slettet!', 'success');
                     bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
+                    appUtils.showToast('Ladningen er slettet', 'success');
                     fetchCharges();
                     fetchVehicleComparison();
                     fetchProviderStats();
@@ -764,8 +883,11 @@ const elbilApp = (() => {
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderEfficiencyCharts(data); })
             .catch(err => {
-                document.getElementById('kmPerKwhChart').innerHTML = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
-                document.getElementById('krPerKmChart').innerHTML  = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
+                appUtils.showRetryError('kmPerKwhChart', {
+                    message: 'Kunne ikke hente effektivitetsdata: ' + err.message,
+                    onRetry: fetchEfficiencyStats,
+                });
+                document.getElementById('krPerKmChart').innerHTML = '';
             });
     }
 
@@ -802,8 +924,11 @@ const elbilApp = (() => {
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderCostAnalytics(data); })
             .catch(err => {
-                document.getElementById('costTrendChart').innerHTML    = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
-                document.getElementById('costStatsContent').innerHTML  = `<div class="alert alert-danger">Fejl: ${appUtils.escapeHtml(err.message)}</div>`;
+                appUtils.showRetryError('costTrendChart', {
+                    message: 'Kunne ikke hente omkostningsdata: ' + err.message,
+                    onRetry: fetchCostAnalytics,
+                });
+                document.getElementById('costStatsContent').innerHTML = '';
             });
     }
 
@@ -883,12 +1008,27 @@ const elbilApp = (() => {
         fetch('api.php?action=vehicle-comparison&' + params)
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderVehicleComparison(data.vehicles); })
-            .catch(err => { document.getElementById('vehicleComparisonTableBody').innerHTML = `<tr><td colspan="7" class="text-center text-danger">Fejl: ${appUtils.escapeHtml(err.message)}</td></tr>`; });
+            .catch(err => {
+                appUtils.showRetryError('vehicleComparisonTableBody', {
+                    message: 'Kunne ikke hente bilsammenligning: ' + err.message,
+                    onRetry: () => fetchVehicleComparison(),
+                    asTableRow: true,
+                    colspan: 7,
+                });
+            });
     }
 
     function _renderVehicleComparison(data) {
         const tbody = document.getElementById('vehicleComparisonTableBody');
-        if (!data || !data.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center">Ingen data</td></tr>'; return; }
+        if (!data || !data.length) {
+            appUtils.showEmptyState(tbody, {
+                message: 'Ingen biler at sammenligne i den valgte periode.',
+                icon: 'fa-car',
+                asTableRow: true,
+                colspan: 7,
+            });
+            return;
+        }
         tbody.innerHTML = data.map(v => `
             <tr>
                 <td><strong>${v.vehicleName}</strong></td>
@@ -913,8 +1053,10 @@ const elbilApp = (() => {
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(data => { if (data.error) throw new Error(data.error); _renderProviderStats(data); })
             .catch(err => {
-                const el = document.getElementById('providerStatsContent');
-                if (el) el.innerHTML = `<p class="text-danger small">Fejl: ${appUtils.escapeHtml(err.message)}</p>`;
+                appUtils.showRetryError('providerStatsContent', {
+                    message: 'Kunne ikke hente ladesteder: ' + err.message,
+                    onRetry: fetchProviderStats,
+                });
             });
     }
 
@@ -922,7 +1064,10 @@ const elbilApp = (() => {
         const el = document.getElementById('providerStatsContent');
         if (!el) return;
         if (!data || !data.length) {
-            el.innerHTML = '<p class="text-muted small">Ingen eksterne ladninger i den valgte periode</p>';
+            appUtils.showEmptyState(el, {
+                message: 'Ingen eksterne ladninger i den valgte periode.',
+                icon: 'fa-charging-station',
+            });
             return;
         }
         el.innerHTML = `
@@ -1349,7 +1494,12 @@ const elbilApp = (() => {
     }
 
     async function deleteProvider(id) {
-        if (!confirm('Slet denne udbyder?')) return;
+        const ok = await appUtils.confirmDialog({
+            title: 'Slet udbyder',
+            message: 'Slet denne udbyder?',
+            confirmLabel: 'Slet',
+        });
+        if (!ok) return;
         try {
             const res  = await fetch('api.php?action=delete-provider', {
                 method: 'POST',
@@ -1362,6 +1512,7 @@ const elbilApp = (() => {
             _renderManageProviders(providers);
             _populateProviderSelects();
             _showManageMsg('Udbyder slettet', 'success');
+            appUtils.showToast('Udbyder slettet', 'success');
         } catch (e) { _showManageMsg(e.message); }
     }
 
@@ -1415,7 +1566,7 @@ const elbilApp = (() => {
         try {
             const res = await fetch(
                 `api.php?action=elspot-prices&start=${start}&end=${end}` +
-                `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`
+                `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=household`
             );
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();

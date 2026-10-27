@@ -165,43 +165,95 @@ function _getVehicleCount(): int {
     return $_vehicleCount;
 }
 
-function getVehicleForCharge($cablePluggedInAt): array {
-    $db = DatabaseManager::getChargesDb();
+// Cache the recent vehicle_charges rows (with pre-parsed timestamps) once for
+// the whole sync run — previously this was queried and re-parsed for EVERY
+// charge (O(n) DB round-trips). Returns array of ['vehicleId'=>int,'ts'=>int].
+$_vehicleChargeWindow = null;
+function _getVehicleChargeWindow(): array {
+    global $_vehicleChargeWindow;
+    if ($_vehicleChargeWindow === null) {
+        $db = DatabaseManager::getChargesDb();
+        $stmt = $db->query("SELECT vehicleId, cablePluggedInAt FROM vehicle_charges
+                            ORDER BY rowid DESC LIMIT 1000");
+        $_vehicleChargeWindow = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if ($row['cablePluggedInAt'] === null) continue;
+            $ts = strtotime($row['cablePluggedInAt']);
+            if ($ts === false) continue;
+            $_vehicleChargeWindow[] = ['vehicleId' => (int) $row['vehicleId'], 'ts' => $ts];
+        }
+        // Ascending by time so "latest plug-in <= T" is a simple scan.
+        usort($_vehicleChargeWindow, fn($a, $b) => $a['ts'] <=> $b['ts']);
+    }
+    return $_vehicleChargeWindow;
+}
 
-    // All timestamps are now stored as UTC Z-suffix. PHP's strtotime() handles
-    // this correctly for timestamp comparison.
+function getVehicleForCharge($cablePluggedInAt): array {
+    // Physical flow: the cable is plugged into a car first (HA reports the
+    // vehicle + odometer at that moment); Monta may then schedule the charge to
+    // start hours later. So the charge belongs to the vehicle whose cable was
+    // plugged in MOST RECENTLY at or before this charge's cablePluggedInAt.
+    // We take the latest HA reading with ts <= T (+ small grace), bounded by a
+    // max look-back. With two cars sharing one charger, timing is the only
+    // signal, so genuinely ambiguous cases are flagged 'uncertain' for review.
     $targetTime = strtotime($cablePluggedInAt);
     if ($targetTime === false) {
         logMsg("getVehicleForCharge: could not parse timestamp: $cablePluggedInAt", 'WARN');
-        return ['vehicleId' => 1, 'source' => 'default'];
+        return ['vehicleId' => 1, 'source' => 'uncertain'];
     }
 
-    // Fetch the 500 most recent vehicle_charges rows and compare in PHP
-    $stmt = $db->query("SELECT vehicleId, cablePluggedInAt FROM vehicle_charges
-                        ORDER BY rowid DESC LIMIT 500");
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $graceAfter  = Config::pairingGraceAfterSec();
+    $maxLookback = Config::pairingMaxLookbackSec();
+    $ambiguity   = Config::pairingAmbiguitySec();
+    $cutoff      = $targetTime + $graceAfter;
 
-    $bestVehicleId = 1;
-    $bestDiff      = PHP_INT_MAX;
-    foreach ($rows as $row) {
-        if ($row['cablePluggedInAt'] === null) continue;
-        $storedTime = strtotime($row['cablePluggedInAt']);
-        if ($storedTime === false) continue;
-        $diff = abs($targetTime - $storedTime);
-        if ($diff < $bestDiff) {
-            $bestDiff      = $diff;
-            $bestVehicleId = $row['vehicleId'];
+    // Readings are sorted ascending by time. Collect all at/before the cutoff;
+    // the last one is the most recent plug-in — that's the chosen vehicle.
+    $eligible = [];
+    foreach (_getVehicleChargeWindow() as $row) {
+        if ($row['ts'] > $cutoff) break;   // ascending order → done
+        $eligible[] = $row;
+    }
+
+    $chosen = !empty($eligible) ? end($eligible) : null;
+
+    // Ambiguity check: scan backwards from the chosen reading for the most
+    // recent reading belonging to a DIFFERENT vehicle.
+    $prevOtherVehicleTs = null;
+    if ($chosen !== null) {
+        for ($i = count($eligible) - 2; $i >= 0; $i--) {
+            if ($eligible[$i]['vehicleId'] !== $chosen['vehicleId']) {
+                $prevOtherVehicleTs = $eligible[$i]['ts'];
+                break;
+            }
         }
     }
 
-    if ($bestDiff >= 3600) {
+    if ($chosen === null) {
         if (_getVehicleCount() > 1) {
-            logMsg("getVehicleForCharge: no match within 1h of $cablePluggedInAt (closest: {$bestDiff}s) — defaulting to vehicleId=1", 'WARN');
+            logMsg("getVehicleForCharge: no plug-in at/before $cablePluggedInAt — uncertain", 'WARN');
         }
-        return ['vehicleId' => 1, 'source' => 'default'];
+        return ['vehicleId' => 1, 'source' => 'uncertain'];
     }
 
-    return ['vehicleId' => $bestVehicleId, 'source' => 'matched'];
+    // Too old to trust (e.g. a stale reading days before this charge).
+    if (($targetTime - $chosen['ts']) > $maxLookback) {
+        if (_getVehicleCount() > 1) {
+            $ageH = round(($targetTime - $chosen['ts']) / 3600, 1);
+            logMsg("getVehicleForCharge: latest plug-in is {$ageH}h before $cablePluggedInAt (> max look-back) — uncertain", 'WARN');
+        }
+        return ['vehicleId' => $chosen['vehicleId'], 'source' => 'uncertain'];
+    }
+
+    // Ambiguous if a different vehicle plugged in just before the chosen one
+    // (both cars connected close together → can't reliably tell which charged).
+    if ($prevOtherVehicleTs !== null && ($chosen['ts'] - $prevOtherVehicleTs) <= $ambiguity) {
+        logMsg("getVehicleForCharge: ambiguous pairing for $cablePluggedInAt " .
+               "(another vehicle plugged in within {$ambiguity}s before chosen vid={$chosen['vehicleId']}) — uncertain", 'WARN');
+        return ['vehicleId' => $chosen['vehicleId'], 'source' => 'uncertain'];
+    }
+
+    return ['vehicleId' => $chosen['vehicleId'], 'source' => 'matched'];
 }
 
 /**

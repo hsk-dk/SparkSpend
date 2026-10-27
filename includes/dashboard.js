@@ -13,9 +13,16 @@ let _hpWeatherAbort = null;
 let _costEnrichAbort = null;
 let _dashRefreshInterval = null;
 
-async function loadDashboard() {
+async function loadDashboard(isRefresh = false) {
     const cards = ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'];
-    cards.forEach(id => document.getElementById(id)?.classList.add('dash-loading'));
+    // On the initial load the cards show skeletons; on a background auto-refresh
+    // they stay populated, so show a small "Opdaterer…" indicator instead.
+    if (isRefresh) {
+        const ind = document.getElementById('dashRefreshIndicator');
+        if (ind) ind.style.display = '';
+    } else {
+        cards.forEach(id => document.getElementById(id)?.classList.add('dash-loading'));
+    }
     try {
         const res = await fetch('api.php?action=dashboard');
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -48,6 +55,8 @@ async function loadDashboard() {
         });
     } finally {
         cards.forEach(id => document.getElementById(id)?.classList.remove('dash-loading'));
+        const ind = document.getElementById('dashRefreshIndicator');
+        if (ind) ind.style.display = 'none';
     }
 }
 
@@ -123,8 +132,6 @@ function renderEvCard(ev) {
     const evSparkStart = new Date(); evSparkStart.setDate(evSparkStart.getDate() - 29); evSparkStart.setHours(0,0,0,0);
     _evSparkChart = _renderSparkline('ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart);
     _renderSparklineTrend('ev-dashboard-card', ev.sparkline);
-    _renderProgress('ev-budget-progress', 'ev-budget-fill', 'ev-budget-label',
-        ev.month_cost, localStorage.getItem('sparkspend_budget_ev_kr'), 'kr');
 }
 
 function renderHeatpumpCard(hp) {
@@ -164,8 +171,6 @@ function renderHeatpumpCard(hp) {
     _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, hpSparkStart);
     _renderSparklineTrend('hp-dashboard-card', hp.sparkline);
     _renderSeasonBadge(card, hp.pct_change_year);
-    _renderProgress('hp-budget-progress', 'hp-budget-fill', 'hp-budget-label',
-        hp.month_kwh, localStorage.getItem('sparkspend_budget_hp_kwh'), 'kWh');
 
     // Abort any in-flight weather enrichment from a previous render
     if (_hpWeatherAbort) { _hpWeatherAbort.abort(); _hpWeatherAbort = null; }
@@ -238,8 +243,6 @@ function renderHusCard(hus) {
     _husSparkChart = _renderSparkline('hus-sparkline', hus.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
     _renderSparklineTrend('hus-dashboard-card', hus.sparkline);
     _renderSeasonBadge(card, hus.pct_change_year);
-    _renderProgress('hus-budget-progress', 'hus-budget-fill', 'hus-budget-label',
-        hus.month_kwh, localStorage.getItem('sparkspend_budget_hus_kwh'), 'kWh');
 }
 
 async function _enrichHpWithWeather(card, hp) {
@@ -280,25 +283,6 @@ async function _enrichHpWithWeather(card, hp) {
     } catch (e) {
         if (e.name !== 'AbortError') console.warn('_enrichHpWithWeather:', e);
     }
-}
-
-function _renderProgress(wrapId, fillId, labelId, current, goalStr, unit) {
-    const wrap  = document.getElementById(wrapId);
-    const fill  = document.getElementById(fillId);
-    const label = document.getElementById(labelId);
-    if (!wrap || !fill || !label) return;
-    const goal = goalStr !== null ? parseFloat(goalStr) : NaN;
-    if (isNaN(goal) || goal <= 0) { wrap.style.display = 'none'; return; }
-    const pct = Math.min(current / goal * 100, 100);
-    wrap.style.display = '';
-    fill.style.width = pct.toFixed(1) + '%';
-    fill.className = 'dash-progress-fill ' + (pct >= 100 ? 'over' : pct >= 85 ? 'near' : 'under');
-    const statusText = current.toFixed(0) + ' / ' + goal.toFixed(0) + ' ' + unit +
-                        (pct >= 100 ? ' — mål overskredet' : '');
-    label.innerHTML = (window.appUtils?.escapeHtml(statusText) ?? statusText) +
-        ' &nbsp;<button type="button" class="dash-goal-btn" ' +
-        'onclick="event.stopPropagation();' +
-        'var m=document.getElementById(\'budgetModal\');if(m)new bootstrap.Modal(m).show()">Rediger mål</button>';
 }
 
 function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = null) {
@@ -363,7 +347,7 @@ async function loadElspotForecast() {
     try {
         const res = await fetch(
             `api.php?action=elspot-prices&start=${today}&end=${tmrStr}` +
-            `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`
+            `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=household`
         );
         if (!res.ok) return;
         const data    = await res.json();
@@ -497,33 +481,49 @@ async function _enrichCardsWithCost(hp, hus, ev) {
     const end   = now.toISOString().slice(0, 10);
 
     try {
-        const res = await fetch(
-            `api.php?action=elspot-prices&start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}`,
-            { signal: controller.signal }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        const records = (data.records || []).filter(r => r.kr_kwh > 0);
-        if (records.length === 0) return;
-        const avgKrKwh = records.reduce((s, r) => s + r.kr_kwh, 0) / records.length;
+        // HIGH + LOW elafgift rates for the elvarme model: first 333 kWh/month
+        // of VP+Rest at HIGH, the rest (plus EV) at LOW.
+        const baseUrl = `api.php?action=elspot-prices&start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}`;
+        const [highRes, lowRes] = await Promise.all([
+            fetch(baseUrl + '&tariff=high', { signal: controller.signal }),
+            fetch(baseUrl + '&tariff=low',  { signal: controller.signal }),
+        ]);
+        if (!highRes.ok || !lowRes.ok) return;
+        const highData = await highRes.json();
+        const lowData  = await lowRes.json();
+        const avgOf = d => {
+            const recs = (d.records || []).filter(r => r.kr_kwh > 0);
+            return recs.length ? recs.reduce((s, r) => s + r.kr_kwh, 0) / recs.length : 0;
+        };
+        const highRate = avgOf(highData);
+        const lowRate  = avgOf(lowData);
+        // Threshold: month-to-date portion of the monthly high-rate allowance.
+        const highKwhMonth = highData.components?.high_kwh_per_month ?? (4000 / 12);
+        if (highRate <= 0 && lowRate <= 0) return;
 
-        // Jordvarme — HP procesformål rate (accurate)
-        if (hp && hp.month_kwh > 0) {
-            const cost = Math.round(hp.month_kwh * avgKrKwh);
+        // Month-to-date component kWh for the elvarme blend.
+        const mtdRestKwh = hus ? Math.max(0, hus.month_kwh - (hp ? hp.month_kwh : 0) - (hus.ev_home_kwh || 0)) : 0;
+        const mtdBlend = appUtils.elvarmeCost({
+            vpKwh: hp ? hp.month_kwh : 0,
+            restKwh: mtdRestKwh,
+            highRate, lowRate, highKwhPerMonth: highKwhMonth,
+        });
+
+        // Jordvarme card — VP share of the elvarme blend
+        if (hp && hp.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
             const el = document.getElementById('hp-cost-stat');
             if (el) {
-                el.querySelector('.dash-est-cost').textContent = cost + ' kr';
-                el.title = `Estimeret: ${hp.month_kwh.toFixed(1)} kWh × ${avgKrKwh.toFixed(3)} kr/kWh\n(inkl. systemtarif, nettarif, procesformål elafgift og moms)`;
+                el.querySelector('.dash-est-cost').textContent = Math.round(mtdBlend.vpCost) + ' kr';
+                el.title = `Estimeret elvarme-model (inkl. systemtarif, nettarif, elafgift og moms)`;
                 el.style.display = '';
             }
         }
-        // Hus — same rate, approksimation (boligelafgift er højere end procesformål)
-        if (hus && hus.month_kwh > 0) {
-            const cost = Math.round(hus.month_kwh * avgKrKwh);
+        // Hus card — whole-house elvarme total
+        if (hus && hus.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
             const el = document.getElementById('hus-cost-stat');
             if (el) {
-                el.querySelector('.dash-est-cost').textContent = cost + ' kr';
-                el.title = `Estimeret: ${hus.month_kwh.toFixed(1)} kWh \u00d7 ${avgKrKwh.toFixed(3)} kr/kWh\n(approksimation \u2014 bruger VP-elpriser; boligelafgift er h\u00f8jere)`;
+                el.querySelector('.dash-est-cost').textContent = Math.round(mtdBlend.total) + ' kr';
+                el.title = `Estimeret elvarme-model: første ≈${Math.round(highKwhMonth)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
                 el.style.display = '';
             }
         }
@@ -539,17 +539,38 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         // Full-month projected kWh for VP and Hus (server value, linear fallback)
         const hpProjectedKwh  = hp  ? (hp.projected_kwh  ?? _linProj(hp.month_kwh))   : 0;
         const husProjectedKwh = hus ? (hus.projected_kwh ?? _linProj(hus.month_kwh))  : 0;
-        // EV home kWh has no dedicated server projection — extrapolate linearly
         const evHomeKwh       = hus ? (hus.ev_home_kwh || 0) : 0;
-        const evHomeProjected = _linProj(evHomeKwh);
+        // Project EV home kWh on the SAME basis as the house projection to avoid
+        // a partial double-count: the house meter physically includes EV home
+        // charging, so the EV energy removed from Rest must match what the
+        // pace-aware husProjectedKwh baked in. Using a linear _linProj here while
+        // husProjectedKwh is pace-aware left residual EV energy in Rest, which
+        // then got priced again on top of Monta's evProjectedCost. Derive the EV
+        // home share from its month-to-date fraction of the house meter and apply
+        // it to the projected house total instead.
+        const husMtdKwh        = hus ? (hus.month_kwh || 0) : 0;
+        const evHomeShare      = husMtdKwh > 0 ? Math.min(1, evHomeKwh / husMtdKwh) : 0;
+        const evHomeProjected  = husProjectedKwh * evHomeShare;
+        const restProjectedKwh = Math.max(0, husProjectedKwh - hpProjectedKwh - evHomeProjected);
 
-        const hpCostProj  = Math.round(hpProjectedKwh * avgKrKwh);
-        const husCostProj = Math.round(husProjectedKwh * avgKrKwh);
-        // Rest = total hus projected minus VP minus EV hjemme (all projected to full month)
-        const restCostProj = Math.max(0, husCostProj - hpCostProj - Math.round(evHomeProjected * avgKrKwh));
+        // Projected elvarme blend (full month → full monthly allowance).
+        // NOTE: EV home charging is NOT included here. Its cost already lives in
+        // Monta's projected_cost (which covers all charging, home + away), so
+        // folding evCost in again would double-count it. EV energy is excluded
+        // from restProjectedKwh above and passed as evKwh only so the model can
+        // reason about the high-rate allowance ordering (EV always uses the low
+        // rate); we deliberately drop projBlend.evCost from the total.
+        const projBlend = appUtils.elvarmeCost({
+            vpKwh: hpProjectedKwh,
+            restKwh: restProjectedKwh,
+            highRate, lowRate, highKwhPerMonth: highKwhMonth,
+        });
+        const hpCostProj   = Math.round(projBlend.vpCost);
+        const restCostProj = Math.round(projBlend.restCost);
 
         // EV projected cost comes from Monta (not spot-based) — read straight
-        // from the JSON payload (server projection), no DOM scraping.
+        // from the JSON payload (server projection), no DOM scraping. This
+        // already includes home charging, so it is the sole source of EV cost.
         const evProjectedCost = ev
             ? (ev.projected_cost != null ? ev.projected_cost : ev.month_cost)
             : 0;
@@ -565,10 +586,10 @@ async function _enrichCardsWithCost(hp, hus, ev) {
             }
         }
 
-        // #6 — Spotpris kontekst on EV card
-        if (evCard && avgKrKwh > 0) {
+        // #6 — Spotpris kontekst on EV card (EV always uses the low elvarme rate)
+        if (evCard && lowRate > 0) {
             const cpkwhEl = evCard.querySelector('.dash-stat-cpkwh');
-            if (cpkwhEl) cpkwhEl.title = `Spotpris gns. denne mdr: ${avgKrKwh.toFixed(2)} kr/kWh (inkl. afgifter)`;
+            if (cpkwhEl) cpkwhEl.title = `Spotpris gns. denne mdr: ${lowRate.toFixed(2)} kr/kWh (inkl. afgifter)`;
         }
     } catch (e) {
         if (e.name !== 'AbortError') console.warn('_enrichCardsWithCost:', e);
@@ -736,7 +757,7 @@ function startDashboardAutoRefresh() {
     if (_dashRefreshInterval) return;
     _dashRefreshInterval = setInterval(() => {
         if (document.visibilityState === 'visible') {
-            loadDashboard();
+            loadDashboard(true); // background refresh → show "Opdaterer…" indicator
         }
     }, 300_000); // 5 minutes
 }

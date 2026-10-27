@@ -1,5 +1,0 @@
-﻿--- syntax checks ---
-includes\annual.js: OK
-includes\hus.js: OK
-includes\dashboard.js: OK
-PATH_UPDATED (user)

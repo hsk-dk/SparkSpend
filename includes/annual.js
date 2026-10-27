@@ -97,26 +97,49 @@ const annualApp = (() => {
         const start   = minYear + '-01-01';
         const end     = new Date().toISOString().slice(0, 10);
 
-        const params = new URLSearchParams({ start, end, area, gln });
-        fetch('api.php?action=elspot-prices&' + params)
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(elData => {
-                // Group daily rates by year → average rate per year
-                const sumByYear = {}, cntByYear = {};
-                (elData.records || []).forEach(r => {
-                    const yr = r.date.slice(0, 4);
-                    const rate = parseFloat(r.kr_kwh);
-                    if (!(rate > 0)) return;
-                    sumByYear[yr] = (sumByYear[yr] || 0) + rate;
-                    cntByYear[yr] = (cntByYear[yr] || 0) + 1;
-                });
+        // HIGH + LOW elafgift rates; the elvarme model bills the first 4000
+        // kWh/year of VP+Rest at HIGH, the rest (plus EV) at LOW.
+        const highParams = new URLSearchParams({ start, end, area, gln, tariff: 'high' });
+        const lowParams  = new URLSearchParams({ start, end, area, gln, tariff: 'low' });
+        Promise.all([
+            fetch('api.php?action=elspot-prices&' + highParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
+            fetch('api.php?action=elspot-prices&' + lowParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
+        ])
+            .then(([highEl, lowEl]) => {
+                // Average rate per year for each tariff.
+                const avgByYear = (records) => {
+                    const sum = {}, cnt = {};
+                    (records || []).forEach(r => {
+                        const yr = r.date.slice(0, 4);
+                        const rate = parseFloat(r.kr_kwh);
+                        if (!(rate > 0)) return;
+                        sum[yr] = (sum[yr] || 0) + rate;
+                        cnt[yr] = (cnt[yr] || 0) + 1;
+                    });
+                    const avg = {};
+                    Object.keys(sum).forEach(yr => { avg[yr] = cnt[yr] > 0 ? sum[yr] / cnt[yr] : 0; });
+                    return avg;
+                };
+                const highAvg = avgByYear(highEl.records);
+                const lowAvg  = avgByYear(lowEl.records);
+                // Full-year high-rate allowance (12 × monthly threshold).
+                const highKwhPerYear = (highEl.components?.high_kwh_per_month ?? (4000 / 12)) * 12;
 
                 _vpCostByYear = {}; _husCostByYear = {};
                 data.years.forEach(y => {
-                    const avgRate = cntByYear[y.year] > 0 ? sumByYear[y.year] / cntByYear[y.year] : 0;
-                    if (avgRate <= 0) return;
-                    _vpCostByYear[y.year]  = (y.heatpump?.kwh ?? 0) * avgRate;
-                    if (y.hus !== null) _husCostByYear[y.year] = (y.hus?.kwh ?? 0) * avgRate;
+                    const hr = highAvg[y.year] ?? 0, lr = lowAvg[y.year] ?? 0;
+                    if (hr <= 0 && lr <= 0) return;
+                    const vpKwh  = y.heatpump?.kwh ?? 0;
+                    const evKwh  = y.ev?.kwh ?? 0;
+                    // Rest = whole house minus VP minus EV (never negative).
+                    const restKwh = y.hus !== null ? Math.max(0, (y.hus?.kwh ?? 0) - vpKwh - evKwh) : 0;
+                    const c = appUtils.elvarmeCost({
+                        vpKwh, restKwh, evKwh,
+                        highRate: hr, lowRate: lr, highKwhPerMonth: highKwhPerYear,
+                    });
+                    _vpCostByYear[y.year] = c.vpCost;
+                    // Hus total = VP + Rest + EV (whole-house electricity cost).
+                    if (y.hus !== null) _husCostByYear[y.year] = c.total;
                 });
                 _costsReady = Object.keys(_vpCostByYear).length > 0
                            || Object.keys(_husCostByYear).length > 0;
@@ -298,8 +321,9 @@ const annualApp = (() => {
 
         if (showCost) {
             html += `<p class="text-muted small mt-2 mb-0">* Estimeret ud fra spotpris, ` +
-                `nettarif, systemtarif, reduceret elafgift (procesformål) og moms. ` +
-                `Hus total er en approksimation — husholdningens elafgift er højere.</p>`;
+                `nettarif, systemtarif, elafgift og moms. Elvarme-model: første ` +
+                `4.000 kWh/år af VP+Restforbrug til fuld elafgift, resten (og EV) ` +
+                `til reduceret elvarmesats.</p>`;
         }
 
         el.innerHTML = html;

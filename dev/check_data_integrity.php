@@ -142,6 +142,38 @@ try {
 
     echo "\n";
 
+    // 11. House power meter (powerloghus) — same checks, if the table exists.
+    echo "Checking powerloghus table...\n";
+    $husTables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='powerloghus';")->fetchAll();
+    if (empty($husTables)) {
+        echo "⚠ Table 'powerloghus' not found (house meter not synced yet — skipping)\n\n";
+    } else {
+        $husTotal   = $db->query("SELECT COUNT(*) FROM powerloghus")->fetchColumn();
+        $husNullLog = $db->query("SELECT COUNT(*) FROM powerloghus WHERE logdate IS NULL")->fetchColumn();
+        $husNullKwh = $db->query("SELECT COUNT(*) FROM powerloghus WHERE kwh IS NULL")->fetchColumn();
+        $husNegKwh  = $db->query("SELECT COUNT(*) FROM powerloghus WHERE kwh < 0")->fetchColumn();
+        $husInvalid = $db->query("SELECT COUNT(*) FROM powerloghus WHERE logdate NOT LIKE '____-__-__ __:__:__'")->fetchColumn();
+        $husDupes   = $db->query("
+            SELECT COUNT(*) FROM (
+                SELECT logdate, COUNT(*) AS cnt FROM powerloghus GROUP BY logdate HAVING cnt > 1
+            )
+        ")->fetchColumn();
+        $husOldest  = $db->query("SELECT MIN(logdate) FROM powerloghus")->fetchColumn();
+        $husNewest  = $db->query("SELECT MAX(logdate) FROM powerloghus")->fetchColumn();
+
+        echo "✓ Total records: $husTotal\n";
+        echo ($husNullLog > 0 ? "✗ $husNullLog records with NULL logdate\n"        : "✓ No NULL logdate values\n");
+        echo ($husNullKwh > 0 ? "✗ $husNullKwh records with NULL kwh\n"            : "✓ No NULL kwh values\n");
+        echo ($husNegKwh  > 0 ? "✗ $husNegKwh records with NEGATIVE kwh\n"         : "✓ No negative kWh values\n");
+        echo ($husInvalid > 0 ? "✗ $husInvalid records with invalid date format\n" : "✓ All dates have correct format\n");
+        echo ($husDupes   > 0 ? "⚠ $husDupes duplicate logdate timestamps (INSERT OR REPLACE handles this)\n" : "✓ No duplicate timestamps\n");
+        if ($husOldest && $husNewest) {
+            echo "✓ Date range: $husOldest → $husNewest\n";
+        }
+        $husIssues = $husNullLog + $husNullKwh + $husNegKwh;
+        echo "=== powerloghus Report: " . ($husIssues === 0 ? "✓ NO CRITICAL ISSUES" : "✗ $husIssues critical issue(s)") . " ===\n\n";
+    }
+
 } catch (Exception $e) {
     echo "✗ Error: " . $e->getMessage() . "\n";
     exit(1);
@@ -150,17 +182,20 @@ try {
 echo "\n=== Cleanup Options (if needed) ===\n";
 echo "If you found issues above, here are cleanup commands:\n\n";
 
+// Use the actual configured database path rather than a hardcoded one.
+$plDbPath = Config::powerlogDbPath();
+
 echo "Remove records with NULL logdate:\n";
-echo "  sqlite3 /var/www/monta/data/powerlog_data.db \"DELETE FROM powerlogjord WHERE logdate IS NULL;\"\n\n";
+echo "  sqlite3 {$plDbPath} \"DELETE FROM powerlogjord WHERE logdate IS NULL;\"\n\n";
 
 echo "Remove records with NULL kwh:\n";
-echo "  sqlite3 /var/www/monta/data/powerlog_data.db \"DELETE FROM powerlogjord WHERE kwh IS NULL;\"\n\n";
+echo "  sqlite3 {$plDbPath} \"DELETE FROM powerlogjord WHERE kwh IS NULL;\"\n\n";
 
 echo "Remove records with negative kwh:\n";
-echo "  sqlite3 /var/www/monta/data/powerlog_data.db \"DELETE FROM powerlogjord WHERE kwh < 0;\"\n\n";
+echo "  sqlite3 {$plDbPath} \"DELETE FROM powerlogjord WHERE kwh < 0;\"\n\n";
 
 echo "Remove all duplicate logdate entries (keep only latest kWh value):\n";
-echo "  sqlite3 /var/www/monta/data/powerlog_data.db \"\n";
+echo "  sqlite3 {$plDbPath} \"\n";
 echo "    DELETE FROM powerlogjord WHERE rowid NOT IN (\n";
 echo "      SELECT MAX(rowid) FROM powerlogjord GROUP BY logdate\n";
 echo "    );\n";

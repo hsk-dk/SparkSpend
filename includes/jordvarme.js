@@ -199,10 +199,13 @@ const jordvarmeApp = (() => {
                 })
                 .catch(err => {
                     console.error('Jordvarme fetch error:', err);
-                    errorEl.style.display = "";
+                    errorEl.style.display = "none"; // superseded by the retry component
                     setChartVisible(false);
                     if (heatpumpChart) { heatpumpChart.destroy(); heatpumpChart = null; }
-                    statsContent.innerHTML = "<p class='text-muted'>Kunne ikke hente data.</p>";
+                    window.appUtils?.showRetryError(statsContent, {
+                        message: 'Kunne ikke hente data: ' + err.message,
+                        onRetry: fetchAndRender,
+                    });
                 });
         }
 
@@ -240,7 +243,11 @@ const jordvarmeApp = (() => {
                 end   = today;
             }
 
-            const params = new URLSearchParams({ start, end, area, gln });
+            // VP is a high-volume load that sits above the annual high-rate
+            // allowance, so its marginal electricity tax is the reduced elvarme
+            // (low) rate. The whole-house split (Hus/Regning) handles the first
+            // 4000 kWh/year at the high rate.
+            const params = new URLSearchParams({ start, end, area, gln, tariff: 'low' });
             fetch('api.php?action=elspot-prices&' + params)
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
                 .then(data => {

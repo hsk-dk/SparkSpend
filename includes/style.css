@@ -1420,35 +1420,6 @@ header {
 .dash-split-ev-lbl   { color: #4e87e8; }
 .dash-split-rest-lbl { color: #d97706; }
 
-/* Budget / goal progress bars */
-.dash-progress {
-  margin-top: 6px;
-}
-
-.dash-progress-bar {
-  height: 6px;
-  border-radius: 3px;
-  background: #e5e7eb;
-  overflow: hidden;
-}
-
-.dash-progress-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
-  max-width: 100%;
-}
-
-.dash-progress-fill.under { background: #22c55e; }
-.dash-progress-fill.near  { background: #f59e0b; }
-.dash-progress-fill.over  { background: #ef4444; }
-
-.dash-progress-label {
-  font-size: 10px;
-  color: #6b7280;
-  margin-top: 3px;
-}
-
 .dash-projected {
   font-style: italic;
 }
@@ -1805,27 +1776,6 @@ header {
   opacity: 1;
 }
 
-/* ===== INLINE GOAL EDIT BUTTON ===== */
-
-.dash-goal-btn {
-  background: none;
-  border: none;
-  color: var(--brand-accent);
-  font-size: 10px;
-  padding: 0;
-  cursor: pointer;
-  font-weight: 500;
-  text-decoration: underline;
-  min-width: unset;
-  letter-spacing: normal;
-  vertical-align: baseline;
-  display: inline;
-}
-
-.dash-goal-btn:hover {
-  color: #5a8ee0;
-}
-
 /* ===== ICON-ONLY TABS ON SMALL MOBILE ===== */
 
 @media (max-width: 600px) {
@@ -1969,3 +1919,320 @@ header {
 .dash-season-badge.season-normal { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
 .dash-season-badge.season-high { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
 .dash-season-badge.season-low { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+
+/* ===== TOAST NOTIFICATIONS ===== */
+
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1080; /* above Bootstrap modals (1055) */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* let clicks through the gaps; toasts re-enable it */
+  max-width: min(360px, calc(100vw - 40px));
+}
+
+.spark-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-left: 4px solid #94a3b8;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.spark-toast.spark-toast-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.spark-toast.spark-toast-out {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.spark-toast-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  font-size: 1rem;
+}
+
+.spark-toast-msg {
+  flex: 1 1 auto;
+  word-break: break-word;
+}
+
+.spark-toast-close {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.spark-toast-close:hover { opacity: 0.9; }
+
+.spark-toast-success {
+  border-left-color: #22c55e;
+}
+.spark-toast-success .spark-toast-icon { color: #16a34a; }
+
+.spark-toast-danger {
+  border-left-color: #ef4444;
+}
+.spark-toast-danger .spark-toast-icon { color: #dc2626; }
+
+.spark-toast-info {
+  border-left-color: #3b82f6;
+}
+.spark-toast-info .spark-toast-icon { color: #2563eb; }
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .spark-toast {
+    background: #243140;
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.25);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Respect reduced-motion: no slide, just fade */
+@media (prefers-reduced-motion: reduce) {
+  .spark-toast {
+    transition: opacity 0.15s linear;
+    transform: none;
+  }
+  .spark-toast.spark-toast-in,
+  .spark-toast.spark-toast-out { transform: none; }
+}
+
+/* Full-width toasts on small mobile */
+@media (max-width: 480px) {
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+}
+
+/* ===== ERROR STATE WITH RETRY ===== */
+
+.spark-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
+  color: #b91c1c;
+  text-align: center;
+}
+
+.spark-error-icon {
+  font-size: 1.5rem;
+  color: #ef4444;
+}
+
+.spark-error-msg {
+  font-size: 0.9rem;
+  max-width: 42ch;
+  word-break: break-word;
+}
+
+.spark-retry-btn {
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .spark-error { color: #fca5a5; }
+}
+
+/* ===== MOBILE CARD LAYOUT FOR CHARGE TABLE ===== */
+/*
+ * Under 600px the 8-column charge table becomes unreadable in a horizontal
+ * scroll. Collapse each row into a stacked card where every cell shows its
+ * column name (from data-label) beside the value. Desktop layout is untouched.
+ */
+@media (max-width: 600px) {
+  #elbil-ladninger .table-responsive { overflow-x: visible; }
+
+  #elbil-ladninger table,
+  #elbil-ladninger thead,
+  #elbil-ladninger tbody,
+  #elbil-ladninger th,
+  #elbil-ladninger td,
+  #elbil-ladninger tr {
+    display: block;
+  }
+
+  /* Hide the header row visually but keep it for screen readers */
+  #elbil-ladninger thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+
+  #elbil-ladninger tbody tr {
+    margin-bottom: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 10px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.6);
+  }
+
+  /* Skip card styling for the special full-width rows (empty / load-more / error) */
+  #elbil-ladninger tbody tr#charges-load-more-row,
+  #elbil-ladninger tbody tr:has(.spark-error),
+  #elbil-ladninger tbody tr:has([colspan]) {
+    border: none;
+    background: none;
+    padding: 0;
+    text-align: center;
+  }
+
+  #elbil-ladninger tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 0;
+    border: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    text-align: right;
+  }
+
+  #elbil-ladninger tbody td:last-child {
+    border-bottom: none;
+  }
+
+  /* Column label from the data-label attribute */
+  #elbil-ladninger tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #64748b;
+    text-align: left;
+    flex: 0 0 auto;
+  }
+
+  /* The action cell (button) spans full width and centers */
+  #elbil-ladninger tbody td[data-label="Handling"] {
+    justify-content: center;
+    padding-top: 10px;
+  }
+  #elbil-ladninger tbody td[data-label="Handling"]::before {
+    content: none;
+  }
+  #elbil-ladninger tbody td[data-label="Handling"] .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-color-scheme: dark) and (max-width: 600px) {
+  #elbil-ladninger tbody tr {
+    background: rgba(36, 49, 64, 0.6);
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+}
+
+/* ===== CONSISTENT FOCUS-VISIBLE (keyboard accessibility) ===== */
+/*
+ * Guarantee a visible focus ring on all interactive controls that previously
+ * had none (mode buttons, year chips, clickable cards, tab/sub-tab buttons).
+ * Uses :focus-visible so mouse clicks don't show a ring, only keyboard focus.
+ */
+.hp-mode-btn:focus-visible,
+.year-chip:focus-visible,
+.dashboard-card[role="button"]:focus-visible,
+.sub-nav-btn:focus-visible,
+.header-tab-button:focus-visible,
+.spark-retry-btn:focus-visible,
+.anomaly-dismiss-btn:focus-visible {
+  outline: 2px solid var(--brand-accent, #3b82f6);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Slightly inset ring for the large cards so it doesn't clip on the corners */
+.dashboard-card[role="button"]:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ===== EMPTY STATE ===== */
+
+.spark-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: #64748b;
+  text-align: center;
+}
+
+.spark-empty-icon {
+  font-size: 1.6rem;
+  opacity: 0.5;
+}
+
+.spark-empty-msg {
+  font-size: 0.9rem;
+  max-width: 44ch;
+}
+
+.spark-empty-btn {
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .spark-empty { color: #94a3b8; }
+}
+
+/* ===== DASHBOARD AUTO-REFRESH INDICATOR ===== */
+
+.dash-refresh-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.dash-refresh-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(107, 163, 255, 0.3);
+  border-top-color: var(--brand-accent, #6BA3FF);
+  border-radius: 50%;
+  animation: dash-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes dash-refresh-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-refresh-spinner { animation-duration: 2s; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .dash-refresh-indicator { color: #94a3b8; }
+}

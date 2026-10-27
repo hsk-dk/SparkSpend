@@ -30,23 +30,29 @@ require 'includes/QueryBuilder.php';
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
   <!-- Flatpickr CSS og JS -->
+  <!-- All library scripts use defer: they no longer block first paint and
+       execute in document order after parsing, before the deferred module
+       scripts below (which depend on them). -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13"></script>
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/da.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/da.js"></script>
   
   <!-- Bootstrap CSS og JS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
    <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"></script>
-  <link rel="stylesheet" href="includes/style.css?v=20260601b">
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0"></script>
+  <link rel="stylesheet" href="<?= asset('includes/style.css') ?>">
 
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0"></script>
 
 </head>
 <body>
+  <!-- Toast notifications (aria-live region for app-wide feedback) -->
+  <div id="toastContainer" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
   <!-- Modern Tab-Based Navigation Header -->
   <header>
     <div class="header-left">
@@ -87,12 +93,8 @@ require 'includes/QueryBuilder.php';
               title="Synkroniseringsstatus">
         <i class="fas fa-sync-alt"></i>
       </button>
-      <button type="button" class="btn btn-secondary" id="budgetBtn"
-              data-bs-toggle="modal" data-bs-target="#budgetModal"
-              title="Månedlige forbrugsmål">
-        <i class="fas fa-bullseye"></i>
-      </button>
-      <button type="button" class="btn btn-secondary" id="filterToggleBtn" title="Åbn filtre">
+      <button type="button" class="btn btn-secondary" id="filterToggleBtn" title="Åbn filtre"
+              aria-expanded="false" aria-controls="filterDrawer" aria-haspopup="dialog">
         <i class="fas fa-sliders-h"></i>
       </button>
       <button type="button" class="btn btn-primary button-create-charge" data-bs-toggle="modal" data-bs-target="#createExChargeModal">
@@ -102,7 +104,7 @@ require 'includes/QueryBuilder.php';
   </header>
 
   <!-- Filter Drawer (Sidebar) -->
-  <div id="filterDrawer" class="filter-drawer">
+  <div id="filterDrawer" class="filter-drawer" role="dialog" aria-modal="false" aria-label="Filtre">
     <div class="filter-drawer-header">
       <h3>Filtre</h3>
       <button type="button" class="btn-close-drawer" id="filterCloseBtn" title="Luk filtre">
@@ -150,7 +152,7 @@ require 'includes/QueryBuilder.php';
   <div class="dashboard-grid">
 
     <!-- EV Dashboard Card -->
-    <div class="dashboard-card" id="ev-dashboard-card" onclick="SparkNav.navigateTo('elbil-section','elbil-ladninger')">
+    <div class="dashboard-card" id="ev-dashboard-card" role="button" tabindex="0" aria-label="Åbn Elbil-oversigt" onclick="SparkNav.navigateTo('elbil-section','elbil-ladninger')">
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-charging-station"></i></span>
         <div>
@@ -194,16 +196,12 @@ require 'includes/QueryBuilder.php';
         <div class="dash-sparkline">
           <canvas id="ev-sparkline"></canvas>
         </div>
-        <div class="dash-progress" id="ev-budget-progress" style="display:none">
-          <div class="dash-progress-bar"><div class="dash-progress-fill" id="ev-budget-fill"></div></div>
-          <div class="dash-progress-label" id="ev-budget-label"></div>
-        </div>
         <div class="dash-sync" id="ev-sync-label"></div>
       </div>
     </div>
 
     <!-- Heatpump Dashboard Card -->
-    <div class="dashboard-card" id="hp-dashboard-card" onclick="SparkNav.navigateTo('jordvarme-section')">
+    <div class="dashboard-card" id="hp-dashboard-card" role="button" tabindex="0" aria-label="Åbn Jordvarme-oversigt" onclick="SparkNav.navigateTo('jordvarme-section')">
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-fire"></i></span>
         <div>
@@ -233,16 +231,12 @@ require 'includes/QueryBuilder.php';
         <div class="dash-sparkline">
           <canvas id="hp-sparkline"></canvas>
         </div>
-        <div class="dash-progress" id="hp-budget-progress" style="display:none">
-          <div class="dash-progress-bar"><div class="dash-progress-fill" id="hp-budget-fill"></div></div>
-          <div class="dash-progress-label" id="hp-budget-label"></div>
-        </div>
         <div class="dash-sync" id="hp-sync-label"></div>
       </div>
     </div>
 
     <!-- Hus Dashboard Card -->
-    <div class="dashboard-card" id="hus-dashboard-card" onclick="SparkNav.navigateTo('hus-section','hus-forbrug')">
+    <div class="dashboard-card" id="hus-dashboard-card" role="button" tabindex="0" aria-label="Åbn Hus-oversigt" onclick="SparkNav.navigateTo('hus-section','hus-forbrug')">
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-house-chimney"></i></span>
         <div>
@@ -283,14 +277,16 @@ require 'includes/QueryBuilder.php';
         <div class="dash-sparkline">
           <canvas id="hus-sparkline"></canvas>
         </div>
-        <div class="dash-progress" id="hus-budget-progress" style="display:none">
-          <div class="dash-progress-bar"><div class="dash-progress-fill" id="hus-budget-fill"></div></div>
-          <div class="dash-progress-label" id="hus-budget-label"></div>
-        </div>
         <div class="dash-sync" id="hus-sync-label"></div>
       </div>
     </div>
 
+  </div>
+
+  <!-- Auto-refresh indicator (shown briefly while the dashboard reloads) -->
+  <div id="dashRefreshIndicator" class="dash-refresh-indicator" role="status" aria-live="polite" style="display:none">
+    <span class="dash-refresh-spinner" aria-hidden="true"></span>
+    <span>Opdaterer…</span>
   </div>
 
   <!-- Total Electricity Cost Estimate -->
@@ -874,45 +870,6 @@ require 'includes/QueryBuilder.php';
   </div>
 </div><!-- /#syncModal -->
 
-<!-- ── Budget / Forbrugsmål Modal ─────────────────────────────────────────── -->
-<div class="modal fade" id="budgetModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title mb-0"><i class="fas fa-bullseye me-2"></i>Månedlige forbrugsmål</h6>
-        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label for="budgetEvKr" class="form-label small fw-semibold">Elbil — månedligt budget (kr)</label>
-          <div class="input-group input-group-sm">
-            <input type="number" class="form-control" id="budgetEvKr" min="0" step="50" placeholder="f.eks. 600">
-            <span class="input-group-text">kr</span>
-          </div>
-        </div>
-        <div class="mb-3">
-          <label for="budgetHpKwh" class="form-label small fw-semibold">Jordvarme — månedligt mål (kWh)</label>
-          <div class="input-group input-group-sm">
-            <input type="number" class="form-control" id="budgetHpKwh" min="0" step="50" placeholder="f.eks. 800">
-            <span class="input-group-text">kWh</span>
-          </div>
-        </div>
-        <div class="mb-1">
-          <label for="budgetHusKwh" class="form-label small fw-semibold">Hus — månedligt mål (kWh)</label>
-          <div class="input-group input-group-sm">
-            <input type="number" class="form-control" id="budgetHusKwh" min="0" step="50" placeholder="f.eks. 1500">
-            <span class="input-group-text">kWh</span>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer py-2 justify-content-between">
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="budgetClearBtn">Nulstil</button>
-        <button type="button" class="btn btn-primary btn-sm" id="budgetSaveBtn">Gem</button>
-      </div>
-    </div>
-  </div>
-</div><!-- /#budgetModal -->
-
   <!-- App Utilities -->
   <!-- Server configuration for JS modules (area/GLN from .env, never from user input) -->
   <script>window.sparkConfig = {
@@ -922,16 +879,16 @@ require 'includes/QueryBuilder.php';
     weatherLon: '<?= htmlspecialchars(Config::weatherLon(), ENT_QUOTES) ?>',
     csrfToken:  '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>'
   };</script>
-  <script src="includes/app.js?v=20260528"></script>
+  <script defer src="<?= asset('includes/app.js') ?>"></script>
 
-  <!-- Module Scripts -->
-  <script src="includes/nav.js?v=20260601c"></script>
-  <script src="includes/dashboard.js?v=20260601d"></script>
-  <script src="includes/elbil.js?v=20260601d"></script>
-  <script src="includes/jordvarme.js?v=20260601"></script>
-  <script src="includes/hus.js?v=20260601"></script>
-  <script src="includes/regning.js?v=20260531"></script>
-  <script src="includes/annual.js?v=20260601"></script>
+  <!-- Module Scripts (defer: run in order after the deferred libraries above) -->
+  <script defer src="<?= asset('includes/nav.js') ?>"></script>
+  <script defer src="<?= asset('includes/dashboard.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil.js') ?>"></script>
+  <script defer src="<?= asset('includes/jordvarme.js') ?>"></script>
+  <script defer src="<?= asset('includes/hus.js') ?>"></script>
+  <script defer src="<?= asset('includes/regning.js') ?>"></script>
+  <script defer src="<?= asset('includes/annual.js') ?>"></script>
 
   <!-- Sync Status Modal JS -->
   <script>
@@ -1084,7 +1041,11 @@ require 'includes/QueryBuilder.php';
       }
 
       function _triggerSync(source) {
-          if (syncAllBtn) syncAllBtn.disabled = true;
+          const _syncBtnHtml = syncAllBtn ? syncAllBtn.innerHTML : '';
+          if (syncAllBtn) {
+              syncAllBtn.disabled = true;
+              syncAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Synkroniserer\u2026';
+          }
           msgEl.textContent = 'Starter sync\u2026';
           fetch('api.php?action=trigger-sync', {
               method: 'POST',
@@ -1095,61 +1056,24 @@ require 'includes/QueryBuilder.php';
           .then(d => {
               if (d.success) {
                   msgEl.textContent = 'Sync startet — opdaterer om 20 sek.';
+                  window.appUtils?.showToast('Synkronisering startet', 'info');
                   setTimeout(() => { _loadStatus(); msgEl.textContent = ''; }, 20000);
               } else {
                   msgEl.textContent = d.error || 'Ukendt fejl.';
+                  window.appUtils?.showToast(d.error || 'Synkronisering fejlede', 'danger');
               }
           })
-          .catch(() => { msgEl.textContent = 'Netværksfejl.'; })
-          .finally(() => { if (syncAllBtn) syncAllBtn.disabled = false; });
+          .catch(() => {
+              msgEl.textContent = 'Netværksfejl.';
+              window.appUtils?.showToast('Netværksfejl under synkronisering', 'danger');
+          })
+          .finally(() => {
+              if (syncAllBtn) {
+                  syncAllBtn.disabled = false;
+                  syncAllBtn.innerHTML = _syncBtnHtml;
+              }
+          });
       }
-  })();
-  </script>
-
-  <!-- Budget Modal JS -->
-  <script>
-  (function () {
-      const modal    = document.getElementById('budgetModal');
-      const evInput  = document.getElementById('budgetEvKr');
-      const hpInput  = document.getElementById('budgetHpKwh');
-      const husInput = document.getElementById('budgetHusKwh');
-      const saveBtn  = document.getElementById('budgetSaveBtn');
-      const clearBtn = document.getElementById('budgetClearBtn');
-      if (!modal) return;
-
-      modal.addEventListener('show.bs.modal', () => {
-          const ev  = localStorage.getItem('sparkspend_budget_ev_kr');
-          const hp  = localStorage.getItem('sparkspend_budget_hp_kwh');
-          const hus = localStorage.getItem('sparkspend_budget_hus_kwh');
-          evInput.value  = ev  !== null ? ev  : '';
-          hpInput.value  = hp  !== null ? hp  : '';
-          husInput.value = hus !== null ? hus : '';
-      });
-
-      saveBtn?.addEventListener('click', () => {
-          const ev  = parseFloat(evInput.value);
-          const hp  = parseFloat(hpInput.value);
-          const hus = parseFloat(husInput.value);
-          if (!isNaN(ev)  && ev  > 0) localStorage.setItem('sparkspend_budget_ev_kr',   String(ev));
-          else                         localStorage.removeItem('sparkspend_budget_ev_kr');
-          if (!isNaN(hp)  && hp  > 0) localStorage.setItem('sparkspend_budget_hp_kwh',  String(hp));
-          else                         localStorage.removeItem('sparkspend_budget_hp_kwh');
-          if (!isNaN(hus) && hus > 0) localStorage.setItem('sparkspend_budget_hus_kwh', String(hus));
-          else                         localStorage.removeItem('sparkspend_budget_hus_kwh');
-          bootstrap.Modal.getInstance(modal)?.hide();
-          loadDashboard();
-      });
-
-      clearBtn?.addEventListener('click', () => {
-          localStorage.removeItem('sparkspend_budget_ev_kr');
-          localStorage.removeItem('sparkspend_budget_hp_kwh');
-          localStorage.removeItem('sparkspend_budget_hus_kwh');
-          evInput.value  = '';
-          hpInput.value  = '';
-          husInput.value = '';
-          bootstrap.Modal.getInstance(modal)?.hide();
-          loadDashboard();
-      });
   })();
   </script>
 

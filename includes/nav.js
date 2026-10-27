@@ -307,6 +307,18 @@ const SparkNav = (() => {
             btn.addEventListener('click', () => switchHusSubTab(btn.dataset.sub));
         });
 
+        // Keyboard activation for clickable dashboard cards (role="button").
+        // The cards use inline onclick for navigation; this makes Enter/Space
+        // trigger the same handler so keyboard users can activate them.
+        document.querySelectorAll('.dashboard-card[role="button"]').forEach(card => {
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                    e.preventDefault();
+                    card.click();
+                }
+            });
+        });
+
         // Apply hash or default to oversigt
         if (location.hash) {
             readHash();

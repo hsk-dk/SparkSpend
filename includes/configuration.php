@@ -97,4 +97,20 @@ function jsonError(string $message, int $httpCode = 400): never {
     echo json_encode(['success' => false, 'error' => $message]);
     exit;
 }
+
+/**
+ * Build a cache-busted URL for a local asset (CSS/JS).
+ *
+ * Appends ?v=<filemtime> so the browser always fetches a fresh copy after a
+ * deploy without any manual version bumping. Falls back to a date stamp if the
+ * file can't be stat'd (e.g. path typo) so the page still renders.
+ *
+ * @param string $relPath Path relative to the app root, e.g. 'includes/app.js'
+ * @return string The path with a version query string
+ */
+function asset(string $relPath): string {
+    $full = __DIR__ . '/../' . ltrim($relPath, '/');
+    $ver  = @filemtime($full) ?: date('Ymd');
+    return htmlspecialchars($relPath, ENT_QUOTES) . '?v=' . $ver;
+}
 ?>

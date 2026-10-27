@@ -28,13 +28,18 @@ try {
     }
 
     if ($row) {
-        $hasError  = !empty($row['error_message']) && empty($row['last_sync_timestamp']);
+        // An error on the most recent run is an error regardless of whether an
+        // older successful watermark exists. A later successful sync clears
+        // error_message (INSERT OR REPLACE with NULL), so a non-empty value
+        // means the last run failed.
+        $hasError  = !empty($row['error_message']);
         $sources[] = [
             'id'             => 'monta',
             'label'          => 'El-bil (Monta)',
             'last_sync'      => $row['last_sync_timestamp'] ?? $row['updated_at'] ?? null,
             'status'         => $hasError ? 'error' : 'ok',
             'records_synced' => isset($row['last_sync_count']) ? intval($row['last_sync_count']) : null,
+            'error_message'  => $hasError ? $row['error_message'] : null,
         ];
     } else {
         $fallback = $chargesDb->query("SELECT MAX(stoppedAt) AS last FROM charges")
@@ -79,13 +84,15 @@ try {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($row) {
-                $hasError = !empty($row['error_message']) && empty($row['last_sync_timestamp']);
+                // Error on the last run = error, regardless of an older watermark.
+                $hasError = !empty($row['error_message']);
                 $sources[] = [
                     'id'             => $id,
                     'label'          => $label,
                     'last_sync'      => $row['updated_at'] ?? $row['last_sync_timestamp'] ?? null,
                     'status'         => $hasError ? 'error' : 'ok',
                     'records_synced' => isset($row['last_sync_count']) ? intval($row['last_sync_count']) : null,
+                    'error_message'  => $hasError ? $row['error_message'] : null,
                 ];
             } else {
                 $sources[] = [

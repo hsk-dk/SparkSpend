@@ -29,6 +29,11 @@ $end   = isset($_GET['end'])   ? trim($_GET['end'])   : '';
 $area  = isset($_GET['area'])  ? trim($_GET['area'])  : '';
 $gln   = isset($_GET['gln'])   ? trim($_GET['gln'])   : '';
 $format = isset($_GET['format']) ? trim($_GET['format']) : 'daily';
+// Electricity-tax profile: 'low' = reduced elvarme rate (default; applies to
+// EV charging and to VP+Rest above the annual threshold); 'high' = full
+// ordinary elafgift (first 4000 kWh/year of VP+Rest). The client blends the
+// two using the monthly high-rate kWh threshold returned in components.
+$tariff = isset($_GET['tariff']) ? trim($_GET['tariff']) : 'low';
 
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
     !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)   ||
@@ -43,6 +48,11 @@ if (!in_array($format, ['daily', 'hourly'], true)) {
     echo json_encode(['success' => false, 'error' => 'format skal være daily eller hourly.']);
     exit;
 }
+if (!in_array($tariff, ['high', 'low'], true)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'tariff skal være high eller low.']);
+    exit;
+}
 
 if ($end < $start) {
     http_response_code(400);
@@ -52,7 +62,7 @@ if ($end < $start) {
 
 // ─── File cache ──────────────────────────────────────────────────────────────
 
-$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|' . $format . '|v' . CACHE_VERSION);
+$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|' . $format . '|' . $tariff . '|v' . CACHE_VERSION);
 $_cacheDir = Config::cacheDir();
 $cacheFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_' . $cacheKey . '.json';
 
@@ -256,8 +266,11 @@ while ($cursor <= $endDate) {
     if (empty($hours)) {
         $krKwh = 0.0;
     } else {
-        // Heat-pump electricity tax applicable on this specific date (year-versioned).
-        $ela = Config::elafgiftHp($date);
+        // Electricity tax applicable on this date, per the selected profile
+        // (year-versioned): full "high" rate vs. reduced "low" elvarme rate.
+        $ela = $tariff === 'high'
+            ? Config::elafgiftHigh($date)
+            : Config::elafgiftLow($date);
         $sum = 0.0;
         foreach ($hours as $entry) {
             $h         = $entry['h'];
@@ -288,7 +301,11 @@ $spotAvgStart = count($startHours) > 0
 $components = [
     'spot_avg_kr_kwh'      => round($spotAvgStart, 4),
     'systemtarif_kr_kwh'   => tariff_avg_for_date($systemtarifRecords, $start),
-    'elafgift_kr_kwh'      => Config::elafgiftHp($start),
+    'elafgift_kr_kwh'      => $tariff === 'high'
+                                ? Config::elafgiftHigh($start)
+                                : Config::elafgiftLow($start),
+    'tariff'               => $tariff,
+    'high_kwh_per_month'   => Config::elvarmeHighKwhPerMonth(),
     'nettarif_kr_kwh'      => tariff_avg_for_date($nettarifRecords,    $start),
     'nettarif_records'     => count($nettarifRecords),
     'spot_hours'           => array_sum(array_map('count', $hoursByDay)),

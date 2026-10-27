@@ -81,15 +81,47 @@ class Config {
             'energinetGln' => env('ENERGINET_GLN', '5790000432752'),
             // Legacy Elspotprices → DayAheadPrices dataset cutover date.
             'elspotCutoff' => env('ELSPOT_CUTOFF', '2025-09-30'),
-            // Reduced electricity tax for heat pumps (procesformål), kr/kWh,
-            // versioned by effective-from date. Add new rows as rates change;
-            // the applicable rate is the newest whose date <= the queried date.
-            // Source: skat.dk. Override the whole set is not supported via env —
-            // edit this table when a new annual rate is published.
-            'elafgiftHpByDate' => [
-                '2024-01-01' => 0.0087,
-                '2025-01-01' => 0.0088,
+            // Electricity tax (elafgift), kr/kWh, versioned by effective-from
+            // date. The applicable rate is the newest whose date <= the queried
+            // date, so historical calculations use the correct rate. Source:
+            // skat.dk — edit these tables when a new annual rate is published.
+            //
+            // Danish electricity-heated homes: the meter can't tell purpose
+            // apart, so the FULL ("high") rate applies to the first 4000 kWh/yr
+            // and the reduced ELVARME ("low") rate applies to everything above.
+            //
+            // HIGH = almindelig elafgift (2025 ≈ 0.761 kr/kWh).
+            'elafgiftHighByDate' => [
+                '2024-01-01' => 0.761,
+                '2025-01-01' => 0.761,
+                '2026-01-01' => 0.008,
+                '2027-01-01' => 0.008,
             ],
+            // LOW = elvarmeafgift (reduced rate, ≈ 0.8 øre/kWh since 2021).
+            'elafgiftLowByDate' => [
+                '2024-01-01' => 0.008,
+                '2025-01-01' => 0.008,
+                '2026-01-01' => 0.008,
+                '2027-01-01' => 0.008,
+            ],
+            // Annual kWh taxed at the HIGH rate before the elvarme (LOW) rate
+            // kicks in. Applied to VP + Rest (not EV); 4000/12 ≈ 333 kWh/month.
+            'elvarmeHighKwhPerYear' => (float) env('ELVARME_HIGH_KWH_YEAR', '4000'),
+
+            // ── Vehicle↔charge pairing (Monta sync) ──────────────────────────
+            // The cable is plugged into the car first (HA sends vehicleId +
+            // odometer at that moment), then Monta may schedule the charge to
+            // start hours later. So a charge belongs to the vehicle whose cable
+            // was plugged in most recently AT OR BEFORE the charge's
+            // cablePluggedInAt. We pick the LATEST HA reading with ts <= T,
+            // allowing a small grace window after T for clock/latency skew.
+            'pairingGraceAfterSec'   => (int) env('PAIRING_GRACE_AFTER_SEC', '300'),      // 5 min after T
+            // Don't attribute a charge to a plug-in older than this (a stale
+            // reading from days ago is unreliable) → flag as uncertain instead.
+            'pairingMaxLookbackSec'  => (int) env('PAIRING_MAX_LOOKBACK_SEC', '172800'),  // 48 h
+            // If a DIFFERENT vehicle also plugged in within this window just
+            // before the chosen reading, the pairing is ambiguous → uncertain.
+            'pairingAmbiguitySec'    => (int) env('PAIRING_AMBIGUITY_SEC', '600'),        // 10 min
         ];
     }
 
@@ -170,15 +202,13 @@ class Config {
     }
 
     /**
-     * Reduced heat-pump electricity tax (procesformål), kr/kWh, applicable on
-     * the given date (YYYY-MM-DD). Returns the newest rate whose effective-from
-     * date is <= $date, so historical calculations use the correct rate.
+     * Look up the newest rate in a date-keyed table whose effective-from date
+     * is <= $date (falls back to the earliest known rate for older dates).
      */
-    public static function elafgiftHp(string $date): float {
-        self::ensureLoaded();
-        $table = self::$values['elafgiftHpByDate'] ?? ['2025-01-01' => 0.0088];
+    private static function rateForDate(array $table, string $date, float $fallback): float {
+        if (empty($table)) return $fallback;
         ksort($table);
-        $rate = reset($table); // fallback: earliest known rate
+        $rate = reset($table);
         foreach ($table as $from => $value) {
             if ($from <= $date) {
                 $rate = $value;
@@ -187,6 +217,46 @@ class Config {
             }
         }
         return (float) $rate;
+    }
+
+    /**
+     * HIGH electricity tax (almindelig elafgift), kr/kWh, on the given date.
+     * Applies to the first 4000 kWh/year of VP + Rest consumption.
+     */
+    public static function elafgiftHigh(string $date): float {
+        self::ensureLoaded();
+        return self::rateForDate(self::$values['elafgiftHighByDate'] ?? [], $date, 0.761);
+    }
+
+    /**
+     * LOW electricity tax (elvarmeafgift), kr/kWh, on the given date. Applies to
+     * VP + Rest above the annual high-rate threshold, and to all EV charging.
+     */
+    public static function elafgiftLow(string $date): float {
+        self::ensureLoaded();
+        return self::rateForDate(self::$values['elafgiftLowByDate'] ?? [], $date, 0.008);
+    }
+
+    /** kWh/month taxed at the HIGH rate before the elvarme rate applies. */
+    public static function elvarmeHighKwhPerMonth(): float {
+        self::ensureLoaded();
+        return (float) self::get('elvarmeHighKwhPerYear', 4000.0) / 12.0;
+    }
+
+    // =========================================================================
+    // Vehicle↔charge pairing thresholds (seconds)
+    // =========================================================================
+
+    public static function pairingGraceAfterSec(): int {
+        return (int) self::get('pairingGraceAfterSec', 300);
+    }
+
+    public static function pairingMaxLookbackSec(): int {
+        return (int) self::get('pairingMaxLookbackSec', 172800);
+    }
+
+    public static function pairingAmbiguitySec(): int {
+        return (int) self::get('pairingAmbiguitySec', 600);
     }
 
     public static function montaClientId(): string {

@@ -30,6 +30,10 @@ Ved langsom forbindelse viser alle tre dashboardkort kun `—` uden nogen feedba
 
 ## Priority: Low — Enhancements
 
+### DEBT — To chart-biblioteker indlæses altid (Chart.js + ApexCharts)
+Appen loader både Chart.js (+ 2 plugins) og ApexCharts på hver sideindlæsning. Det er dobbelt payload og to forskellige interaktions-/tooltip-mønstre, som brugeren møder på tværs af faner (fx sparklines/år-sammenligning i Chart.js vs. effektivitet/omkostning/heatmap i ApexCharts). På sigt bør de konsolideres til ét bibliotek for ensartet interaktion og mindre download. Større refaktor — kræver at alle ApexCharts-visninger (eller alle Chart.js-visninger) omskrives. Efter #10 loades begge nu med `defer`, så de ikke længere blokerer first paint, hvilket reducerer akuttheden.
+**Filer:** `index.php`, `includes/elbil.js`, `includes/dashboard.js`, `includes/jordvarme.js`, `includes/hus.js`, `includes/annual.js`, `includes/regning.js`
+
 ### ENHANCEMENT — Elprisforecast: vis besked når priser endnu ikke er publiceret
 Forecast-kortet (`#elspot-forecast-card`) forbliver skjult stille hvis EDS endnu ikke har publiceret morgendagens priser (normalt ~13:00). Vis i stedet en diskret tekst: "Morgendagens priser offentliggøres ca. 13:00" så brugeren ikke tror der er en fejl.
 **Fil:** `includes/dashboard.js`

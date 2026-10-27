@@ -48,30 +48,80 @@ $daysThisMonth = (int)date('d');
 $daysInMonth   = (int)date('t');
 
 /**
- * Full-month projection from month-to-date data.
+ * Season-aware full-month projection from month-to-date data.
  *
- * A naive linear run-rate ($mtd / $daysThisMonth * $daysInMonth) reads far
- * too low early in the month because a couple of sparse/low days get scaled
- * up by ~30. When we know the previous month's same-period MTD and its full
- * total, we instead project by pace: assume we finish at the same fraction
- * of last month's full total that our current pace implies. This is
- * seasonally aware (handles heating ramp-up) and stable from day 1.
+ * The hard case is the first few days of the month: a naive linear run-rate
+ * ($mtd / $daysSoFar * $daysInMonth) multiplies one or two days of data by
+ * ~30, so a single busy or quiet day throws the estimate wildly off.
  *
- *   projected = prevFull * (thisMtd / prevMtd)
+ * Season matters a lot — especially for heating. A heat pump can use many
+ * times more in January than in October, so anchoring the early-month estimate
+ * on LAST MONTH's total is systematically wrong across season changes (early
+ * October would be guessed from September, early January from December). The
+ * right seasonal anchor is the SAME MONTH LAST YEAR, scaled by how this year is
+ * tracking so far.
  *
- * Falls back to the linear run-rate when previous-month data is unavailable.
+ * Anchor priority (each clamped so one odd day can't dominate):
+ *
+ *  A. Same month last year ($lyFull), scaled by this year's pace vs. the same
+ *     period last year: lyFull * clamp(mtd / lyMtd, 0.5, 2.0).  <- seasonal,
+ *     preferred. Captures both the season shape and year-over-year drift.
+ *
+ *  B. Last month's full total ($prevFull), scaled by pace vs. last month's
+ *     same period: prevFull * clamp(mtd / prevMtd, 0.5, 2.0).  Used only when
+ *     last-year data is missing (e.g. first year of data). Not seasonal, so
+ *     it is the weaker fallback.
+ *
+ * The chosen anchor is blended with the linear run-rate via a confidence
+ * weight that stays near 0 (all anchor) until ~1 week in, then ramps toward
+ * the run-rate (day 3 -> 14) as real, in-season data accumulates. Late in the
+ * month the actual data dominates regardless of anchor.
+ *
+ * With no anchor at all, the first few days' extrapolation is capped so day 1
+ * never reports mtd * daysInMonth.
+ *
+ * Returns null only when there is genuinely nothing to go on.
  */
 if (!function_exists('projectFullMonth')) {
-function projectFullMonth(float $mtd, float $prevMtd, float $prevFull): ?float {
+function projectFullMonth(
+    float $mtd,
+    float $prevMtd,
+    float $prevFull,
+    float $lyMtd = 0.0,
+    float $lyFull = 0.0
+): ?float {
     global $daysThisMonth, $daysInMonth;
-    if ($daysThisMonth <= 0) return null;
+    if ($daysThisMonth <= 0 || $daysInMonth <= 0) return null;
+
     $runRate = $mtd / $daysThisMonth * $daysInMonth;
-    if ($prevMtd > 0 && $prevFull > 0) {
-        $paceProjection = $prevFull * ($mtd / $prevMtd);
-        // Blend pace projection with run-rate, leaning on pace early in the
-        // month (when run-rate is noisiest) and on run-rate late in the month.
-        $progress = min(1.0, $daysThisMonth / $daysInMonth);
-        return $paceProjection * (1 - $progress) + $runRate * $progress;
+
+    // Confidence in the run-rate grows with elapsed days. Below ~3 days the
+    // run-rate is noise; by ~14 days it is reliable. Ramp from day 3 -> 14.
+    $MIN_DAYS = 3;
+    $FULL_CONF_DAYS = 14;
+    $conf = ($daysThisMonth - $MIN_DAYS) / max(1, $FULL_CONF_DAYS - $MIN_DAYS);
+    $conf = max(0.0, min(1.0, $conf));
+
+    // A. Seasonal anchor: same month last year, scaled by this year's pace.
+    if ($lyFull > 0) {
+        $yearFactor = ($lyMtd > 0) ? ($mtd / $lyMtd) : 1.0;
+        $yearFactor = max(0.5, min(2.0, $yearFactor));
+        $seasonProjection = $lyFull * $yearFactor;
+        return $seasonProjection * (1 - $conf) + $runRate * $conf;
+    }
+
+    // B. Fallback anchor: last month's full total (not seasonal).
+    if ($prevFull > 0) {
+        $paceFactor = ($prevMtd > 0) ? ($mtd / $prevMtd) : 1.0;
+        $paceFactor = max(0.5, min(2.0, $paceFactor));
+        $paceProjection = $prevFull * $paceFactor;
+        return $paceProjection * (1 - $conf) + $runRate * $conf;
+    }
+
+    // No anchor available at all.
+    if ($daysThisMonth < $MIN_DAYS) {
+        // Cap the extrapolation so day 1 doesn't report mtd * daysInMonth.
+        return $mtd / $daysThisMonth * min($daysInMonth, $daysThisMonth * 3);
     }
     return $runRate;
 }
@@ -93,6 +143,7 @@ $intMonthCnt  = 0;  $intMonthKwh  = 0.0;  $intMonthCost = 0.0;
 $intPrevKwh   = 0.0; $intPrevCost  = 0.0;
 $intPrevFullKwh = 0.0; $intPrevFullCost = 0.0;
 $intLYKwh     = 0.0; $intLYCost    = 0.0;
+$intLYFullKwh = 0.0; $intLYFullCost = 0.0;
 $evByDay      = [];
 
 foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -122,6 +173,10 @@ foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $intLYKwh  += $slice['kwh'];
             $intLYCost += $slice['cost'];
         }
+        if ($day >= $lastYearMonthStart && $day <= $lastYearMonthEnd) {
+            $intLYFullKwh  += $slice['kwh'];
+            $intLYFullCost += $slice['cost'];
+        }
     }
 }
 $intMonth = ['cnt' => $intMonthCnt, 'kwh' => $intMonthKwh, 'cost' => $intMonthCost];
@@ -140,6 +195,8 @@ $extPrevFullKwh  = 0.0;
 $extPrevFullCost = 0.0;
 $extLYKwh      = 0.0;
 $extLYCost     = 0.0;
+$extLYFullKwh  = 0.0;
+$extLYFullCost = 0.0;
 $extByDay      = [];
 
 foreach ($extRows as $row) {
@@ -161,6 +218,10 @@ foreach ($extRows as $row) {
     if ($day >= $lastYearPeriodStart && $day <= $lastYearPeriodEnd) {
         $extLYKwh  += floatval($row['kwh']);
         $extLYCost += floatval($row['pris']);
+    }
+    if ($day >= $lastYearMonthStart && $day <= $lastYearMonthEnd) {
+        $extLYFullKwh  += floatval($row['kwh']);
+        $extLYFullCost += floatval($row['pris']);
     }
     if ($day >= $sparkWindowStart && $day <= $today) {
         $extByDay[$day] = ($extByDay[$day] ?? 0) + floatval($row['kwh']);
@@ -223,6 +284,7 @@ $husCurrentKwh = null;
 $husPrevKwh    = null;
 $husPrevFullKwh= null;
 $husLastYearKwh= null;
+$husLastYearFullKwh = null;
 $husSparkline  = null;
 
 try {
@@ -239,6 +301,9 @@ try {
 
     $husLYMap       = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearPeriodStart, $lastYearPeriodEnd);
     $husLastYearKwh = round(array_sum($husLYMap), 2);
+
+    $husLYFullMap   = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearMonthStart, $lastYearMonthEnd);
+    $husLastYearFullKwh = round(array_sum($husLYFullMap), 2);
 
     // Sparkline: rolling 30-day window
     $husSparkline = [];
@@ -264,9 +329,12 @@ $lyTotalKwh    = floatval($intLY['kwh'])    + $extLYKwh;
 
 $prevFullCost  = $intPrevFullCost + $extPrevFullCost;
 
+// Same-month-last-year full totals — the seasonal projection anchor.
+$lyFullCost    = $intLYFullCost + $extLYFullCost;
+
 $evCostPerKwh        = $totalKwh > 0      ? round($totalCost / $totalKwh, 3) : null;
 $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
-$_evProjectedRaw     = projectFullMonth($totalCost, $prevTotalCost, $prevFullCost);
+$_evProjectedRaw     = projectFullMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
 $evProjected         = $_evProjectedRaw !== null ? round($_evProjectedRaw) : null;
 $evPctChangeKwh      = $prevTotalKwh  > 0 ? round(($totalKwh - $prevTotalKwh) / $prevTotalKwh * 100, 1) : null;
 $evPctChangeKwhYear  = $lyTotalKwh    > 0 ? round(($totalKwh - $lyTotalKwh)   / $lyTotalKwh   * 100, 1) : null;
@@ -283,13 +351,14 @@ $extCpKwh   = $extKwh  > 0 ? round($extCost  / $extKwh,  3) : null;
 $prevExtPct = $prevTotalKwh > 0 ? round($extPrevKwh / $prevTotalKwh * 100, 1) : null;
 
 $hpDailyAvg     = $daysThisMonth > 0 ? round($hpCurrent / $daysThisMonth, 2) : null;
-$_hpProjectedRaw = projectFullMonth($hpCurrent, $hpPrev, $hpPrevFull);
+$_hpProjectedRaw = projectFullMonth($hpCurrent, $hpPrev, $hpPrevFull, $hpLastYearPeriod, $hpLastYear);
 $hpProjected     = $_hpProjectedRaw !== null ? round($_hpProjectedRaw, 1) : null;
 
 $husDailyAvg    = ($husCurrentKwh !== null && $daysThisMonth > 0)
                     ? round($husCurrentKwh / $daysThisMonth, 2) : null;
 $_husProjectedRaw = $husCurrentKwh !== null
-                    ? projectFullMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh)) : null;
+                    ? projectFullMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh),
+                                       floatval($husLastYearKwh), floatval($husLastYearFullKwh)) : null;
 $husProjected   = $_husProjectedRaw !== null ? round($_husProjectedRaw, 1) : null;
 $husPctChange   = ($husCurrentKwh !== null && $husPrevKwh > 0)
                     ? round(($husCurrentKwh - $husPrevKwh) / $husPrevKwh * 100, 1) : null;
