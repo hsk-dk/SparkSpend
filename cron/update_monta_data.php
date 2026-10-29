@@ -2,6 +2,7 @@
 require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
 require __DIR__ . '/../includes/QueryBuilder.php';
+require __DIR__ . '/../includes/VehiclePairing.php';
 
 /**
  * Append a timestamped line to cron/cron.log.
@@ -188,72 +189,32 @@ function _getVehicleChargeWindow(): array {
     return $_vehicleChargeWindow;
 }
 
-function getVehicleForCharge($cablePluggedInAt): array {
-    // Physical flow: the cable is plugged into a car first (HA reports the
-    // vehicle + odometer at that moment); Monta may then schedule the charge to
-    // start hours later. So the charge belongs to the vehicle whose cable was
-    // plugged in MOST RECENTLY at or before this charge's cablePluggedInAt.
-    // We take the latest HA reading with ts <= T (+ small grace), bounded by a
-    // max look-back. With two cars sharing one charger, timing is the only
-    // signal, so genuinely ambiguous cases are flagged 'uncertain' for review.
-    $targetTime = strtotime($cablePluggedInAt);
+/**
+ * Pair a Monta charge with a vehicle using Home Assistant plug-in readings.
+ * The rules live in VehiclePairing::match() (unit-tested). Returns
+ * ['vehicleId' => ?int, 'source' => matched|uncertain|unknown]; vehicleId is
+ * null when there is no evidence — there is intentionally no default car.
+ */
+function getVehicleForCharge(?string $cablePluggedInAt): array {
+    $targetTime = ($cablePluggedInAt !== null && $cablePluggedInAt !== '')
+        ? strtotime($cablePluggedInAt) : false;
     if ($targetTime === false) {
-        logMsg("getVehicleForCharge: could not parse timestamp: $cablePluggedInAt", 'WARN');
-        return ['vehicleId' => 1, 'source' => 'uncertain'];
+        logMsg("getVehicleForCharge: missing or unparseable timestamp: " . var_export($cablePluggedInAt, true), 'WARN');
+        return ['vehicleId' => null, 'source' => 'unknown'];
     }
 
-    $graceAfter  = Config::pairingGraceAfterSec();
-    $maxLookback = Config::pairingMaxLookbackSec();
-    $ambiguity   = Config::pairingAmbiguitySec();
-    $cutoff      = $targetTime + $graceAfter;
+    $result = VehiclePairing::match(
+        _getVehicleChargeWindow(),
+        $targetTime,
+        Config::pairingGraceAfterSec(),
+        Config::pairingMaxLookbackSec(),
+        Config::pairingAmbiguitySec()
+    );
 
-    // Readings are sorted ascending by time. Collect all at/before the cutoff;
-    // the last one is the most recent plug-in — that's the chosen vehicle.
-    $eligible = [];
-    foreach (_getVehicleChargeWindow() as $row) {
-        if ($row['ts'] > $cutoff) break;   // ascending order → done
-        $eligible[] = $row;
+    if ($result['reason'] !== null && _getVehicleCount() > 1) {
+        logMsg("getVehicleForCharge: {$result['reason']} ($cablePluggedInAt) — {$result['source']}", 'WARN');
     }
-
-    $chosen = !empty($eligible) ? end($eligible) : null;
-
-    // Ambiguity check: scan backwards from the chosen reading for the most
-    // recent reading belonging to a DIFFERENT vehicle.
-    $prevOtherVehicleTs = null;
-    if ($chosen !== null) {
-        for ($i = count($eligible) - 2; $i >= 0; $i--) {
-            if ($eligible[$i]['vehicleId'] !== $chosen['vehicleId']) {
-                $prevOtherVehicleTs = $eligible[$i]['ts'];
-                break;
-            }
-        }
-    }
-
-    if ($chosen === null) {
-        if (_getVehicleCount() > 1) {
-            logMsg("getVehicleForCharge: no plug-in at/before $cablePluggedInAt — uncertain", 'WARN');
-        }
-        return ['vehicleId' => 1, 'source' => 'uncertain'];
-    }
-
-    // Too old to trust (e.g. a stale reading days before this charge).
-    if (($targetTime - $chosen['ts']) > $maxLookback) {
-        if (_getVehicleCount() > 1) {
-            $ageH = round(($targetTime - $chosen['ts']) / 3600, 1);
-            logMsg("getVehicleForCharge: latest plug-in is {$ageH}h before $cablePluggedInAt (> max look-back) — uncertain", 'WARN');
-        }
-        return ['vehicleId' => $chosen['vehicleId'], 'source' => 'uncertain'];
-    }
-
-    // Ambiguous if a different vehicle plugged in just before the chosen one
-    // (both cars connected close together → can't reliably tell which charged).
-    if ($prevOtherVehicleTs !== null && ($chosen['ts'] - $prevOtherVehicleTs) <= $ambiguity) {
-        logMsg("getVehicleForCharge: ambiguous pairing for $cablePluggedInAt " .
-               "(another vehicle plugged in within {$ambiguity}s before chosen vid={$chosen['vehicleId']}) — uncertain", 'WARN');
-        return ['vehicleId' => $chosen['vehicleId'], 'source' => 'uncertain'];
-    }
-
-    return ['vehicleId' => $chosen['vehicleId'], 'source' => 'matched'];
+    return ['vehicleId' => $result['vehicleId'], 'source' => $result['source']];
 }
 
 /**
@@ -291,7 +252,9 @@ function saveChargingData($db, $data) {
             $vehicleId     = $montaVehicleId;
             $pairingSource = 'api';
         } else {
-            $pairing       = getVehicleForCharge($charge['cablePluggedInAt']);
+            $pairing       = getVehicleForCharge(
+                $charge['cablePluggedInAt'] ?: ($charge['startedAt'] ?: ($charge['createdAt'] ?: null))
+            );
             $vehicleId     = $pairing['vehicleId'];
             $pairingSource = $pairing['source'];
         }
@@ -304,7 +267,9 @@ function saveChargingData($db, $data) {
             ?? $charge['vehicle']['displayName']
             ?? ''
         );
-        QueryBuilder::upsertVehicle($db, $vehicleId, $vehicleName);
+        if ($vehicleId !== null && $vehicleId > 0) {
+            QueryBuilder::upsertVehicle($db, $vehicleId, $vehicleName);
+        }
 
         // Extract soc percentage with error checking
         $socPercentage = null;
@@ -318,21 +283,17 @@ function saveChargingData($db, $data) {
         $existingCharge = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if ($existingCharge) {
-            // Record exists: preserve vehicleId if user manually changed it
-            $existingVehicleId = $existingCharge['vehicleId'];
-            $existingSource    = $existingCharge['pairingSource'] ?? 'legacy';
-
-            // Never overwrite a manual pairing; otherwise use the new determined value
-            if ($existingSource === 'manual') {
-                $vehicleIdToUse   = $existingVehicleId;
-                $pairingSourceUse = 'manual';
-            } elseif ($existingVehicleId == 0 || $existingVehicleId == null) {
-                $vehicleIdToUse   = $vehicleId;
-                $pairingSourceUse = $pairingSource;
-            } else {
-                $vehicleIdToUse   = $vehicleId;
-                $pairingSourceUse = $pairingSource;
-            }
+            // Record exists. A re-sync may only move the pairing UP in confidence
+            // (see VehiclePairing::resolve): it never overwrites a manual
+            // correction and never downgrades a settled match to a weaker guess.
+            $resolved = VehiclePairing::resolve(
+                $existingCharge['vehicleId'] !== null ? (int) $existingCharge['vehicleId'] : null,
+                $existingCharge['pairingSource'] ?? 'legacy',
+                $vehicleId,
+                $pairingSource
+            );
+            $vehicleIdToUse   = $resolved['vehicleId'];
+            $pairingSourceUse = $resolved['source'];
 
             $updateStmt = $db->prepare("UPDATE charges SET
                 chargePointId = ?,

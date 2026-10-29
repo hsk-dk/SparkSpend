@@ -573,12 +573,12 @@ const elbilApp = (() => {
             if (charge.providerId) row.dataset.providerId = charge.providerId;
 
             // Pairing confidence indicator for internal charges.
-            // 'default'/'legacy' = no automatic determination; 'uncertain' =
+            // 'default'/'unknown' = no automatic determination (unknown: vehicleId is NULL); 'uncertain' =
             // timing was ambiguous or outside the match window (two cars share
             // the charger, so timing is the only signal). Both warrant review.
             let pairingBadge = '';
             if (charge.source === 'internal' &&
-                (charge.pairingSource === 'default' || charge.pairingSource === 'uncertain')) {
+                (charge.pairingSource === 'default' || charge.pairingSource === 'uncertain' || charge.pairingSource === 'unknown')) {
                 const msg = charge.pairingSource === 'uncertain'
                     ? 'Bil-kobling usikker (flere biler tæt i tid, eller ingen aflæsning i tidsvinduet) — klik Rediger for at bekræfte'
                     : 'Bil kunne ikke bestemmes automatisk — klik Rediger for at rette';
@@ -703,6 +703,9 @@ const elbilApp = (() => {
         document.body.classList.remove('modal-open');
         document.body.style.overflow = '';
         document.body.style.paddingRight = '';
+
+        // A charge without a vehicle (pairingSource 'unknown') arrives as NaN: leave the dropdown empty.
+        if (!Number.isFinite(vehicleId)) vehicleId = '';
 
         if (source === 'internal') {
             document.getElementById('internalChargeId').value    = id;
