@@ -12,8 +12,46 @@ let _husSparkChart = null;
 let _hpWeatherAbort = null;
 let _costEnrichAbort = null;
 let _dashRefreshInterval = null;
+let _dashLoadSeq  = 0;      // guards against overlapping loads rendering out of order
+let _dashLastLoad = 0;      // ms timestamp of last successful load
+let _forecastLoadedAt = 0;  // elspot forecast is only re-fetched when stale
+let _forecastDay      = '';
+let _rateCache = null;      // { key, ts, highRate, lowRate, highKwhMonth }
+let _hddCache  = null;      // { key, hddThis, hddLast }
+
+/** Local calendar date as YYYY-MM-DD. (toISOString() is UTC and is wrong 00-02 Danish time.) */
+function _ymd(d = new Date()) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Danish number format (decimal comma, thousands dot): _fmt(1234.5, 1) -> "1.234,5" */
+function _fmt(n, decimals = 0) {
+    return Number(n).toLocaleString('da-DK', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+/** Non-destructive status line inside a card (keeps the stat elements and canvas intact). */
+function _setCardNote(cardId, text) {
+    const body = document.getElementById(cardId)?.querySelector('.dash-body');
+    if (!body) return;
+    let el = body.querySelector('.dash-note');
+    if (!el) {
+        el = document.createElement('p');
+        el.className = 'dash-note text-muted text-center small py-2 mb-0';
+        el.setAttribute('role', 'status');
+        body.appendChild(el);
+    }
+    el.textContent = text;
+}
+
+function _clearCardNote(cardId) {
+    document.getElementById(cardId)?.querySelector('.dash-note')?.remove();
+}
 
 async function loadDashboard(isRefresh = false) {
+    // Event listeners pass an Event object here; only a literal true means "background refresh".
+    isRefresh = isRefresh === true;
+    const seq   = ++_dashLoadSeq;
     const cards = ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'];
     // On the initial load the cards show skeletons; on a background auto-refresh
     // they stay populated, so show a small "Opdaterer…" indicator instead.
@@ -28,35 +66,48 @@ async function loadDashboard(isRefresh = false) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
+        if (seq !== _dashLoadSeq) return;   // a newer load has started — drop this response
 
-        renderEvCard(data.ev);
-        renderHeatpumpCard(data.heatpump);
-        if (data.hus) {
-            renderHusCard(data.hus);
-        } else {
-            const husCard = document.getElementById('hus-dashboard-card');
-            if (husCard) husCard.querySelector('.dash-body').innerHTML =
-                '<p class="text-muted text-center small py-3">Hus-data ikke synkroniseret endnu</p>';
+        // Each card renders independently: one bad card must not blank the others.
+        const renderers = [
+            ['ev-dashboard-card',  () => renderEvCard(data.ev)],
+            ['hp-dashboard-card',  () => renderHeatpumpCard(data.heatpump)],
+            ['hus-dashboard-card', () => data.hus
+                ? renderHusCard(data.hus)
+                : _setCardNote('hus-dashboard-card', 'Hus-data ikke synkroniseret endnu')],
+        ];
+        for (const [id, render] of renderers) {
+            try {
+                _clearCardNote(id);
+                render();
+            } catch (err) {
+                console.error('Dashboard render error (' + id + '):', err);
+                _setCardNote(id, 'Data kunne ikke vises');
+            }
         }
+        _dashLastLoad = Date.now();
+
         // Anomaly detection runs after card data is available (async, best-effort)
         loadAnomalies();
         // Async cost enrichment for VP and Hus cards
         _enrichCardsWithCost(data.heatpump, data.hus || null, data.ev || null);
-        // Elspot day-ahead forecast widget
+        // Elspot day-ahead forecast widget (self-throttled)
         loadElspotForecast();
         // Sync-status enrichment — async, non-blocking
         _enrichSyncLabels();
     } catch (e) {
         console.error('Dashboard load error:', e);
-        ['ev-dashboard-card', 'hp-dashboard-card', 'hus-dashboard-card'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.querySelector('.dash-body').innerHTML =
-                '<p class="text-muted text-center small py-3">Data ikke tilgængeligt</p>';
-        });
+        if (seq !== _dashLoadSeq) return;
+        // Never replace .dash-body: that destroys the stat elements and the card
+        // could not recover on the next refresh. Show a note and keep old numbers.
+        const msg = isRefresh ? 'Kunne ikke opdatere \u2013 viser seneste data' : 'Data ikke tilg\u00e6ngeligt';
+        cards.forEach(id => _setCardNote(id, msg));
     } finally {
-        cards.forEach(id => document.getElementById(id)?.classList.remove('dash-loading'));
-        const ind = document.getElementById('dashRefreshIndicator');
-        if (ind) ind.style.display = 'none';
+        if (seq === _dashLoadSeq) {
+            cards.forEach(id => document.getElementById(id)?.classList.remove('dash-loading'));
+            const ind = document.getElementById('dashRefreshIndicator');
+            if (ind) ind.style.display = 'none';
+        }
     }
 }
 
@@ -67,10 +118,16 @@ function renderEvCard(ev) {
     const now   = new Date();
     const month = _monthName();
     _setText(card, '.dash-period', month);
-    _setText(card, '.dash-stat-charges', ev.month_charges + ' ladninger');
-    _setText(card, '.dash-stat-kwh', ev.month_kwh.toFixed(1) + ' kWh');
-    _setText(card, '.dash-stat-cost', ev.month_cost.toFixed(0) + ' kr');
-    _setText(card, '.dash-stat-cpkwh', ev.cost_per_kwh !== null ? ev.cost_per_kwh.toFixed(2) + ' kr/kWh' : '—');
+    _setText(card, '.dash-stat-charges', String(ev.month_charges));
+    _setText(card, '.dash-stat-kwh', _fmt(ev.month_kwh, 1));
+    // Charges without a price count as 0 kr — flag it so the total isn't read as complete.
+    const unpriced = ev.month_unpriced || 0;
+    _setText(card, '.dash-stat-cost', _fmt(ev.month_cost, 0) + ' kr' + (unpriced ? '*' : ''));
+    const costEl = card.querySelector('.dash-stat-cost');
+    if (costEl) costEl.title = unpriced
+        ? `${unpriced} ladning${unpriced === 1 ? '' : 'er'} mangler pris \u2013 prisen er undervurderet`
+        : '';
+    _setText(card, '.dash-stat-cpkwh', ev.cost_per_kwh !== null ? _fmt(ev.cost_per_kwh, 2) : '—');
     _setText(card, '.dash-projected', ev.projected_cost !== null ? `Forventet: ${ev.projected_cost} kr` : '');
 
     // Home / external split bar
@@ -84,8 +141,8 @@ function renderEvCard(ev) {
         if (extFill)  extFill.style.width  = extPct.toFixed(1)  + '%';
         const homeLbl = splitWrap.querySelector('.dash-split-home-lbl');
         const extLbl  = splitWrap.querySelector('.dash-split-ext-lbl');
-        if (homeLbl) homeLbl.textContent = 'Hjemme' + (ev.home_cpkwh !== null ? ' · ' + ev.home_cpkwh.toFixed(2) + '\u00a0kr/kWh' : '');
-        if (extLbl)  extLbl.textContent  = ev.ext_kwh > 0 ? 'Ude' + (ev.ext_cpkwh !== null ? ' · ' + ev.ext_cpkwh.toFixed(2) + '\u00a0kr/kWh' : '') : '';
+        if (homeLbl) homeLbl.textContent = 'Hjemme' + (ev.home_cpkwh !== null ? ' · ' + _fmt(ev.home_cpkwh, 2) + '\u00a0kr/kWh' : '');
+        if (extLbl)  extLbl.textContent  = ev.ext_kwh > 0 ? 'Ude' + (ev.ext_cpkwh !== null ? ' · ' + _fmt(ev.ext_cpkwh, 2) + '\u00a0kr/kWh' : '') : '';
         splitWrap.style.display = '';
     }
 
@@ -97,23 +154,23 @@ function renderEvCard(ev) {
             const up = ev.pct_change_kwh >= 0;
             const prevKwh = Math.round(ev.month_kwh / (1 + ev.pct_change_kwh / 100)) || 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_kwh)}% kWh vs. forrige mdr (${prevKwh}→${Math.round(ev.month_kwh)})</div>`;
+                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_kwh), 1)}% kWh vs. forrige mdr (${prevKwh}→${Math.round(ev.month_kwh)})</div>`;
         }
         if (showTrends && ev.pct_change_cost !== null) {
             const up = ev.pct_change_cost >= 0;
             const prevCost = Math.round(ev.month_cost / (1 + ev.pct_change_cost / 100)) || 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_cost)}% pris vs. forrige mdr (${prevCost}→${Math.round(ev.month_cost)} kr)</div>`;
+                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_cost), 1)}% pris vs. forrige mdr (${prevCost}→${Math.round(ev.month_cost)} kr)</div>`;
         }
         if (showTrends && ev.pct_change_year_kwh !== null) {
             const up = ev.pct_change_year_kwh >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_kwh)}% kWh vs. sidste år</div>`;
+                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_year_kwh), 1)}% kWh vs. sidste år</div>`;
         }
         if (showTrends && ev.pct_change_year_cost !== null) {
             const up = ev.pct_change_year_cost >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${Math.abs(ev.pct_change_year_cost)}% pris vs. sidste år</div>`;
+                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_year_cost), 1)}% pris vs. sidste år</div>`;
         }
         // Driver note: flag if external charging share shifted significantly vs. prev period
         if (showTrends && ev.prev_ext_kwh_pct !== null && ev.month_kwh > 0) {
@@ -141,10 +198,10 @@ function renderHeatpumpCard(hp) {
     const now   = new Date();
     const month = _monthName();
     _setText(card, '.dash-period', month);
-    _setText(card, '.dash-stat-kwh', hp.month_kwh.toFixed(1) + ' kWh');
-    _setText(card, '.dash-stat-daily', hp.daily_avg_kwh !== null ? hp.daily_avg_kwh.toFixed(1) + ' kWh' : '—');
+    _setText(card, '.dash-stat-kwh', _fmt(hp.month_kwh, 1));
+    _setText(card, '.dash-stat-daily', hp.daily_avg_kwh !== null ? _fmt(hp.daily_avg_kwh, 1) : '—');
     _setText(card, '.dash-projected', hp.projected_kwh !== null
-        ? `Forventet: ${hp.projected_kwh.toFixed(0)} kWh (forrige: ${hp.prev_month_kwh.toFixed(0)})`
+        ? `Forventet: ${_fmt(hp.projected_kwh)} kWh (forrige: ${_fmt(hp.prev_month_full_kwh)})`
         : '');
 
     const showTrends = now.getDate() >= 5;
@@ -155,13 +212,13 @@ function renderHeatpumpCard(hp) {
             const up = hp.pct_change >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hp.pct_change)}% vs. forrige mdr</div>`;
+                    `${_fmt(Math.abs(hp.pct_change), 1)}% vs. forrige mdr</div>`;
         }
         if (showTrends && hp.pct_change_year !== null) {
             const up = hp.pct_change_year >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hp.pct_change_year)}% vs. sidste år</div>`;
+                    `${_fmt(Math.abs(hp.pct_change_year), 1)}% vs. sidste år</div>`;
         }
         trendEl.innerHTML = html;
         trendEl.className = 'dash-trend';
@@ -185,11 +242,11 @@ function renderHusCard(hus) {
     const now   = new Date();
     const month = _monthName();
     _setText(card, '.dash-period', month);
-    _setText(card, '.dash-stat-kwh', hus.month_kwh.toFixed(1) + ' kWh');
-    _setText(card, '.dash-stat-daily', hus.daily_avg_kwh !== null ? hus.daily_avg_kwh.toFixed(1) + ' kWh' : '—');
-    const husPrevEst = hus.pct_change !== null ? Math.round(hus.month_kwh / (1 + hus.pct_change / 100)) || null : null;
+    _setText(card, '.dash-stat-kwh', _fmt(hus.month_kwh, 1));
+    _setText(card, '.dash-stat-daily', hus.daily_avg_kwh !== null ? _fmt(hus.daily_avg_kwh, 1) : '—');
+    const husPrevEst = hus.prev_month_full_kwh > 0 ? Math.round(hus.prev_month_full_kwh) : null;
     _setText(card, '.dash-projected', hus.projected_kwh !== null
-        ? `Forventet: ${hus.projected_kwh.toFixed(0)} kWh` + (husPrevEst ? ` (forrige: ${husPrevEst})` : '')
+        ? `Forventet: ${_fmt(hus.projected_kwh)} kWh` + (husPrevEst ? ` (forrige: ${_fmt(husPrevEst)})` : '')
         : '');
 
     const showTrends = now.getDate() >= 5;
@@ -200,13 +257,13 @@ function renderHusCard(hus) {
             const up = hus.pct_change >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hus.pct_change)}% vs. forrige mdr</div>`;
+                    `${_fmt(Math.abs(hus.pct_change), 1)}% vs. forrige mdr</div>`;
         }
         if (showTrends && hus.pct_change_year !== null) {
             const up = hus.pct_change_year >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${Math.abs(hus.pct_change_year)}% vs. sidste år</div>`;
+                    `${_fmt(Math.abs(hus.pct_change_year), 1)}% vs. sidste år</div>`;
         }
         trendEl.innerHTML = html;
         trendEl.className = 'dash-trend';
@@ -259,17 +316,24 @@ async function _enrichHpWithWeather(card, hp) {
     const thisMonth = now.getMonth() + 1;
     const lastYear  = thisYear - 1;
     const mm        = String(thisMonth).padStart(2, '0');
-    const today     = now.toISOString().slice(0, 10);
+    const today     = _ymd(now);
     const ddNow     = String(now.getDate()).padStart(2, '0'); // same day last year → MTD comparison
 
     try {
-        const [resThis, resLast] = await Promise.all([
-            fetch(`api.php?action=weather&start=${thisYear}-${mm}-01&end=${today}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
-            fetch(`api.php?action=weather&start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddNow}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
-        ]);
-
-        const hddThis = (resThis.records  || []).reduce((s, r) => s + r.hdd, 0);
-        const hddLast = (resLast.records  || []).reduce((s, r) => s + r.hdd, 0);
+        // Degree days only change once a day — reuse them across 5-minute refreshes.
+        const hddKey = `${today}|${lat}|${lon}`;
+        let hddThis, hddLast;
+        if (_hddCache && _hddCache.key === hddKey) {
+            ({ hddThis, hddLast } = _hddCache);
+        } else {
+            const [resThis, resLast] = await Promise.all([
+                fetch(`api.php?action=weather&start=${thisYear}-${mm}-01&end=${today}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
+                fetch(`api.php?action=weather&start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddNow}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
+            ]);
+            hddThis = (resThis.records || []).reduce((s, r) => s + r.hdd, 0);
+            hddLast = (resLast.records || []).reduce((s, r) => s + r.hdd, 0);
+            if (hddThis > 0 && hddLast > 0) _hddCache = { key: hddKey, hddThis, hddLast };
+        }
         if (hddThis <= 0 || hddLast <= 0) return;
 
         const normalizedPct = Math.round(((hp.month_kwh / hddThis) / (lastYearKwh / hddLast) - 1) * 100);
@@ -279,7 +343,7 @@ async function _enrichHpWithWeather(card, hp) {
         const up = normalizedPct >= 0;
         trendEl.innerHTML +=
             `<div class="${up ? 'trend-up' : 'trend-down'}" title="Justeret for graddage (HDD 17°C)">` +
-            `${up ? '↑' : '↓'} ${Math.abs(normalizedPct)}% vejrkorrigeret vs. samme måned sidste år</div>`;
+            `${up ? '↑' : '↓'} ${_fmt(Math.abs(normalizedPct), 1)}% vejrkorrigeret vs. samme måned sidste år</div>`;
     } catch (e) {
         if (e.name !== 'AbortError') console.warn('_enrichHpWithWeather:', e);
     }
@@ -331,16 +395,19 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
 
 let _forecastChart = null;
 
-async function loadElspotForecast() {
+async function loadElspotForecast(force = false) {
     const area = window.sparkConfig?.elspotArea || '';
     const gln  = window.sparkConfig?.elspotGln  || '';
     const card = document.getElementById('elspot-forecast-card');
     if (!area || !gln || !card) return;
 
     const now      = new Date();
-    const today    = now.toISOString().slice(0, 10);
+    const today    = _ymd(now);
+    // Prices rarely change: skip the fetch on 5-minute refreshes unless the day
+    // rolled over or the data is older than 30 minutes (tomorrow's prices land ~13:00).
+    if (force !== true && _forecastDay === today && Date.now() - _forecastLoadedAt < 30 * 60 * 1000) return;
     const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
-    const tmrStr   = tomorrow.toISOString().slice(0, 10);
+    const tmrStr   = _ymd(tomorrow);
     const tmrLabel = tomorrow.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'short' });
     const todLabel = now.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'short' });
 
@@ -461,6 +528,8 @@ async function loadElspotForecast() {
             }
         });
         _forecastChart.render();
+        _forecastDay      = today;
+        _forecastLoadedAt = Date.now();
     } catch (e) {
         console.warn('loadElspotForecast:', e);
     }
@@ -478,27 +547,37 @@ async function _enrichCardsWithCost(hp, hus, ev) {
     const now   = new Date();
     const mm    = String(now.getMonth() + 1).padStart(2, '0');
     const start = `${now.getFullYear()}-${mm}-01`;
-    const end   = now.toISOString().slice(0, 10);
+    const end   = _ymd(now);
 
     try {
         // HIGH + LOW elafgift rates for the elvarme model: first 333 kWh/month
         // of VP+Rest at HIGH, the rest (plus EV) at LOW.
-        const baseUrl = `api.php?action=elspot-prices&start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}`;
-        const [highRes, lowRes] = await Promise.all([
-            fetch(baseUrl + '&tariff=high', { signal: controller.signal }),
-            fetch(baseUrl + '&tariff=low',  { signal: controller.signal }),
-        ]);
-        if (!highRes.ok || !lowRes.ok) return;
-        const highData = await highRes.json();
-        const lowData  = await lowRes.json();
-        const avgOf = d => {
-            const recs = (d.records || []).filter(r => r.kr_kwh > 0);
-            return recs.length ? recs.reduce((s, r) => s + r.kr_kwh, 0) / recs.length : 0;
-        };
-        const highRate = avgOf(highData);
-        const lowRate  = avgOf(lowData);
-        // Threshold: month-to-date portion of the monthly high-rate allowance.
-        const highKwhMonth = highData.components?.high_kwh_per_month ?? (4000 / 12);
+        // The month's average rates only move once a day, so cache them for an hour.
+        const rateKey = `${start}|${end}|${area}|${gln}`;
+        let highRate, lowRate, highKwhMonth;
+        if (_rateCache && _rateCache.key === rateKey && Date.now() - _rateCache.ts < 3600_000) {
+            ({ highRate, lowRate, highKwhMonth } = _rateCache);
+        } else {
+            const baseUrl = `api.php?action=elspot-prices&start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}`;
+            const [highRes, lowRes] = await Promise.all([
+                fetch(baseUrl + '&tariff=high', { signal: controller.signal }),
+                fetch(baseUrl + '&tariff=low',  { signal: controller.signal }),
+            ]);
+            if (!highRes.ok || !lowRes.ok) return;
+            const highData = await highRes.json();
+            const lowData  = await lowRes.json();
+            const avgOf = d => {
+                const recs = (d.records || []).filter(r => r.kr_kwh > 0);
+                return recs.length ? recs.reduce((s, r) => s + r.kr_kwh, 0) / recs.length : 0;
+            };
+            highRate = avgOf(highData);
+            lowRate  = avgOf(lowData);
+            // Threshold: month-to-date portion of the monthly high-rate allowance.
+            highKwhMonth = highData.components?.high_kwh_per_month ?? (4000 / 12);
+            if (highRate > 0 || lowRate > 0) {
+                _rateCache = { key: rateKey, ts: Date.now(), highRate, lowRate, highKwhMonth };
+            }
+        }
         if (highRate <= 0 && lowRate <= 0) return;
 
         // Month-to-date component kWh for the elvarme blend.
@@ -513,7 +592,7 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         if (hp && hp.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
             const el = document.getElementById('hp-cost-stat');
             if (el) {
-                el.querySelector('.dash-est-cost').textContent = Math.round(mtdBlend.vpCost) + ' kr';
+                el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.vpCost, 0);
                 el.title = `Estimeret elvarme-model (inkl. systemtarif, nettarif, elafgift og moms)`;
                 el.style.display = '';
             }
@@ -522,7 +601,7 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         if (hus && hus.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
             const el = document.getElementById('hus-cost-stat');
             if (el) {
-                el.querySelector('.dash-est-cost').textContent = Math.round(mtdBlend.total) + ' kr';
+                el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.total, 0);
                 el.title = `Estimeret elvarme-model: første ≈${Math.round(highKwhMonth)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
                 el.style.display = '';
             }
@@ -646,7 +725,14 @@ function _setText(parent, selector, text) {
 document.addEventListener('DOMContentLoaded', () => {
     // loadDashboard() is called lazily by SparkNav when Oversigt tab is first activated.
     // Re-fetch whenever a charge is saved so totals stay current.
-    window.SparkEvents?.addEventListener('charge:saved', loadDashboard);
+    window.SparkEvents?.addEventListener('charge:saved', () => loadDashboard(true));
+
+    // Coming back to the tab after a while: refresh right away instead of waiting
+    // for the next 5-minute tick. _dashRefreshInterval is only set while Oversigt is active.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || !_dashRefreshInterval) return;
+        if (Date.now() - _dashLastLoad > 120_000) loadDashboard(true);
+    });
 });
 
 // =============================================================================
@@ -774,7 +860,7 @@ function stopDashboardAutoRefresh() {
 // =============================================================================
 
 function _getAnomalyDismissKey() {
-    return 'anomaly_dismissed_' + new Date().toISOString().slice(0, 7);
+    return 'anomaly_dismissed_' + _ymd().slice(0, 7);
 }
 
 function _isAnomalyDismissed(anomalies) {
