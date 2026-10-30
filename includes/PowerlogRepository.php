@@ -24,6 +24,27 @@ class PowerlogRepository {
      * @return array  Associative array keyed by 'YYYY-MM-DD' => float kWh delta
      * @throws InvalidArgumentException if table name is not whitelisted
      */
+    /**
+     * Raw hourly readings for [from, to] (inclusive, YYYY-MM-DD), plus the last
+     * reading of the day before $from so the first hour has something to diff
+     * against. Ascending by logdate. Feed to HourlyConsumption::fromReadings().
+     *
+     * @return array<int,array{logdate:string,kwh:float}>
+     */
+    public static function getReadings(PDO $db, string $table, string $from, string $to): array {
+        static $allowed = ['powerlogjord', 'powerloghus'];
+        if (!in_array($table, $allowed, true)) {
+            throw new \InvalidArgumentException("getReadings: table '$table' is not whitelisted");
+        }
+        $stmt = $db->prepare("
+            SELECT logdate, kwh FROM $table
+            WHERE DATE(logdate) >= DATE(?, '-1 day') AND DATE(logdate) <= ?
+            ORDER BY logdate
+        ");
+        $stmt->execute([$from, $to]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public static function lagDelta(PDO $db, string $table, string $from, string $to): array {
         static $allowed = ['powerlogjord', 'powerloghus'];
         if (!in_array($table, $allowed, true)) {

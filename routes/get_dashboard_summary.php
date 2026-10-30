@@ -5,6 +5,8 @@
  * for the current month + 14-day sparklines.
  */
 
+require_once __DIR__ . '/../includes/Projection.php';
+
 // ─── 5-minute file cache ──────────────────────────────────────────────────────
 $_dashCacheKey = 'dashboard_' . date('Y-m-d');
 $_cached = QueryBuilder::fileCacheRead($_dashCacheKey, CacheHelper::TTL_MEDIUM);
@@ -63,82 +65,14 @@ $prevLastFrac = ($prevEndDt->format('j') === $todayDt->format('j'))           ? 
 $lyLastFrac   = ($lastYearPeriodEndDt->format('j') === $todayDt->format('j')) ? $dayFraction : 1.0;
 
 /**
- * Season-aware full-month projection from month-to-date data.
- *
- * The hard case is the first few days of the month: a naive linear run-rate
- * ($mtd / $daysSoFar * $daysInMonth) multiplies one or two days of data by
- * ~30, so a single busy or quiet day throws the estimate wildly off.
- *
- * Season matters a lot — especially for heating. A heat pump can use many
- * times more in January than in October, so anchoring the early-month estimate
- * on LAST MONTH's total is systematically wrong across season changes (early
- * October would be guessed from September, early January from December). The
- * right seasonal anchor is the SAME MONTH LAST YEAR, scaled by how this year is
- * tracking so far.
- *
- * Anchor priority (each clamped so one odd day can't dominate):
- *
- *  A. Same month last year ($lyFull), scaled by this year's pace vs. the same
- *     period last year: lyFull * clamp(mtd / lyMtd, 0.5, 2.0).  <- seasonal,
- *     preferred. Captures both the season shape and year-over-year drift.
- *
- *  B. Last month's full total ($prevFull), scaled by pace vs. last month's
- *     same period: prevFull * clamp(mtd / prevMtd, 0.5, 2.0).  Used only when
- *     last-year data is missing (e.g. first year of data). Not seasonal, so
- *     it is the weaker fallback.
- *
- * The chosen anchor is blended with the linear run-rate via a confidence
- * weight that stays near 0 (all anchor) until ~1 week in, then ramps toward
- * the run-rate (day 3 -> 14) as real, in-season data accumulates. Late in the
- * month the actual data dominates regardless of anchor.
- *
- * With no anchor at all, the first few days' extrapolation is capped so day 1
- * never reports mtd * daysInMonth.
- *
- * Returns null only when there is genuinely nothing to go on.
+ * Project this month's total. Thin wrapper over Projection::fullMonth() (see
+ * includes/Projection.php) that supplies the elapsed-day globals.
+ * @return array{value:?float, basis:string}
  */
-if (!function_exists('projectFullMonth')) {
-function projectFullMonth(
-    float $mtd,
-    float $prevMtd,
-    float $prevFull,
-    float $lyMtd = 0.0,
-    float $lyFull = 0.0
-): ?float {
+if (!function_exists('projectMonth')) {
+function projectMonth(float $mtd, float $prevMtd, float $prevFull, float $lyMtd = 0.0, float $lyFull = 0.0): array {
     global $daysElapsed, $daysInMonth;
-    if ($daysElapsed <= 0 || $daysInMonth <= 0) return null;
-
-    $runRate = $mtd / $daysElapsed * $daysInMonth;
-
-    // Confidence in the run-rate grows with elapsed days. Below ~3 days the
-    // run-rate is noise; by ~14 days it is reliable. Ramp from day 3 -> 14.
-    $MIN_DAYS = 3;
-    $FULL_CONF_DAYS = 14;
-    $conf = ($daysElapsed - $MIN_DAYS) / max(1, $FULL_CONF_DAYS - $MIN_DAYS);
-    $conf = max(0.0, min(1.0, $conf));
-
-    // A. Seasonal anchor: same month last year, scaled by this year's pace.
-    if ($lyFull > 0) {
-        $yearFactor = ($lyMtd > 0) ? ($mtd / $lyMtd) : 1.0;
-        $yearFactor = max(0.5, min(2.0, $yearFactor));
-        $seasonProjection = $lyFull * $yearFactor;
-        return $seasonProjection * (1 - $conf) + $runRate * $conf;
-    }
-
-    // B. Fallback anchor: last month's full total (not seasonal).
-    if ($prevFull > 0) {
-        $paceFactor = ($prevMtd > 0) ? ($mtd / $prevMtd) : 1.0;
-        $paceFactor = max(0.5, min(2.0, $paceFactor));
-        $paceProjection = $prevFull * $paceFactor;
-        return $paceProjection * (1 - $conf) + $runRate * $conf;
-    }
-
-    // No anchor available at all.
-    if ($daysElapsed < $MIN_DAYS) {
-        // Cap the extrapolation so day 1 doesn't report mtd * daysInMonth.
-        return $mtd / $daysElapsed * min($daysInMonth, $daysElapsed * 3);
-    }
-    return $runRate;
+    return Projection::fullMonth($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, (float)$daysElapsed, (int)$daysInMonth);
 }
 }
 
@@ -160,13 +94,20 @@ function sumWithPartialLastDay(array $map, string $lastDay, float $lastFraction)
 // =========================================================================
 // EV — internal charges: raw fetch, proportional midnight-split
 // =========================================================================
+// A session that is still running has stoppedAt = NULL (the sync stores it and
+// refreshes it on every run). Its end is taken as the last time Monta updated
+// the record, so it counts up to "now" while charging, and a row that got stuck
+// without ever being closed is still placed at its last known time instead of
+// being dropped or stretched to today.
 $stmtInt = $chargesDb->prepare("
-    SELECT startedAt, stoppedAt,
+    SELECT startedAt,
+           COALESCE(stoppedAt, updatedAt, startedAt) AS endedAt,
+           (stoppedAt IS NULL) AS ongoing,
            COALESCE(consumedKwh, 0) AS kwh,
            COALESCE(cost, 0) AS cost,
            (cost IS NULL) AS noCost
     FROM charges
-    WHERE DATE(startedAt) <= ? AND DATE(stoppedAt) >= ?
+    WHERE DATE(startedAt) <= ? AND DATE(COALESCE(stoppedAt, updatedAt, startedAt)) >= ?
       AND consumedKwh > 0          -- same rule as the charge list (showZeroKwh = off)
 ");
 $stmtInt->execute([$today, $lastYearMonthStart]);
@@ -178,10 +119,15 @@ $intPrevFullKwh = 0.0; $intPrevFullCost = 0.0;
 $intLYKwh     = 0.0; $intLYCost    = 0.0;
 $intLYFullKwh = 0.0; $intLYFullCost = 0.0;
 $evByDay      = [];
+$evChargingNow = false;   // an open session that Monta touched within the last 30 minutes
 
 foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    if ((int)$row['ongoing'] === 1) {
+        $_endTs = strtotime($row['endedAt']);
+        if ($_endTs !== false && $_endTs >= time() - 1800) { $evChargingNow = true; }
+    }
     $splits = QueryBuilder::splitChargeByDays(
-        $row['startedAt'], $row['stoppedAt'],
+        $row['startedAt'], $row['endedAt'],
         floatval($row['kwh']), floatval($row['cost'])
     );
     $countedForMonth = false;
@@ -381,8 +327,8 @@ $_unpricedKwh        = floatval($intMonth['unpriced_kwh']);
 $_pricedKwh          = $totalKwh - $_unpricedKwh;
 $evCostPerKwh        = $_pricedKwh > 0.001 ? round($totalCost / $_pricedKwh, 3) : null;
 $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
-$_evProjectedRaw     = projectFullMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
-$evProjected         = $_evProjectedRaw !== null ? round($_evProjectedRaw) : null;
+$_evProj             = projectMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
+$evProjected         = $_evProj['value'] !== null ? round($_evProj['value']) : null;
 $evPctChangeKwh      = $prevTotalKwh  > 0 ? round(($totalKwh - $prevTotalKwh) / $prevTotalKwh * 100, 1) : null;
 $evPctChangeKwhYear  = $lyTotalKwh    > 0 ? round(($totalKwh - $lyTotalKwh)   / $lyTotalKwh   * 100, 1) : null;
 $evPctChangeCost     = $prevTotalCost > 0 ? round(($totalCost - $prevTotalCost) / $prevTotalCost * 100, 1) : null;
@@ -398,14 +344,14 @@ $extCpKwh   = $extKwh  > 0 ? round($extCost  / $extKwh,  3) : null;
 $prevExtPct = $prevTotalKwh > 0 ? round($extPrevKwh / $prevTotalKwh * 100, 1) : null;
 
 $hpDailyAvg     = round($hpCurrent / $daysElapsed, 2);
-$_hpProjectedRaw = projectFullMonth($hpCurrent, $hpPrev, $hpPrevFull, $hpLastYearPeriod, $hpLastYear);
-$hpProjected     = $_hpProjectedRaw !== null ? round($_hpProjectedRaw, 1) : null;
+$_hpProj         = projectMonth($hpCurrent, $hpPrev, $hpPrevFull, $hpLastYearPeriod, $hpLastYear);
+$hpProjected     = $_hpProj['value'] !== null ? round($_hpProj['value'], 1) : null;
 
 $husDailyAvg    = $husCurrentKwh !== null ? round($husCurrentKwh / $daysElapsed, 2) : null;
-$_husProjectedRaw = $husCurrentKwh !== null
-                    ? projectFullMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh),
-                                       floatval($husLastYearKwh), floatval($husLastYearFullKwh)) : null;
-$husProjected   = $_husProjectedRaw !== null ? round($_husProjectedRaw, 1) : null;
+$_husProj         = $husCurrentKwh !== null
+                    ? projectMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh),
+                                   floatval($husLastYearKwh), floatval($husLastYearFullKwh)) : null;
+$husProjected   = ($_husProj !== null && $_husProj['value'] !== null) ? round($_husProj['value'], 1) : null;
 $husPctChange   = ($husCurrentKwh !== null && $husPrevKwh > 0)
                     ? round(($husCurrentKwh - $husPrevKwh) / $husPrevKwh * 100, 1) : null;
 $husPctChangeYear = ($husCurrentKwh !== null && $husLastYearKwh > 0)
@@ -415,11 +361,13 @@ $response = json_encode([
     'ev' => [
         'month_charges'        => intval($intMonth['cnt']) + intval($extMonth['cnt']),
         'month_unpriced'       => intval($intMonth['unpriced_cnt']),   // charges without a price (cost = NULL)
+        'charging_now'         => $evChargingNow,
         'month_kwh'            => round($totalKwh, 2),
         'month_cost'           => round($totalCost, 2),
         'cost_per_kwh'         => $evCostPerKwh,
         'home_kwh_pct'         => $evHomePct,
         'projected_cost'       => $evProjected,
+        'projection_basis'     => $_evProj['basis'],
         'pct_change_kwh'       => $evPctChangeKwh,
         'pct_change_year_kwh'  => $evPctChangeKwhYear,
         'pct_change_cost'      => $evPctChangeCost,
@@ -445,6 +393,7 @@ $response = json_encode([
         'pct_change_year'     => $hpPctChangeYear,
         'daily_avg_kwh'       => $hpDailyAvg,
         'projected_kwh'       => $hpProjected,
+        'projection_basis'    => $_hpProj['basis'],
         'sparkline'           => $hpSparkline,
     ],
     'hus' => $husCurrentKwh !== null ? [
@@ -456,6 +405,7 @@ $response = json_encode([
         'hp_kwh'          => round($hpCurrent, 2),
         'daily_avg_kwh'   => $husDailyAvg,
         'projected_kwh'   => $husProjected,
+        'projection_basis' => $_husProj['basis'] ?? null,
         'sparkline'       => $husSparkline,
     ] : null,
 ]);

@@ -128,7 +128,8 @@ function renderEvCard(ev) {
         ? `${unpriced} ladning${unpriced === 1 ? '' : 'er'} mangler pris \u2013 prisen er undervurderet`
         : '';
     _setText(card, '.dash-stat-cpkwh', ev.cost_per_kwh !== null ? _fmt(ev.cost_per_kwh, 2) : '—');
-    _setText(card, '.dash-projected', ev.projected_cost !== null ? `Forventet: ${ev.projected_cost} kr` : '');
+    _setText(card, '.dash-projected', ev.projected_cost !== null ? `Forventet: ${_fmt(ev.projected_cost)} kr` : '');
+    _setProjectionBasis(card, ev.projection_basis);
 
     // Home / external split bar
     const splitWrap = card.querySelector('.dash-split-wrap');
@@ -203,6 +204,7 @@ function renderHeatpumpCard(hp) {
     _setText(card, '.dash-projected', hp.projected_kwh !== null
         ? `Forventet: ${_fmt(hp.projected_kwh)} kWh (forrige: ${_fmt(hp.prev_month_full_kwh)})`
         : '');
+    _setProjectionBasis(card, hp.projection_basis);
 
     const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
@@ -248,6 +250,7 @@ function renderHusCard(hus) {
     _setText(card, '.dash-projected', hus.projected_kwh !== null
         ? `Forventet: ${_fmt(hus.projected_kwh)} kWh` + (husPrevEst ? ` (forrige: ${_fmt(husPrevEst)})` : '')
         : '');
+    _setProjectionBasis(card, hus.projection_basis);
 
     const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
@@ -553,32 +556,51 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         // HIGH + LOW elafgift rates for the elvarme model: first 333 kWh/month
         // of VP+Rest at HIGH, the rest (plus EV) at LOW.
         // The month's average rates only move once a day, so cache them for an hour.
+        //
+        // highRate/lowRate are plain averages of the month's hourly prices. When
+        // hourly consumption is available the heat pump and the rest of the house
+        // are priced with consumption-WEIGHTED rates instead (pricing.js): the
+        // hours that used the electricity count in proportion to the kWh used.
         const rateKey = `${start}|${end}|${area}|${gln}`;
-        let highRate, lowRate, highKwhMonth;
+        let highRate, lowRate, highKwhMonth, weighted;
         if (_rateCache && _rateCache.key === rateKey && Date.now() - _rateCache.ts < 3600_000) {
-            ({ highRate, lowRate, highKwhMonth } = _rateCache);
+            ({ highRate, lowRate, highKwhMonth, weighted } = _rateCache);
         } else {
-            const baseUrl = `api.php?action=elspot-prices&start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}`;
-            const [highRes, lowRes] = await Promise.all([
+            const baseUrl = `api.php?action=elspot-prices&start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`;
+            const [highRes, lowRes, consRes] = await Promise.all([
                 fetch(baseUrl + '&tariff=high', { signal: controller.signal }),
                 fetch(baseUrl + '&tariff=low',  { signal: controller.signal }),
+                // Optional: if this fails the plain averages are used.
+                fetch(`api.php?action=hourly-consumption&start=${start}&end=${end}`, { signal: controller.signal })
+                    .catch(err => { if (err.name === 'AbortError') throw err; return null; }),
             ]);
             if (!highRes.ok || !lowRes.ok) return;
             const highData = await highRes.json();
             const lowData  = await lowRes.json();
+            // Hours without a published price have no record, so nothing to filter out here.
             const avgOf = d => {
-                const recs = (d.records || []).filter(r => r.kr_kwh > 0);
-                return recs.length ? recs.reduce((s, r) => s + r.kr_kwh, 0) / recs.length : 0;
+                const recs = d.records || [];
+                return recs.length ? recs.reduce((sum, r) => sum + r.kr_kwh, 0) / recs.length : 0;
             };
             highRate = avgOf(highData);
             lowRate  = avgOf(lowData);
             // Threshold: month-to-date portion of the monthly high-rate allowance.
             highKwhMonth = highData.components?.high_kwh_per_month ?? (4000 / 12);
+
+            weighted = null;
+            if (consRes && consRes.ok && window.SparkPricing) {
+                try {
+                    weighted = window.SparkPricing.weightedRates(await consRes.json(), highData.records || [], lowData.records || []);
+                } catch (err) { console.warn('hourly-consumption:', err); }
+            }
             if (highRate > 0 || lowRate > 0) {
-                _rateCache = { key: rateKey, ts: Date.now(), highRate, lowRate, highKwhMonth };
+                _rateCache = { key: rateKey, ts: Date.now(), highRate, lowRate, highKwhMonth, weighted };
             }
         }
         if (highRate <= 0 && lowRate <= 0) return;
+
+        const rateOpts  = weighted ? { vpRates: weighted.vp || undefined, restRates: weighted.rest || undefined } : {};
+        const basisNote = weighted ? 'vægtet efter hvornår strømmen blev brugt (timepriser)' : 'gennemsnit af månedens priser';
 
         // Month-to-date component kWh for the elvarme blend.
         const mtdRestKwh = hus ? Math.max(0, hus.month_kwh - (hp ? hp.month_kwh : 0) - (hus.ev_home_kwh || 0)) : 0;
@@ -586,6 +608,7 @@ async function _enrichCardsWithCost(hp, hus, ev) {
             vpKwh: hp ? hp.month_kwh : 0,
             restKwh: mtdRestKwh,
             highRate, lowRate, highKwhPerMonth: highKwhMonth,
+            ...rateOpts,
         });
 
         // Jordvarme card — VP share of the elvarme blend
@@ -593,7 +616,7 @@ async function _enrichCardsWithCost(hp, hus, ev) {
             const el = document.getElementById('hp-cost-stat');
             if (el) {
                 el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.vpCost, 0);
-                el.title = `Estimeret elvarme-model (inkl. systemtarif, nettarif, elafgift og moms)`;
+                el.title = `Estimeret elvarme-model, ${basisNote} (inkl. systemtarif, nettarif, elafgift og moms)`;
                 el.style.display = '';
             }
         }
@@ -602,7 +625,7 @@ async function _enrichCardsWithCost(hp, hus, ev) {
             const el = document.getElementById('hus-cost-stat');
             if (el) {
                 el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.total, 0);
-                el.title = `Estimeret elvarme-model: første ≈${Math.round(highKwhMonth)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
+                el.title = `Estimeret elvarme-model, ${basisNote}: første ≈${Math.round(highKwhMonth)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
                 el.style.display = '';
             }
         }
@@ -639,10 +662,13 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         // from restProjectedKwh above and passed as evKwh only so the model can
         // reason about the high-rate allowance ordering (EV always uses the low
         // rate); we deliberately drop projBlend.evCost from the total.
+        // The projected kWh are priced at the month-to-date (weighted) rates: the
+        // remaining days are assumed to follow the same usage pattern and price level.
         const projBlend = appUtils.elvarmeCost({
             vpKwh: hpProjectedKwh,
             restKwh: restProjectedKwh,
             highRate, lowRate, highKwhPerMonth: highKwhMonth,
+            ...rateOpts,
         });
         const hpCostProj   = Math.round(projBlend.vpCost);
         const restCostProj = Math.round(projBlend.restCost);
@@ -660,7 +686,9 @@ async function _enrichCardsWithCost(hp, hus, ev) {
             if (el) {
                 el.innerHTML = `<span class="total-cost-icon">\u26a1</span>` +
                     `<span class="total-cost-amount">Forventet elregning: ~${totalCostProj} kr</span>` +
-                    `<span class="total-cost-breakdown">EV: ~${Math.round(evProjectedCost)} \u00b7 VP: ~${hpCostProj} \u00b7 Rest: ~${restCostProj} kr</span>`;
+                    `<span class="total-cost-breakdown">EV: ~${Math.round(evProjectedCost)} \u00b7 VP: ~${hpCostProj} \u00b7 Rest: ~${restCostProj} kr \u00b7 ekskl. abonnement</span>`;
+                el.title = `Estimat. EV: faktisk pris fra Monta (hjemme og ude). VP og Rest: elvarme-model, ${basisNote}, ` +
+                           `inkl. tariffer, elafgift og moms. Uden abonnement og faste gebyrer.`;
                 el.style.display = '';
             }
         }
@@ -720,6 +748,17 @@ function _monthName() {
 function _setText(parent, selector, text) {
     const el = parent.querySelector(selector);
     if (el) el.textContent = text;
+}
+
+// What the "Forventet" figure is based on (Projection::fullMonth -> projection_basis).
+const _PROJECTION_BASIS = {
+    last_year:  'Baseret p\u00e5 samme m\u00e5ned sidste \u00e5r, justeret efter tempoet hidtil i \u00e5r',
+    prev_month: 'Baseret p\u00e5 forrige m\u00e5ned, justeret efter tempoet hidtil (sidste \u00e5r er ikke sammenligneligt)',
+    run_rate:   'Baseret p\u00e5 forbruget hidtil i m\u00e5neden',
+};
+function _setProjectionBasis(parent, basis) {
+    const el = parent.querySelector('.dash-projected');
+    if (el) el.title = _PROJECTION_BASIS[basis] || '';
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -63,7 +63,7 @@ class CacheHelper {
      */
     public const CHARGE_CACHE_PREFIXES = [
         'dashboard_', 'ev_compare_', 'annual_', 'analytics_',
-        'bill_', 'efficiency_', 'providerstats_', 'vehicle_compare_',
+        'bill_', 'efficiency_', 'providerstats_', 'vehicle_compare_', 'hourlycons_',
     ];
 
     /**
@@ -77,7 +77,7 @@ class CacheHelper {
      * that combine meter data, so freshly synced kWh shows up immediately.
      */
     public const METER_CACHE_PREFIXES = [
-        'heatpump_', 'housepower_', 'dashboard_', 'annual_', 'anomaly_', 'bill_',
+        'heatpump_', 'housepower_', 'dashboard_', 'annual_', 'anomaly_', 'bill_', 'hourlycons_',
     ];
 
     /**

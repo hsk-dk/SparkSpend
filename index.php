@@ -880,6 +880,7 @@ require 'includes/QueryBuilder.php';
     csrfToken:  '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>'
   };</script>
   <script defer src="<?= asset('includes/app.js') ?>"></script>
+  <script defer src="<?= asset('includes/pricing.js') ?>"></script>
 
   <!-- Module Scripts (defer: run in order after the deferred libraries above) -->
   <script defer src="<?= asset('includes/nav.js') ?>"></script>

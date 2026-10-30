@@ -1,0 +1,428 @@
+From 5455e1af92d94a3dee0014e2f2a662eb3aec83c2 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Fri, 30 Oct 2026 20:56:52 +0000
+Subject: [PATCH 2/3] Dashboard projection: stop trusting a non-comparable
+ anchor
+
+- Projection::fullMonth() extracted (pure, unit-tested, 27 checks incl. 50k
+  random cases identical to the old formula where the anchor is comparable)
+- Pace is compared with the anchor's own month-to-date. Far outside 0.5x..2x
+  (e.g. a second car) the clamp used to hide it; now the anchor loses weight and
+  the run-rate takes over after day 3
+- Last month is tried when last year is not comparable
+- 'projection_basis' (last_year | prev_month | run_rate) in the JSON, shown as
+  tooltip on 'Forventet'
+---
+ dev/test_projection.php          |  86 ++++++++++++++++++++++++++
+ includes/Projection.php          |  98 ++++++++++++++++++++++++++++++
+ includes/dashboard.js            |  16 ++++-
+ routes/get_dashboard_summary.php | 101 ++++++-------------------------
+ 4 files changed, 218 insertions(+), 83 deletions(-)
+ create mode 100644 dev/test_projection.php
+ create mode 100644 includes/Projection.php
+
+diff --git a/dev/test_projection.php b/dev/test_projection.php
+new file mode 100644
+index 0000000..9124747
+--- /dev/null
++++ b/dev/test_projection.php
+@@ -0,0 +1,86 @@
++<?php
++/**
++ * Unit tests for includes/Projection.php (no database needed).
++ * Run:  php dev/test_projection.php
++ */
++require __DIR__ . '/../includes/Projection.php';
++
++$fails = 0; $n = 0;
++function check(string $name, $actual, $expected, float $eps = 1e-9): void {
++    global $fails, $n; $n++;
++    $ok = (is_float($actual) || is_float($expected)) && is_numeric($actual) && is_numeric($expected)
++        ? abs($actual - $expected) <= $eps
++        : $actual === $expected;
++    if ($ok) { echo "  ok   $name\n"; return; }
++    $fails++;
++    echo "  FAIL $name\n       expected " . json_encode($expected) . "\n       got      " . json_encode($actual) . "\n";
++}
++$D = 31;
++$p = fn($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, $days) => Projection::fullMonth($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, (float)$days, $D);
++
++echo "reliability()\n";
++check('same pace -> 1',                    Projection::reliability(10, 10), 1.0);
++check('2x pace is still comparable -> 1',  Projection::reliability(20, 10), 1.0);
++check('0.5x pace is still comparable -> 1', Projection::reliability(5, 10), 1.0);
++check('4x pace -> 0',                      Projection::reliability(40, 10), 0.0);
++check('3x pace -> 2 - log2(3)',            Projection::reliability(30, 10), 2 - log(3, 2));
++check('nothing yet this month -> 0',       Projection::reliability(0, 10), 0.0);
++check('nothing in either period -> 1',     Projection::reliability(0, 0), 1.0);
++check('anchor had nothing, we have -> 0',  Projection::reliability(5, 0), 0.0);
++
++echo "fullMonth()\n";
++check('no anchors, day 10 -> run-rate', $p(100, 0, 0, 0, 0, 10)['value'], 100 / 10 * $D);
++check('no anchors, day 1.5 -> capped extrapolation', $p(10, 0, 0, 0, 0, 1.5)['value'], 10 / 1.5 * 4.5);
++check('no anchors -> basis run_rate', $p(100, 0, 0, 0, 0, 10)['basis'], 'run_rate');
++check('elapsed <= 0 -> null', $p(1, 0, 0, 0, 0, 0)['value'], null);
++
++// comparable last-year anchor, day 5: conf = (5-3)/11
++$r = $p(55, 0, 0, 50, 300, 5); $conf = 2 / 11; $anchor = 300 * (55 / 50); $run = 55 / 5 * $D;
++check('comparable last year: anchor/run-rate blend', $r['value'], $anchor * (1 - $conf) + $run * $conf);
++check('comparable last year -> basis last_year', $r['basis'], 'last_year');
++
++// structural change: 4x pace vs last year. Old code clamped to 2x and kept trusting it.
++$r = $p(40, 0, 0, 10, 100, 5);
++check('4x pace on day 5: run-rate takes over', $r['value'], 40 / 5 * $D);
++check('4x pace on day 5 -> basis run_rate', $r['basis'], 'run_rate');
++$r = $p(40, 0, 0, 10, 100, 2);
++check('4x pace on day 2 (< MIN_DAYS): anchor stays the prior (clamped 2x)', $r['value'], 200.0);
++check('4x pace on day 2 -> basis last_year', $r['basis'], 'last_year');
++
++// last year not comparable, last month is
++$r = $p(40, 38, 250, 10, 100, 5);
++check('last year off, last month fine -> prev_month', $r['basis'], 'prev_month');
++check('prev_month value = anchor/run-rate blend', $r['value'], 250 * (40 / 38) * (1 - 2 / 11) + (40 / 5 * $D) * (2 / 11));
++
++check('anchor had nothing, we have -> run-rate on day 5', $p(5, 0, 0, 0, 100, 5)['basis'], 'run_rate');
++$r = $p(0, 0, 0, 0, 100, 5);
++check('nothing yet in either period -> anchor x 1.0', $r['value'], 100.0 * (1 - 2 / 11));
++check('nothing yet in either period -> basis last_year', $r['basis'], 'last_year');
++
++foreach ([14, 20, 31] as $d) {
++    $r = $p(7 * $d, 6 * $d, 200, 6 * $d, 190, $d);
++    check("day $d: run-rate regardless of anchor", $r['value'], 7 * $d / $d * $D);
++}
++
++echo "backward compatibility: identical to the old formula whenever the anchor is comparable\n";
++function legacy(float $mtd, float $prevMtd, float $prevFull, float $lyMtd, float $lyFull, float $el, int $dim): float {
++    $run = $mtd / $el * $dim; $conf = max(0.0, min(1.0, ($el - 3) / 11));
++    if ($lyFull > 0)   { $f = $lyMtd   > 0 ? $mtd / $lyMtd   : 1.0; return $lyFull   * max(0.5, min(2.0, $f)) * (1 - $conf) + $run * $conf; }
++    if ($prevFull > 0) { $f = $prevMtd > 0 ? $mtd / $prevMtd : 1.0; return $prevFull * max(0.5, min(2.0, $f)) * (1 - $conf) + $run * $conf; }
++    return $el < 3 ? $mtd / $el * min($dim, $el * 3) : $run;
++}
++mt_srand(7); $cmp = 0; $bad = 0;
++for ($i = 0; $i < 50000; $i++) {
++    $el = mt_rand(5, 310) / 10; $mtd = mt_rand(1, 500);
++    $pace = mt_rand(50, 200) / 100;                       // comparable: 0.5x..2x
++    $hasLy = mt_rand(0, 1); $hasPrev = mt_rand(0, 1);
++    $lyMtd = $hasLy ? $mtd / $pace : 0; $lyFull = $hasLy ? mt_rand(50, 900) : 0;
++    $prevMtd = $hasPrev ? $mtd / (mt_rand(50, 200) / 100) : 0; $prevFull = $hasPrev ? mt_rand(50, 900) : 0;
++    $new = Projection::fullMonth($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, $el, 31)['value'];
++    $old = legacy($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, $el, 31);
++    $cmp++; if (abs($new - $old) > 1e-6) { $bad++; if ($bad < 3) echo "    mismatch el=$el mtd=$mtd ly=$lyMtd/$lyFull prev=$prevMtd/$prevFull new=$new old=$old\n"; }
++}
++check("$cmp random comparable cases identical to legacy", $bad, 0);
++
++echo "\n$n checks, $fails failed\n";
++exit($fails === 0 ? 0 : 1);
+diff --git a/includes/Projection.php b/includes/Projection.php
+new file mode 100644
+index 0000000..0860452
+--- /dev/null
++++ b/includes/Projection.php
+@@ -0,0 +1,98 @@
++<?php
++/**
++ * Month-end projection for the dashboard (pure functions, unit-tested:
++ *   php dev/test_projection.php).
++ *
++ * Early in a month the run-rate (mtd / days elapsed * days in month) is noise, so
++ * the projection starts from an ANCHOR (the same month last year, or else last
++ * month) scaled by this month's pace, and hands over to the run-rate as the
++ * month progresses (day 3 -> 14). Late in the month the actual data dominates
++ * whatever the anchor. With no anchor at all, the first days' extrapolation is
++ * capped so day 1 never reports mtd * daysInMonth.
++ *
++ * Why last year is preferred over last month: season matters, especially for
++ * heating. A heat pump can use many times more in January than in October, so
++ * anchoring early October on September (or January on December) is
++ * systematically wrong across season changes. The same month last year, scaled
++ * by how this year is tracking, carries both the season shape and the drift.
++ *
++ * What is different from a plain "anchor x clamp(pace)":
++ *  - Pace is compared with the anchor's own month-to-date. If it is far outside
++ *    0.5x..2x the anchor is not comparable (a second car, a new heat pump, a
++ *    holiday...). Clamping would hide that and keep trusting the anchor; here the
++ *    anchor loses weight and the run-rate takes over sooner (after day 3).
++ *  - If last year is not comparable, last month is tried before giving up.
++ *  - The result says which basis it used, so the UI can show it.
++ */
++final class Projection {
++
++    public const MIN_DAYS       = 3;    // below this the run-rate is noise
++    public const FULL_CONF_DAYS = 14;   // from here the run-rate is trusted fully
++
++    /**
++     * How comparable an anchor is, judged from pace = mtd / anchorMtd.
++     * 1.0 within 0.5x..2x, falling linearly to 0 at 0.25x / 4x (and beyond).
++     */
++    public static function reliability(float $mtd, float $anchorMtd): float {
++        if ($anchorMtd <= 0) {
++            // Nothing happened in the anchor's period yet: pace is unknowable.
++            return $mtd <= 0 ? 1.0 : 0.0;
++        }
++        if ($mtd <= 0) return 0.0;
++        $pace = $mtd / $anchorMtd;
++        $d = abs(log($pace, 2));          // 1 = factor 2 either way
++        return $d <= 1 ? 1.0 : max(0.0, 2.0 - $d);
++    }
++
++    /**
++     * @return array{value:?float, basis:string}  basis: last_year | prev_month | run_rate | none
++     */
++    public static function fullMonth(
++        float $mtd, float $prevMtd, float $prevFull,
++        float $lyMtd, float $lyFull,
++        float $daysElapsed, int $daysInMonth
++    ): array {
++        if ($daysElapsed <= 0 || $daysInMonth <= 0) return ['value' => null, 'basis' => 'none'];
++
++        $runRate = $mtd / $daysElapsed * $daysInMonth;
++        $conf    = max(0.0, min(1.0, ($daysElapsed - self::MIN_DAYS) / max(1, self::FULL_CONF_DAYS - self::MIN_DAYS)));
++
++        $candidates = [];
++        if ($lyFull > 0)   $candidates['last_year']  = ['full' => $lyFull,   'mtd' => $lyMtd,   'rel' => self::reliability($mtd, $lyMtd)];
++        if ($prevFull > 0) $candidates['prev_month'] = ['full' => $prevFull, 'mtd' => $prevMtd, 'rel' => self::reliability($mtd, $prevMtd)];
++
++        if (empty($candidates)) {
++            // No anchor at all.
++            if ($daysElapsed < self::MIN_DAYS) {
++                // Cap the extrapolation so day 1 doesn't report mtd * daysInMonth.
++                return ['value' => $mtd / $daysElapsed * min($daysInMonth, $daysElapsed * 3), 'basis' => 'run_rate'];
++            }
++            return ['value' => $runRate, 'basis' => 'run_rate'];
++        }
++
++        // Seasonal anchor wins when it is comparable (or at least as comparable as last month).
++        $name = 'last_year';
++        if (!isset($candidates['last_year'])) {
++            $name = 'prev_month';
++        } elseif (isset($candidates['prev_month'])
++                  && $candidates['last_year']['rel'] < 0.5
++                  && $candidates['prev_month']['rel'] > $candidates['last_year']['rel']) {
++            $name = 'prev_month';
++        }
++        $a = $candidates[$name];
++
++        // Anchor scaled by pace; the clamp only bounds the early-month prior.
++        $pace = ($a['mtd'] > 0) ? ($mtd / $a['mtd']) : 1.0;
++        $anchorProjection = $a['full'] * max(0.5, min(2.0, $pace));
++
++        // A non-comparable anchor hands over to the run-rate as soon as the
++        // run-rate is usable (>= MIN_DAYS); before that it stays the best prior.
++        $confEff = $conf;
++        if ($daysElapsed >= self::MIN_DAYS) {
++            $confEff = $conf + (1 - $conf) * (1 - $a['rel']);
++        }
++
++        $value = $anchorProjection * (1 - $confEff) + $runRate * $confEff;
++        return ['value' => $value, 'basis' => $confEff >= 0.5 ? 'run_rate' : $name];
++    }
++}
+diff --git a/includes/dashboard.js b/includes/dashboard.js
+index 08b0394..2eb499d 100644
+--- a/includes/dashboard.js
++++ b/includes/dashboard.js
+@@ -128,7 +128,8 @@ function renderEvCard(ev) {
+         ? `${unpriced} ladning${unpriced === 1 ? '' : 'er'} mangler pris \u2013 prisen er undervurderet`
+         : '';
+     _setText(card, '.dash-stat-cpkwh', ev.cost_per_kwh !== null ? _fmt(ev.cost_per_kwh, 2) : '—');
+-    _setText(card, '.dash-projected', ev.projected_cost !== null ? `Forventet: ${ev.projected_cost} kr` : '');
++    _setText(card, '.dash-projected', ev.projected_cost !== null ? `Forventet: ${_fmt(ev.projected_cost)} kr` : '');
++    _setProjectionBasis(card, ev.projection_basis);
+ 
+     // Home / external split bar
+     const splitWrap = card.querySelector('.dash-split-wrap');
+@@ -203,6 +204,7 @@ function renderHeatpumpCard(hp) {
+     _setText(card, '.dash-projected', hp.projected_kwh !== null
+         ? `Forventet: ${_fmt(hp.projected_kwh)} kWh (forrige: ${_fmt(hp.prev_month_full_kwh)})`
+         : '');
++    _setProjectionBasis(card, hp.projection_basis);
+ 
+     const showTrends = now.getDate() >= 5;
+     const trendEl = card.querySelector('.dash-trend');
+@@ -248,6 +250,7 @@ function renderHusCard(hus) {
+     _setText(card, '.dash-projected', hus.projected_kwh !== null
+         ? `Forventet: ${_fmt(hus.projected_kwh)} kWh` + (husPrevEst ? ` (forrige: ${_fmt(husPrevEst)})` : '')
+         : '');
++    _setProjectionBasis(card, hus.projection_basis);
+ 
+     const showTrends = now.getDate() >= 5;
+     const trendEl = card.querySelector('.dash-trend');
+@@ -722,6 +725,17 @@ function _setText(parent, selector, text) {
+     if (el) el.textContent = text;
+ }
+ 
++// What the "Forventet" figure is based on (Projection::fullMonth -> projection_basis).
++const _PROJECTION_BASIS = {
++    last_year:  'Baseret p\u00e5 samme m\u00e5ned sidste \u00e5r, justeret efter tempoet hidtil i \u00e5r',
++    prev_month: 'Baseret p\u00e5 forrige m\u00e5ned, justeret efter tempoet hidtil (sidste \u00e5r er ikke sammenligneligt)',
++    run_rate:   'Baseret p\u00e5 forbruget hidtil i m\u00e5neden',
++};
++function _setProjectionBasis(parent, basis) {
++    const el = parent.querySelector('.dash-projected');
++    if (el) el.title = _PROJECTION_BASIS[basis] || '';
++}
++
+ document.addEventListener('DOMContentLoaded', () => {
+     // loadDashboard() is called lazily by SparkNav when Oversigt tab is first activated.
+     // Re-fetch whenever a charge is saved so totals stay current.
+diff --git a/routes/get_dashboard_summary.php b/routes/get_dashboard_summary.php
+index 01a64dd..3abcdfb 100644
+--- a/routes/get_dashboard_summary.php
++++ b/routes/get_dashboard_summary.php
+@@ -5,6 +5,8 @@
+  * for the current month + 14-day sparklines.
+  */
+ 
++require_once __DIR__ . '/../includes/Projection.php';
++
+ // ─── 5-minute file cache ──────────────────────────────────────────────────────
+ $_dashCacheKey = 'dashboard_' . date('Y-m-d');
+ $_cached = QueryBuilder::fileCacheRead($_dashCacheKey, CacheHelper::TTL_MEDIUM);
+@@ -63,82 +65,14 @@ $prevLastFrac = ($prevEndDt->format('j') === $todayDt->format('j'))           ?
+ $lyLastFrac   = ($lastYearPeriodEndDt->format('j') === $todayDt->format('j')) ? $dayFraction : 1.0;
+ 
+ /**
+- * Season-aware full-month projection from month-to-date data.
+- *
+- * The hard case is the first few days of the month: a naive linear run-rate
+- * ($mtd / $daysSoFar * $daysInMonth) multiplies one or two days of data by
+- * ~30, so a single busy or quiet day throws the estimate wildly off.
+- *
+- * Season matters a lot — especially for heating. A heat pump can use many
+- * times more in January than in October, so anchoring the early-month estimate
+- * on LAST MONTH's total is systematically wrong across season changes (early
+- * October would be guessed from September, early January from December). The
+- * right seasonal anchor is the SAME MONTH LAST YEAR, scaled by how this year is
+- * tracking so far.
+- *
+- * Anchor priority (each clamped so one odd day can't dominate):
+- *
+- *  A. Same month last year ($lyFull), scaled by this year's pace vs. the same
+- *     period last year: lyFull * clamp(mtd / lyMtd, 0.5, 2.0).  <- seasonal,
+- *     preferred. Captures both the season shape and year-over-year drift.
+- *
+- *  B. Last month's full total ($prevFull), scaled by pace vs. last month's
+- *     same period: prevFull * clamp(mtd / prevMtd, 0.5, 2.0).  Used only when
+- *     last-year data is missing (e.g. first year of data). Not seasonal, so
+- *     it is the weaker fallback.
+- *
+- * The chosen anchor is blended with the linear run-rate via a confidence
+- * weight that stays near 0 (all anchor) until ~1 week in, then ramps toward
+- * the run-rate (day 3 -> 14) as real, in-season data accumulates. Late in the
+- * month the actual data dominates regardless of anchor.
+- *
+- * With no anchor at all, the first few days' extrapolation is capped so day 1
+- * never reports mtd * daysInMonth.
+- *
+- * Returns null only when there is genuinely nothing to go on.
++ * Project this month's total. Thin wrapper over Projection::fullMonth() (see
++ * includes/Projection.php) that supplies the elapsed-day globals.
++ * @return array{value:?float, basis:string}
+  */
+-if (!function_exists('projectFullMonth')) {
+-function projectFullMonth(
+-    float $mtd,
+-    float $prevMtd,
+-    float $prevFull,
+-    float $lyMtd = 0.0,
+-    float $lyFull = 0.0
+-): ?float {
++if (!function_exists('projectMonth')) {
++function projectMonth(float $mtd, float $prevMtd, float $prevFull, float $lyMtd = 0.0, float $lyFull = 0.0): array {
+     global $daysElapsed, $daysInMonth;
+-    if ($daysElapsed <= 0 || $daysInMonth <= 0) return null;
+-
+-    $runRate = $mtd / $daysElapsed * $daysInMonth;
+-
+-    // Confidence in the run-rate grows with elapsed days. Below ~3 days the
+-    // run-rate is noise; by ~14 days it is reliable. Ramp from day 3 -> 14.
+-    $MIN_DAYS = 3;
+-    $FULL_CONF_DAYS = 14;
+-    $conf = ($daysElapsed - $MIN_DAYS) / max(1, $FULL_CONF_DAYS - $MIN_DAYS);
+-    $conf = max(0.0, min(1.0, $conf));
+-
+-    // A. Seasonal anchor: same month last year, scaled by this year's pace.
+-    if ($lyFull > 0) {
+-        $yearFactor = ($lyMtd > 0) ? ($mtd / $lyMtd) : 1.0;
+-        $yearFactor = max(0.5, min(2.0, $yearFactor));
+-        $seasonProjection = $lyFull * $yearFactor;
+-        return $seasonProjection * (1 - $conf) + $runRate * $conf;
+-    }
+-
+-    // B. Fallback anchor: last month's full total (not seasonal).
+-    if ($prevFull > 0) {
+-        $paceFactor = ($prevMtd > 0) ? ($mtd / $prevMtd) : 1.0;
+-        $paceFactor = max(0.5, min(2.0, $paceFactor));
+-        $paceProjection = $prevFull * $paceFactor;
+-        return $paceProjection * (1 - $conf) + $runRate * $conf;
+-    }
+-
+-    // No anchor available at all.
+-    if ($daysElapsed < $MIN_DAYS) {
+-        // Cap the extrapolation so day 1 doesn't report mtd * daysInMonth.
+-        return $mtd / $daysElapsed * min($daysInMonth, $daysElapsed * 3);
+-    }
+-    return $runRate;
++    return Projection::fullMonth($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, (float)$daysElapsed, (int)$daysInMonth);
+ }
+ }
+ 
+@@ -393,8 +327,8 @@ $_unpricedKwh        = floatval($intMonth['unpriced_kwh']);
+ $_pricedKwh          = $totalKwh - $_unpricedKwh;
+ $evCostPerKwh        = $_pricedKwh > 0.001 ? round($totalCost / $_pricedKwh, 3) : null;
+ $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
+-$_evProjectedRaw     = projectFullMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
+-$evProjected         = $_evProjectedRaw !== null ? round($_evProjectedRaw) : null;
++$_evProj             = projectMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
++$evProjected         = $_evProj['value'] !== null ? round($_evProj['value']) : null;
+ $evPctChangeKwh      = $prevTotalKwh  > 0 ? round(($totalKwh - $prevTotalKwh) / $prevTotalKwh * 100, 1) : null;
+ $evPctChangeKwhYear  = $lyTotalKwh    > 0 ? round(($totalKwh - $lyTotalKwh)   / $lyTotalKwh   * 100, 1) : null;
+ $evPctChangeCost     = $prevTotalCost > 0 ? round(($totalCost - $prevTotalCost) / $prevTotalCost * 100, 1) : null;
+@@ -410,14 +344,14 @@ $extCpKwh   = $extKwh  > 0 ? round($extCost  / $extKwh,  3) : null;
+ $prevExtPct = $prevTotalKwh > 0 ? round($extPrevKwh / $prevTotalKwh * 100, 1) : null;
+ 
+ $hpDailyAvg     = round($hpCurrent / $daysElapsed, 2);
+-$_hpProjectedRaw = projectFullMonth($hpCurrent, $hpPrev, $hpPrevFull, $hpLastYearPeriod, $hpLastYear);
+-$hpProjected     = $_hpProjectedRaw !== null ? round($_hpProjectedRaw, 1) : null;
++$_hpProj         = projectMonth($hpCurrent, $hpPrev, $hpPrevFull, $hpLastYearPeriod, $hpLastYear);
++$hpProjected     = $_hpProj['value'] !== null ? round($_hpProj['value'], 1) : null;
+ 
+ $husDailyAvg    = $husCurrentKwh !== null ? round($husCurrentKwh / $daysElapsed, 2) : null;
+-$_husProjectedRaw = $husCurrentKwh !== null
+-                    ? projectFullMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh),
+-                                       floatval($husLastYearKwh), floatval($husLastYearFullKwh)) : null;
+-$husProjected   = $_husProjectedRaw !== null ? round($_husProjectedRaw, 1) : null;
++$_husProj         = $husCurrentKwh !== null
++                    ? projectMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh),
++                                   floatval($husLastYearKwh), floatval($husLastYearFullKwh)) : null;
++$husProjected   = ($_husProj !== null && $_husProj['value'] !== null) ? round($_husProj['value'], 1) : null;
+ $husPctChange   = ($husCurrentKwh !== null && $husPrevKwh > 0)
+                     ? round(($husCurrentKwh - $husPrevKwh) / $husPrevKwh * 100, 1) : null;
+ $husPctChangeYear = ($husCurrentKwh !== null && $husLastYearKwh > 0)
+@@ -433,6 +367,7 @@ $response = json_encode([
+         'cost_per_kwh'         => $evCostPerKwh,
+         'home_kwh_pct'         => $evHomePct,
+         'projected_cost'       => $evProjected,
++        'projection_basis'     => $_evProj['basis'],
+         'pct_change_kwh'       => $evPctChangeKwh,
+         'pct_change_year_kwh'  => $evPctChangeKwhYear,
+         'pct_change_cost'      => $evPctChangeCost,
+@@ -458,6 +393,7 @@ $response = json_encode([
+         'pct_change_year'     => $hpPctChangeYear,
+         'daily_avg_kwh'       => $hpDailyAvg,
+         'projected_kwh'       => $hpProjected,
++        'projection_basis'    => $_hpProj['basis'],
+         'sparkline'           => $hpSparkline,
+     ],
+     'hus' => $husCurrentKwh !== null ? [
+@@ -469,6 +405,7 @@ $response = json_encode([
+         'hp_kwh'          => round($hpCurrent, 2),
+         'daily_avg_kwh'   => $husDailyAvg,
+         'projected_kwh'   => $husProjected,
++        'projection_basis' => $_husProj['basis'] ?? null,
+         'sparkline'       => $husSparkline,
+     ] : null,
+ ]);
+-- 
+2.43.0
+
