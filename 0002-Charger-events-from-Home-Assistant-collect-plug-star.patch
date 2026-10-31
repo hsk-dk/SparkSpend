@@ -1,0 +1,853 @@
+From fdff5436bdcdab2a310b0f77e407e8f1a4fec4f5 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Sat, 31 Oct 2026 13:51:48 +0000
+Subject: [PATCH 2/2] Charger events from Home Assistant: collect
+ plug/start/end/unplug with car snapshots
+
+- charger_events table (migration 005), unique on (event, eventAt)
+- receive_charger_event.php: standalone endpoint (Authentik bypass, same API key),
+  strict validation (ChargerEvents), idempotent
+- ChargerSessions assembles sessions: plug-in and charge start are kept apart
+  (Monta delays charging 4-5 h to cheap hours), energy = the session counter just
+  before it resets, stale counter after an integration reload is not reused
+- api.php?action=charger-sessions
+- HA automation + rest_command in docs/home-assistant-charger-events.md; rules
+  verified by replaying the real 26-30 Oct history (ignores the unknown blips)
+- dev/test_charger_events.php (53 checks) + fixture from real data
+---
+ CHANGELOG.md                                  |   4 +
+ api.php                                       |   1 +
+ dev/fixtures/charger_events_sample.json       |  90 ++++++++++++
+ dev/test_charger_events.php                   | 116 +++++++++++++++
+ docs/home-assistant-charger-events.md         | 133 ++++++++++++++++++
+ includes/ChargerEvents.php                    | 107 ++++++++++++++
+ includes/ChargerSessions.php                  | 121 ++++++++++++++++
+ migrations/charges/005_add_charger_events.php |  29 ++++
+ receive_charger_event.php                     |  26 ++++
+ routes/get_charger_sessions.php               |  37 +++++
+ routes/receive_charger_event.php              |  70 +++++++++
+ 11 files changed, 734 insertions(+)
+ create mode 100644 dev/fixtures/charger_events_sample.json
+ create mode 100644 dev/test_charger_events.php
+ create mode 100644 docs/home-assistant-charger-events.md
+ create mode 100644 includes/ChargerEvents.php
+ create mode 100644 includes/ChargerSessions.php
+ create mode 100644 migrations/charges/005_add_charger_events.php
+ create mode 100644 receive_charger_event.php
+ create mode 100644 routes/get_charger_sessions.php
+ create mode 100644 routes/receive_charger_event.php
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index df52bb3..cd6a145 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,10 @@ All notable changes to SparkSpend are listed here in reverse chronological order
+ 
+ ## [Unreleased]
+ 
++### Added (charger events)
++- **Events from the charger itself, via Home Assistant.** `receive_charger_event.php` (standalone like `receive_vehicle_data.php`, same API key) stores `plugged` / `charge_start` / `charge_end` / `unplugged` in the new `charger_events` table together with a snapshot of every car (SoC, odometer, cable sensor, the car's own timestamp). `api.php?action=charger-sessions` assembles them into sessions with the charger's own energy and average power. Car attribution from these signals is intentionally not decided yet — this step only collects data. Setup: `docs/home-assistant-charger-events.md`.
++- `includes/ChargerEvents.php` (validation) and `includes/ChargerSessions.php` (assembly), tests in `dev/test_charger_events.php` against real data in `dev/fixtures/charger_events_sample.json`.
++
+ ### Fixed (dashboard data logic)
+ - **Ongoing charging session counts.** A session that is still running has `stoppedAt = NULL` and was excluded; its end is now `COALESCE(stoppedAt, updatedAt, startedAt)`. `ev.charging_now` added to the dashboard JSON.
+ - **Projection no longer trusts a non-comparable anchor.** If this month's pace is far outside 0.5x..2x of the anchor's own month-to-date (e.g. a second car), the anchor loses weight and the run-rate takes over after day 3; last month is tried when last year is not comparable. `projection_basis` (`last_year` | `prev_month` | `run_rate`) is returned and shown as tooltip on "Forventet". Identical to the old result where the anchor is comparable.
+diff --git a/api.php b/api.php
+index d2392f7..50ffa0d 100644
+--- a/api.php
++++ b/api.php
+@@ -31,6 +31,7 @@ $routes = [
+     'elspot-prices'        => ['handler' => 'routes/get_elspot_prices.php'],
+     'heatpump'             => ['handler' => 'routes/get_heatpump_data.php'],
+     'hourly-consumption'   => ['handler' => 'routes/get_hourly_consumption.php'],
++    'charger-sessions'     => ['handler' => 'routes/get_charger_sessions.php'],
+     'house-power'          => ['handler' => 'routes/get_house_power_data.php'],
+     'monthly-bill'         => ['handler' => 'routes/get_monthly_bill_data.php'],
+     'providers'            => ['handler' => 'routes/get_providers.php'],
+diff --git a/dev/fixtures/charger_events_sample.json b/dev/fixtures/charger_events_sample.json
+new file mode 100644
+index 0000000..e20934c
+--- /dev/null
++++ b/dev/fixtures/charger_events_sample.json
+@@ -0,0 +1,90 @@
++[
++ {
++  "eventAt": "2026-10-26T02:00:03Z",
++  "event": "charge_start",
++  "chargerStatus": "charging",
++  "sessionEnergy": null,
++  "lifetimeEnergy": 15192.6832241667,
++  "power": 0.25900000333786
++ },
++ {
++  "eventAt": "2026-10-26T04:07:12Z",
++  "event": "charge_end",
++  "chargerStatus": "completed",
++  "sessionEnergy": 22.1420192718506,
++  "lifetimeEnergy": 15203.1571922223,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-26T09:42:18Z",
++  "event": "unplugged",
++  "chargerStatus": "disconnected",
++  "sessionEnergy": 22.1420192718506,
++  "lifetimeEnergy": 15214.8252441667,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-26T19:25:45Z",
++  "event": "plugged",
++  "chargerStatus": "awaiting_authorization",
++  "sessionEnergy": null,
++  "lifetimeEnergy": 15214.8252441667,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-26T23:25:42Z",
++  "event": "charge_start",
++  "chargerStatus": "charging",
++  "sessionEnergy": null,
++  "lifetimeEnergy": 15214.8252441667,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-27T04:50:42Z",
++  "event": "charge_end",
++  "chargerStatus": "completed",
++  "sessionEnergy": 56.5326881408691,
++  "lifetimeEnergy": 15262.5749575001,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-27T10:04:36Z",
++  "event": "unplugged",
++  "chargerStatus": "disconnected",
++  "sessionEnergy": 0.0,
++  "lifetimeEnergy": 15271.3579341667,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-29T19:04:09Z",
++  "event": "plugged",
++  "chargerStatus": "awaiting_authorization",
++  "sessionEnergy": null,
++  "lifetimeEnergy": 15271.3579341667,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-30T00:29:53Z",
++  "event": "charge_start",
++  "chargerStatus": "charging",
++  "sessionEnergy": null,
++  "lifetimeEnergy": 15271.3579341667,
++  "power": 0.0
++ },
++ {
++  "eventAt": "2026-10-30T03:57:23Z",
++  "event": "charge_end",
++  "chargerStatus": "completed",
++  "sessionEnergy": 36.4494018554688,
++  "lifetimeEnergy": 15297.642098889,
++  "power": 0.776000022888184
++ },
++ {
++  "eventAt": "2026-10-30T06:00:16Z",
++  "event": "unplugged",
++  "chargerStatus": "disconnected",
++  "sessionEnergy": 0.0,
++  "lifetimeEnergy": 15307.8073352778,
++  "power": 0.0
++ }
++]
+\ No newline at end of file
+diff --git a/dev/test_charger_events.php b/dev/test_charger_events.php
+new file mode 100644
+index 0000000..69f0df1
+--- /dev/null
++++ b/dev/test_charger_events.php
+@@ -0,0 +1,116 @@
++<?php
++/**
++ * Unit tests for includes/ChargerEvents.php (validation) and
++ * includes/ChargerSessions.php (session assembly). No database needed.
++ * Run:  php dev/test_charger_events.php
++ *
++ * dev/fixtures/charger_events_sample.json is real data: three charging sessions
++ * (26-30 Oct 2026) replayed through the Home Assistant automation's event rules.
++ */
++require __DIR__ . '/../includes/ChargerEvents.php';
++require __DIR__ . '/../includes/ChargerSessions.php';
++
++$fails = 0; $n = 0;
++function check(string $name, $actual, $expected, float $eps = 1e-9): void {
++    global $fails, $n; $n++;
++    $ok = ($actual === $expected) || (is_numeric($actual) && is_numeric($expected) && !is_string($actual) && abs($actual - $expected) <= $eps);
++    if ($ok) { echo "  ok   $name\n"; return; }
++    $fails++;
++    echo "  FAIL $name\n       expected " . json_encode($expected) . "\n       got      " . json_encode($actual) . "\n";
++}
++function checkLoose(string $name, $actual, $expected): void {   // == instead of === (JSON drops the ".0" of floats)
++    check($name, $actual == $expected, true);
++}
++$NOW = strtotime('2026-10-31T08:00:00Z');
++$v = fn(array $in) => ChargerEvents::validate($in, $NOW);
++$ok = ['event' => 'plugged', 'eventAt' => '2026-10-30T19:04:09Z'];
++
++echo "ChargerEvents::validate()\n";
++$r = $v($ok);
++check('minimal valid event', [$r['ok'], $r['row']['event'], $r['row']['eventAt']], [true, 'plugged', '2026-10-30T19:04:09Z']);
++check('HA isoformat with microseconds and +00:00 -> UTC Z seconds', $v(['event' => 'charge_start', 'eventAt' => '2026-10-30T00:29:53.839000+00:00'])['row']['eventAt'], '2026-10-30T00:29:53Z');
++check('other UTC offsets are converted', $v(['event' => 'charge_start', 'eventAt' => '2026-10-30T01:29:53+01:00'])['row']['eventAt'], '2026-10-30T00:29:53Z');
++check('unknown event rejected', $v(['event' => 'explode', 'eventAt' => $ok['eventAt']])['ok'], false);
++check('missing event rejected', $v(['eventAt' => $ok['eventAt']])['ok'], false);
++foreach (['', 'tomorrow', 'yesterday 12:00', '2026-10-30', 123, null, str_repeat('2', 60)] as $bad) {
++    check('eventAt ' . json_encode($bad) . ' rejected', $v(['event' => 'plugged', 'eventAt' => $bad])['ok'], false);
++}
++check('5 min in the future is tolerated', $v(['event' => 'plugged', 'eventAt' => '2026-10-31T08:05:00Z'])['ok'], true);
++check('1 h in the future is rejected', $v(['event' => 'plugged', 'eventAt' => '2026-10-31T09:00:00Z'])['ok'], false);
++check('older than 30 days is rejected', $v(['event' => 'plugged', 'eventAt' => '2026-09-01T00:00:00Z'])['ok'], false);
++
++$r = $v($ok + ['sessionEnergy' => '36.449', 'lifetimeEnergy' => 15307.8, 'power' => 'unknown']);
++check('numeric strings accepted, "unknown" -> null', [$r['row']['sessionEnergy'], $r['row']['lifetimeEnergy'], $r['row']['power']], [36.449, 15307.8, null]);
++check('negative energy rejected', $v($ok + ['sessionEnergy' => -5])['ok'], false);
++check('absurd lifetime energy rejected', $v($ok + ['lifetimeEnergy' => 1e9])['ok'], false);
++check('power 500 kW rejected', $v($ok + ['power' => 500])['ok'], false);
++check('non-numeric energy rejected', $v($ok + ['sessionEnergy' => 'abc'])['ok'], false);
++check('boolean energy rejected', $v($ok + ['sessionEnergy' => true])['ok'], false);
++check('status is lower-cased', $v($ok + ['status' => 'Awaiting_Authorization'])['row']['chargerStatus'], 'awaiting_authorization');
++check('status with markup is dropped', $v($ok + ['status' => '<script>'])['row']['chargerStatus'], null);
++
++$cars = ['2' => ['soc' => 53, 'odometer' => '58929', 'cable' => 'off', 'carTs' => '2026-10-31T05:19:03+00:00', 'evil' => 'x'],
++         '3' => ['soc' => 150, 'odometer' => -1, 'cable' => 'connected', 'carTs' => 'unknown']];
++$r = $v($ok + ['cars' => $cars]); $c = json_decode($r['row']['cars'], true);
++checkLoose('cars: values cleaned', $c['2'], ['soc' => 53, 'odometer' => 58929, 'cable' => 'off', 'carTs' => '2026-10-31T05:19:03Z']);
++checkLoose('cars: out-of-range / unparseable values become null, unknown keys are dropped', $c['3'], ['soc' => null, 'odometer' => null, 'cable' => 'connected', 'carTs' => null]);
++check('cars: bad key rejected', $v($ok + ['cars' => ['abc' => ['soc' => 5]]])['ok'], false);
++check('cars: vehicleId 0 rejected', $v($ok + ['cars' => ['0' => ['soc' => 5]]])['ok'], false);
++check('cars: not an object rejected', $v($ok + ['cars' => 'x'])['ok'], false);
++check('cars: too many rejected', $v($ok + ['cars' => array_fill(1, 25, ['soc' => 1])])['ok'], false);
++check('cars: empty -> stored as NULL', $v($ok + ['cars' => []])['row']['cars'], null);
++check('unrelated keys are ignored', array_keys($v($ok + ['password' => 'x'])['row']), ['eventAt', 'event', 'chargerStatus', 'sessionEnergy', 'lifetimeEnergy', 'power', 'cars']);
++
++echo "ChargerSessions::build() on real data\n";
++$fx = json_decode(file_get_contents(__DIR__ . '/fixtures/charger_events_sample.json'), true);
++foreach ($fx as &$e) $e['cars'] = null; unset($e);
++$s = ChargerSessions::build($fx);
++check('three sessions', count($s), 3);
++check('s1: plug-in happened before the data starts', $s[0]['pluggedAt'], null);
++check('s1: energy', $s[0]['energyKwh'], 22.142, 1e-3);
++check('s2: plugged / start / end / unplugged', [$s[1]['pluggedAt'], $s[1]['chargeStartAt'], $s[1]['chargeEndAt'], $s[1]['unpluggedAt']],
++    ['2026-10-26T19:25:45Z', '2026-10-26T23:25:42Z', '2026-10-27T04:50:42Z', '2026-10-27T10:04:36Z']);
++check('s2: energy', $s[1]['energyKwh'], 56.533, 1e-3);
++check('s3: energy', $s[2]['energyKwh'], 36.449, 1e-3);
++foreach ([[0, 10.45], [1, 10.44], [2, 10.54]] as [$i, $kw]) check("avg power s" . ($i + 1) . " is ~$kw kW", $s[$i]['avgPowerKw'], $kw, 0.02);
++check('hours charged s2', $s[1]['chargingHours'], 5.417, 1e-3);
++check('none is open', array_map(fn($x) => $x['open'], $s), [false, false, false]);
++check('s1 on-unplug reading is the stale repeat of its own energy, not used twice', $s[0]['energyKwh'], 22.142, 1e-3);
++
++echo "ChargerSessions::build() edge cases\n";
++$ev = fn(string $t, string $type, array $x = []) => $x + ['eventAt' => $t, 'event' => $type, 'sessionEnergy' => null, 'lifetimeEnergy' => null, 'power' => null, 'chargerStatus' => null, 'cars' => null];
++$s = ChargerSessions::build([$ev('2026-10-01T20:00:00Z', 'plugged'), $ev('2026-10-02T20:00:00Z', 'plugged'), $ev('2026-10-02T22:00:00Z', 'unplugged')]);
++check('a new plug-in closes the previous session that never saw an unplug', [count($s), $s[0]['unpluggedAt'], $s[1]['unpluggedAt']], [2, null, '2026-10-02T22:00:00Z']);
++
++$s = ChargerSessions::build([$ev('2026-10-01T22:00:00Z', 'charge_start'), $ev('2026-10-02T01:00:00Z', 'charge_end', ['sessionEnergy' => 30.0])]);
++check('charging without a seen plug-in is still a session (open)', [count($s), $s[0]['pluggedAt'], $s[0]['open'], $s[0]['energyKwh']], [1, null, true, 30.0]);
++
++$s = ChargerSessions::build([$ev('2026-10-01T20:00:00Z', 'plugged'), $ev('2026-10-01T21:00:00Z', 'charge_start'), $ev('2026-10-01T22:00:00Z', 'charge_end', ['sessionEnergy' => 10.0]),
++    $ev('2026-10-02T01:00:00Z', 'charge_start'), $ev('2026-10-02T03:00:00Z', 'charge_end', ['sessionEnergy' => 20.0]), $ev('2026-10-02T08:00:00Z', 'unplugged')]);
++check('two charge segments add up', [$s[0]['segments'], $s[0]['energyKwh'], $s[0]['chargingHours'], $s[0]['avgPowerKw']], [2, 30.0, 3.0, 10.0]);
++
++$s = ChargerSessions::build([$ev('2026-10-01T20:00:00Z', 'plugged'), $ev('2026-10-01T21:00:00Z', 'charge_start'),
++    $ev('2026-10-02T08:00:00Z', 'unplugged', ['sessionEnergy' => 17.5])]);
++check('missed charge_end: on-unplug counter is used', $s[0]['energyKwh'], 17.5);
++
++$s = ChargerSessions::build([$ev('2026-10-01T20:00:00Z', 'plugged'), $ev('2026-10-01T21:00:00Z', 'charge_start'), $ev('2026-10-01T23:00:00Z', 'charge_end', ['sessionEnergy' => 22.142]), $ev('2026-10-02T08:00:00Z', 'unplugged'),
++    $ev('2026-10-03T20:00:00Z', 'plugged'), $ev('2026-10-03T21:00:00Z', 'charge_start'), $ev('2026-10-04T08:00:00Z', 'unplugged', ['sessionEnergy' => 22.142])]);
++check('missed charge_end: the previous session\'s stale value is NOT reused', $s[1]['energyKwh'], null);
++
++$s = ChargerSessions::build([$ev('2026-10-01T20:00:00Z', 'plugged'), $ev('2026-10-02T08:00:00Z', 'unplugged', ['sessionEnergy' => 5.0])]);
++check('plug + unplug without any charging has no energy', $s[0]['energyKwh'], null);
++
++$s = ChargerSessions::build([$ev('2026-10-02T08:00:00Z', 'unplugged'), $ev('2026-10-01T20:00:00Z', 'plugged'), $ev('2026-10-01T21:00:00Z', 'charge_start'), $ev('2026-10-02T00:00:00Z', 'charge_end', ['sessionEnergy' => 9.0])]);
++check('input order does not matter', [count($s), $s[0]['energyKwh'], $s[0]['unpluggedAt']], [1, 9.0, '2026-10-02T08:00:00Z']);
++
++$s = ChargerSessions::build([$ev('2026-10-01T20:00:00Z', 'plugged'), $ev('2026-10-01T21:00:00Z', 'charge_start'), $ev('2026-10-01T22:00:00Z', 'charge_end', ['sessionEnergy' => 5.0]), $ev('2026-10-01T22:00:00Z', 'unplugged')]);
++check('events in the same second keep their logical order', [count($s), $s[0]['unpluggedAt'], $s[0]['energyKwh']], [1, '2026-10-01T22:00:00Z', 5.0]);
++
++$cs = ['2' => ['soc' => 40.0, 'odometer' => 1000.0, 'cable' => 'on', 'carTs' => null]];
++$ce = ['2' => ['soc' => 70.0, 'odometer' => 1000.0, 'cable' => 'on', 'carTs' => null]];
++$s = ChargerSessions::build([$ev('2026-10-01T20:00:00Z', 'plugged', ['cars' => $cs]), $ev('2026-10-01T21:00:00Z', 'charge_start'), $ev('2026-10-01T23:00:00Z', 'charge_end', ['sessionEnergy' => 20.0, 'cars' => $ce])]);
++check('car snapshots are kept per stage', [$s[0]['cars']['plugged']['2']['soc'], $s[0]['cars']['charge_end']['2']['soc'], $s[0]['cars']['unplugged']], [40.0, 70.0, null]);
++check('empty input -> no sessions', ChargerSessions::build([]), []);
++
++echo "\n$n checks, $fails failed\n";
++exit($fails === 0 ? 0 : 1);
+diff --git a/docs/home-assistant-charger-events.md b/docs/home-assistant-charger-events.md
+new file mode 100644
+index 0000000..7f35b11
+--- /dev/null
++++ b/docs/home-assistant-charger-events.md
+@@ -0,0 +1,133 @@
++# Laderhændelser fra Home Assistant
++
++HA sender fire hændelser til SparkSpend, hver gang laderen skifter tilstand, sammen med
++et øjebliksbillede af bilerne (SoC, kilometerstand, kabelsensor og bilens eget tidsstempel).
++Sessioner bygges af hændelserne i `includes/ChargerSessions.php` og kan ses på
++`api.php?action=charger-sessions`.
++
++| Hændelse | Udløses når | Bruges til |
++|---|---|---|
++| `plugged` | status går fra `disconnected` til en gyldig tilstand | Tilslutningstidspunkt, bilernes SoC ved ankomst |
++| `charge_start` | status bliver `charging` | Start på selve ladningen (kan ligge timer efter tilslutning, når Monta venter på billig strøm) |
++| `charge_end` | `session_energy` nulstilles til 0 | **Sessionens endelige energi** (værdien lige før nulstillingen) |
++| `unplugged` | status bliver `disconnected` | Frakobling, bilernes SoC |
++
++## Før du slår det til
++
++1. **Kør migrationen**: `php migrate.php` (eller vent på auto-migrationen, der kører højst én gang i timen).
++   Den opretter tabellen `charger_events`.
++2. **Undtag `/receive_charger_event.php` fra Authentik** på samme måde som `/receive_vehicle_data.php`.
++   Ellers bliver HA's kald omdirigeret til login, og HA melder "Client error".
++3. Endpointet bruger **samme `VEHICLE_API_KEY`** som `receive_vehicle_data.php`.
++
++## Hvorfor reglerne ser ud, som de gør (målt på rigtige data, 26.-30. okt. 2026)
++
++- Det endelige `session_energy` kommer først **4-64 sekunder efter** `completed` og nulstilles straks. Læses sensoren på
++  `completed`, er den 0,15-0,77 kWh bagud. Derfor udløses `charge_end` af nulstillingen, og energien er `from_state`.
++- Alle laderens sensorer blinker til `unknown` / `unknown 0` i omkring 0,1 s ved genindlæsning eller genstart af HA.
++  Reglerne kræver derfor en gyldig tilstand før og efter, ellers ville en genstart se ud som tilslutning og frakobling.
++- Efter en genindlæsning viser `session_energy` den *forrige* sessions værdi i stedet for 0. SparkSpend bruger kun
++  aflæsningen ved frakobling, hvis der har været ladning i sessionen, og værdien ikke bare gentager forrige session.
++- `lifetime_energy` er den samme tæller, men opdateres kun cirka hver time, så den bruges kun som kontrol.
++
++## Konfiguration
++
++`configuration.yaml`:
++
++```yaml
++rest_command:
++  sparkspend_charger_event:
++    url: "https://sparkspend.useful.dk/receive_charger_event.php"
++    method: post
++    content_type: "application/json"
++    headers:
++      Authorization: !secret sparkspend_bearer      # "Bearer <VEHICLE_API_KEY>" (som til cablepluggedin)
++    timeout: 15
++    payload: >-
++      {{ {
++        'event': event,
++        'eventAt': eventAt,
++        'status': status,
++        'sessionEnergy': sessionEnergy,
++        'lifetimeEnergy': lifetimeEnergy,
++        'power': power,
++        'cars': cars
++      } | tojson }}
++```
++
++Automation (tilpas entitetsnavnene; `'2'` er Enyaq og `'3'` er e-Up, som i `vehicles`-tabellen):
++
++```yaml
++alias: SparkSpend - laderhændelser
++description: Sender plug-in, ladestart, ladeslut og frakobling med bilernes tilstand til SparkSpend
++mode: queued
++max: 20
++triggers:
++  - trigger: state
++    entity_id: sensor.ehygy68p_status
++    id: status
++  - trigger: state
++    entity_id: sensor.ehygy68p_session_energy
++    id: session
++variables:
++  bad: ["unknown", "unavailable", "unknown 0", "none", ""]
++  frm: "{{ trigger.from_state.state if trigger.from_state is not none else '' }}"
++  to: "{{ trigger.to_state.state if trigger.to_state is not none else '' }}"
++  event: >-
++    {{ 'plugged' if (trigger.id == 'status' and frm == 'disconnected' and to not in bad and to != 'disconnected')
++       else 'charge_start' if (trigger.id == 'status' and to == 'charging' and frm not in bad and frm != 'charging')
++       else 'unplugged' if (trigger.id == 'status' and to == 'disconnected' and frm not in bad and frm != 'disconnected')
++       else 'charge_end' if (trigger.id == 'session' and (frm | float(-1)) > 0 and (to | float(-1)) == 0)
++       else '' }}
++actions:
++  - condition: template
++    value_template: "{{ event != '' }}"
++  - action: rest_command.sparkspend_charger_event
++    continue_on_error: true
++    response_variable: rest_result
++    data:
++      event: "{{ event }}"
++      eventAt: "{{ trigger.to_state.last_changed.isoformat() }}"
++      status: "{{ states('sensor.ehygy68p_status') }}"
++      sessionEnergy: >-
++        {{ (frm | float(none)) if event == 'charge_end' else (states('sensor.ehygy68p_session_energy') | float(none)) }}
++      lifetimeEnergy: "{{ states('sensor.ehygy68p_lifetime_energy') | float(none) }}"
++      power: "{{ states('sensor.ehygy68p_power') | float(none) }}"
++      cars:
++        '2':
++          soc: "{{ states('sensor.skoda_enyaq_batteriprocent') | float(none) }}"
++          odometer: "{{ states('sensor.skoda_enyaq_kilometerstand') | float(none) }}"
++          cable: "{{ states('binary_sensor.skoda_enyaq_ladekabel') }}"
++          carTs: "{{ states('sensor.skoda_enyaq_sidst_opdateret') }}"
++        '3':
++          soc: "{{ states('sensor.indkorsel_e_up_battery') | float(none) }}"
++          odometer: "{{ states('sensor.indkorsel_e_up_mileage') | float(none) }}"
++          cable: "{{ states('sensor.indkorsel_e_up_plug_state') }}"
++          carTs: "{{ states('sensor.indkorsel_e_up_last_connected') }}"
++  - if:
++      - condition: template
++        value_template: "{{ rest_result is not defined or rest_result.status not in [200, 201] }}"
++    then:
++      - action: persistent_notification.create
++        data:
++          title: SparkSpend - laderhændelse fejlede
++          message: >-
++            {{ event }} ({{ trigger.to_state.last_changed.isoformat() }}):
++            {{ rest_result.status if rest_result is defined else 'intet svar' }}
++```
++
++Kaldet er idempotent: samme hændelse to gange gemmes kun én gang (svar 200), så et gentaget kald er ufarligt.
++
++> HA-konfigurationen er skrevet ud fra HA's dokumenterede skabelonsyntaks, men er ikke kørt mod en rigtig HA.
++> Test med Udviklerværktøjer -> Handlinger og kontrollér på `api.php?action=charger-sessions`.
++
++## Test
++
++```bash
++curl -i -X POST https://sparkspend.useful.dk/receive_charger_event.php \
++  -H "Authorization: Bearer <VEHICLE_API_KEY>" -H "Content-Type: application/json" \
++  -d '{"event":"plugged","eventAt":"2026-10-31T18:00:00Z","status":"awaiting_authorization"}'
++```
++
++`201` = gemt, `200` = dublet, `401` = forkert nøgle, `400` = fejlen står i svaret. Svarer HA med 400 "Invalid JSON format",
++er `payload` ikke blevet til JSON: kontrollér, at `tojson`-linjen står i `rest_command`.
+diff --git a/includes/ChargerEvents.php b/includes/ChargerEvents.php
+new file mode 100644
+index 0000000..209a3c8
+--- /dev/null
++++ b/includes/ChargerEvents.php
+@@ -0,0 +1,107 @@
++<?php
++/**
++ * Validation / normalisation of a charger event posted by Home Assistant
++ * (pure function, unit-tested: php dev/test_charger_events.php).
++ *
++ * Everything from the outside is untrusted: unknown keys are dropped, numbers are
++ * range-checked, strings are length- and character-limited, and the cars snapshot
++ * is rebuilt from a whitelist before it is stored as JSON.
++ */
++final class ChargerEvents {
++
++    public const EVENTS = ['plugged', 'charge_start', 'charge_end', 'unplugged'];
++
++    private const MAX_FUTURE_SEC = 600;               // clock skew tolerance
++    private const MAX_AGE_SEC    = 30 * 86400;        // a queued retry may arrive late, not months late
++
++    /**
++     * @param array $input   decoded JSON body
++     * @param int   $now     unix time (injected for tests)
++     * @return array{ok:bool, error:?string, row:?array}
++     */
++    public static function validate(array $input, int $now): array {
++        $fail = static fn(string $m) => ['ok' => false, 'error' => $m, 'row' => null];
++
++        $event = $input['event'] ?? null;
++        if (!is_string($event) || !in_array($event, self::EVENTS, true)) {
++            return $fail('event must be one of: ' . implode(', ', self::EVENTS));
++        }
++
++        $eventAt = self::toUtcZ($input['eventAt'] ?? null);
++        if ($eventAt === null) {
++            return $fail('eventAt must be an ISO 8601 timestamp');
++        }
++        $ts = strtotime($eventAt);
++        if ($ts > $now + self::MAX_FUTURE_SEC)  return $fail('eventAt is in the future');
++        if ($ts < $now - self::MAX_AGE_SEC)     return $fail('eventAt is too old');
++
++        $status = self::cleanString($input['status'] ?? null, 40);
++
++        $sessionEnergy  = self::cleanNumber($input['sessionEnergy']  ?? null, 0, 1000);
++        $lifetimeEnergy = self::cleanNumber($input['lifetimeEnergy'] ?? null, 0, 10_000_000);
++        $power          = self::cleanNumber($input['power']          ?? null, -1, 100);
++        foreach (['sessionEnergy' => $sessionEnergy, 'lifetimeEnergy' => $lifetimeEnergy, 'power' => $power] as $name => $v) {
++            if ($v === false) return $fail("$name is out of range or not a number");
++        }
++
++        $cars = null;
++        if (isset($input['cars'])) {
++            if (!is_array($input['cars'])) return $fail('cars must be an object keyed by vehicleId');
++            $cars = self::cleanCars($input['cars']);
++            if ($cars === false) return $fail('cars: keys must be positive vehicleIds (max 20 cars)');
++        }
++
++        return ['ok' => true, 'error' => null, 'row' => [
++            'eventAt'        => $eventAt,
++            'event'          => $event,
++            'chargerStatus'  => $status,
++            'sessionEnergy'  => $sessionEnergy,
++            'lifetimeEnergy' => $lifetimeEnergy,
++            'power'          => $power,
++            'cars'           => $cars === null || $cars === [] ? null : json_encode($cars, JSON_UNESCAPED_UNICODE),
++        ]];
++    }
++
++    /** ISO 8601 (any offset) -> 'Y-m-d\TH:i:s\Z' in UTC, or null if it isn't a timestamp. */
++    public static function toUtcZ($v): ?string {
++        if (!is_string($v) || $v === '' || strlen($v) > 40) return null;
++        // Require an explicit date AND time; strtotime('tomorrow') and friends must not pass.
++        if (!preg_match('/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/', $v)) return null;
++        $ts = strtotime($v);
++        return $ts === false ? null : gmdate('Y-m-d\TH:i:s\Z', $ts);
++    }
++
++    /** Number in [min,max] -> float; null/''/'unknown'/'unavailable' -> null; anything else -> false. */
++    private static function cleanNumber($v, float $min, float $max) {
++        if ($v === null || $v === '' || (is_string($v) && in_array(strtolower($v), ['unknown', 'unavailable', 'none', 'null'], true))) return null;
++        if (is_bool($v) || !is_numeric($v)) return false;
++        $f = (float) $v;
++        return ($f < $min || $f > $max) ? false : $f;
++    }
++
++    private static function cleanString($v, int $max): ?string {
++        if (!is_string($v)) return null;
++        $v = strtolower(trim($v));
++        if ($v === '' || strlen($v) > $max || !preg_match('/^[a-z0-9_ .:-]+$/', $v)) return null;
++        return $v;
++    }
++
++    /** @return array<string,array>|false */
++    private static function cleanCars(array $cars) {
++        if (count($cars) > 20) return false;
++        $out = [];
++        foreach ($cars as $id => $c) {
++            if (!preg_match('/^[1-9]\d{0,8}$/', (string) $id) || !is_array($c)) return false;
++            $soc  = self::cleanNumber($c['soc']      ?? null, 0, 100);
++            $odo  = self::cleanNumber($c['odometer'] ?? null, 0, 2_000_000);
++            $car  = [
++                'soc'      => $soc === false ? null : $soc,
++                'odometer' => $odo === false ? null : $odo,
++                'cable'    => self::cleanString($c['cable'] ?? null, 20),
++                'carTs'    => self::toUtcZ($c['carTs'] ?? null),
++            ];
++            $out[(string) $id] = $car;
++        }
++        return $out;
++    }
++}
+diff --git a/includes/ChargerSessions.php b/includes/ChargerSessions.php
+new file mode 100644
+index 0000000..b380912
+--- /dev/null
++++ b/includes/ChargerSessions.php
+@@ -0,0 +1,121 @@
++<?php
++/**
++ * Assemble charging sessions from charger events (pure function, unit-tested:
++ *   php dev/test_charger_events.php).
++ *
++ * A session runs from the car being plugged in to it being unplugged. The cable
++ * goes in hours before charging starts when Monta schedules the charge for the
++ * cheap night hours (observed: 4-5.4 h), so the two moments are kept apart:
++ *
++ *   plugged -> charge_start -> charge_end -> unplugged
++ *
++ * charge_end carries the session's FINAL energy (the charger's session counter,
++ * read just before it resets to 0). A session can have several start/end pairs
++ * (paused and resumed); their energies and durations add up.
++ */
++final class ChargerSessions {
++
++    private const ORDER = ['plugged' => 0, 'charge_start' => 1, 'charge_end' => 2, 'unplugged' => 3];
++
++    /**
++     * @param array<int,array> $events rows with eventAt, event, sessionEnergy, lifetimeEnergy, power,
++     *                                 chargerStatus and cars (decoded array or null)
++     * @return array<int,array> sessions, oldest first
++     */
++    public static function build(array $events): array {
++        usort($events, static fn($a, $b) =>
++            [strtotime($a['eventAt']), self::ORDER[$a['event']] ?? 9] <=> [strtotime($b['eventAt']), self::ORDER[$b['event']] ?? 9]);
++
++        $sessions = [];
++        $cur = null;
++        $segStart = null;
++
++        $close = static function () use (&$sessions, &$cur, &$segStart): void {
++            if ($cur === null) return;
++            $prev = $sessions ? end($sessions)['energyKwh'] : null;
++            $sessions[] = self::finish($cur, $prev);
++            $cur = null; $segStart = null;
++        };
++        $open = static fn() => [
++            'pluggedAt' => null, 'chargeStartAt' => null, 'chargeEndAt' => null, 'unpluggedAt' => null,
++            'segments' => 0, 'energyKwh' => 0.0, 'chargingSec' => 0, 'energySeen' => false,
++            'fallbackEnergy' => null, 'lifetimeStart' => null, 'lifetimeEnd' => null,
++            'cars' => ['plugged' => null, 'charge_start' => null, 'charge_end' => null, 'unplugged' => null],
++            'ended' => false,
++        ];
++
++        foreach ($events as $e) {
++            $type = $e['event'];
++            $at   = $e['eventAt'];
++            $snap = $e['cars'] ?? null;
++
++            if ($type === 'plugged') {
++                $close();                           // a new plug-in while one is open: the old one lost its 'unplugged'
++                $cur = $open();
++                $cur['pluggedAt'] = $at;
++                $cur['cars']['plugged'] = $snap;
++                continue;
++            }
++            if ($cur === null || ($type === 'charge_start' && $cur['ended'])) {
++                $close();
++                $cur = $open();                     // first events seen mid-session, or charging resumed after unplug
++            }
++
++            switch ($type) {
++                case 'charge_start':
++                    $cur['chargeStartAt'] ??= $at;
++                    $cur['segments']++;
++                    $segStart = strtotime($at);
++                    $cur['cars']['charge_start'] ??= $snap;
++                    if ($cur['lifetimeStart'] === null) $cur['lifetimeStart'] = $e['lifetimeEnergy'] ?? null;
++                    break;
++                case 'charge_end':
++                    $cur['chargeEndAt'] = $at;
++                    if ($segStart !== null) { $cur['chargingSec'] += max(0, strtotime($at) - $segStart); $segStart = null; }
++                    if (isset($e['sessionEnergy'])) { $cur['energyKwh'] += (float) $e['sessionEnergy']; $cur['energySeen'] = true; }
++                    $cur['cars']['charge_end'] = $snap;
++                    $cur['lifetimeEnd'] = $e['lifetimeEnergy'] ?? $cur['lifetimeEnd'];
++                    break;
++                case 'unplugged':
++                    $cur['unpluggedAt'] = $at;
++                    $cur['cars']['unplugged'] = $snap;
++                    // Last resort when the reset was missed: whatever the counter showed on unplug.
++                    if (isset($e['sessionEnergy']) && (float) $e['sessionEnergy'] > 0) $cur['fallbackEnergy'] = (float) $e['sessionEnergy'];
++                    $cur['ended'] = true;
++                    $close();
++                    break;
++            }
++        }
++        if ($cur !== null) {
++            $s = self::finish($cur, $sessions ? end($sessions)['energyKwh'] : null);
++            $s['open'] = true;
++            $sessions[] = $s;
++        }
++        return $sessions;
++    }
++
++    private static function finish(array $c, ?float $previousEnergy): array {
++        // After an integration reload the charger's session counter shows the PREVIOUS
++        // session's final value instead of 0 (seen in the real data). So the on-unplug
++        // reading is only trusted when charging actually happened in this session and
++        // the value is not simply the last session's energy repeated.
++        $fallback = $c['fallbackEnergy'];
++        if ($fallback !== null && ($c['segments'] === 0 || ($previousEnergy !== null && abs($fallback - $previousEnergy) < 0.0015))) {
++            $fallback = null;
++        }
++        $energy = $c['energySeen'] ? $c['energyKwh'] : $fallback;
++        $hours  = $c['chargingSec'] > 0 ? $c['chargingSec'] / 3600 : null;
++        return [
++            'pluggedAt'     => $c['pluggedAt'],
++            'chargeStartAt' => $c['chargeStartAt'],
++            'chargeEndAt'   => $c['chargeEndAt'],
++            'unpluggedAt'   => $c['unpluggedAt'],
++            'energyKwh'     => $energy !== null ? round($energy, 3) : null,
++            'chargingHours' => $hours !== null ? round($hours, 3) : null,
++            'avgPowerKw'    => ($energy !== null && $hours !== null) ? round($energy / $hours, 2) : null,
++            'segments'      => $c['segments'],
++            'cars'          => $c['cars'],
++            'open'          => false,
++        ];
++    }
++}
+diff --git a/migrations/charges/005_add_charger_events.php b/migrations/charges/005_add_charger_events.php
+new file mode 100644
+index 0000000..4cce1f7
+--- /dev/null
++++ b/migrations/charges/005_add_charger_events.php
+@@ -0,0 +1,29 @@
++<?php
++/**
++ * Events from the charger itself (Home Assistant -> receive_charger_event.php).
++ *
++ * One row per event: plugged | charge_start | charge_end | unplugged, with the
++ * charger's own readings and a snapshot of every car (SoC, odometer, cable sensor,
++ * the car's own timestamp) taken at that moment. Sessions are assembled from the
++ * rows (includes/ChargerSessions.php); nothing is derived at write time.
++ *
++ * (event, eventAt) is unique, so a retried HA call is harmless.
++ */
++return [
++    'description' => 'Add charger_events (charger status events + car snapshots from Home Assistant)',
++    'up' => [
++        "CREATE TABLE IF NOT EXISTS charger_events (
++            id             INTEGER PRIMARY KEY AUTOINCREMENT,
++            eventAt        TEXT NOT NULL,   -- UTC (Z), the entity's last_changed in HA
++            receivedAt     TEXT NOT NULL,   -- UTC (Z), server clock
++            event          TEXT NOT NULL,   -- plugged | charge_start | charge_end | unplugged
++            chargerStatus  TEXT,
++            sessionEnergy  REAL,            -- kWh; charge_end = the session's final energy
++            lifetimeEnergy REAL,            -- kWh; counter that only grows (updates ~hourly)
++            power          REAL,            -- kW
++            cars           TEXT,            -- JSON: {\"<vehicleId>\": {soc, odometer, cable, carTs}}
++            UNIQUE (event, eventAt)
++        )",
++        "CREATE INDEX IF NOT EXISTS idx_charger_events_at ON charger_events (eventAt)",
++    ],
++];
+diff --git a/receive_charger_event.php b/receive_charger_event.php
+new file mode 100644
+index 0000000..15a92c3
+--- /dev/null
++++ b/receive_charger_event.php
+@@ -0,0 +1,26 @@
++<?php
++/**
++ * Charger event endpoint — standalone file for Authentik bypass.
++ *
++ * Same reason as receive_vehicle_data.php: Home Assistant calls this directly, so
++ * the path must be excluded from the Authentik auth proxy. The handler logic
++ * lives in routes/receive_charger_event.php.
++ */
++require __DIR__ . '/includes/configuration.php';
++require __DIR__ . '/includes/DatabaseManager.php';
++require __DIR__ . '/includes/QueryBuilder.php';
++
++header('Content-Type: application/json');
++
++try {
++    require __DIR__ . '/routes/receive_charger_event.php';
++} catch (PDOException $e) {
++    http_response_code(500);
++    error_log("receive_charger_event.php DB error: " . $e->getMessage());
++    echo json_encode(['success' => false, 'error' => 'Database error occurred']);
++} catch (\Throwable $e) {
++    http_response_code(500);
++    error_log("receive_charger_event.php error: " . $e->getMessage());
++    $clientError = Config::debug() ? $e->getMessage() : 'Der opstod en intern fejl';
++    echo json_encode(['success' => false, 'error' => $clientError]);
++}
+diff --git a/routes/get_charger_sessions.php b/routes/get_charger_sessions.php
+new file mode 100644
+index 0000000..2581691
+--- /dev/null
++++ b/routes/get_charger_sessions.php
+@@ -0,0 +1,37 @@
++<?php
++/**
++ * Charging sessions assembled from the charger events.
++ *
++ * GET api.php?action=charger-sessions[&days=30]   (days: 1..365)
++ *
++ * Newest first. Each session has pluggedAt / chargeStartAt / chargeEndAt /
++ * unpluggedAt, the charger's own energy and average power, and the car snapshots
++ * taken at each event. Car attribution is deliberately NOT decided here yet.
++ */
++require_once __DIR__ . '/../includes/ChargerSessions.php';
++
++$days = isset($_GET['days']) ? (int) $_GET['days'] : 30;
++$days = max(1, min(365, $days));
++$since = gmdate('Y-m-d\TH:i:s\Z', time() - $days * 86400);
++
++$db = DatabaseManager::getChargesDb();
++$stmt = $db->prepare("
++    SELECT eventAt, event, chargerStatus, sessionEnergy, lifetimeEnergy, power, cars
++    FROM charger_events WHERE eventAt >= ? ORDER BY eventAt
++");
++$stmt->execute([$since]);
++$events = $stmt->fetchAll(PDO::FETCH_ASSOC);
++foreach ($events as &$e) {
++    $e['cars'] = $e['cars'] !== null ? json_decode($e['cars'], true) : null;
++    foreach (['sessionEnergy', 'lifetimeEnergy', 'power'] as $k) {
++        if ($e[$k] !== null) $e[$k] = (float) $e[$k];
++    }
++}
++unset($e);
++
++echo json_encode([
++    'success'  => true,
++    'days'     => $days,
++    'events'   => count($events),
++    'sessions' => array_reverse(ChargerSessions::build($events)),
++]);
+diff --git a/routes/receive_charger_event.php b/routes/receive_charger_event.php
+new file mode 100644
+index 0000000..161914a
+--- /dev/null
++++ b/routes/receive_charger_event.php
+@@ -0,0 +1,70 @@
++<?php
++/**
++ * Receive an event from the charger (Home Assistant).
++ *
++ * POST JSON body (see includes/ChargerEvents.php for the rules):
++ *   event           plugged | charge_start | charge_end | unplugged
++ *   eventAt         ISO 8601 timestamp of the event (HA: the entity's last_changed)
++ *   status          charger status (optional)
++ *   sessionEnergy   kWh (charge_end: the session's final energy)
++ *   lifetimeEnergy  kWh, power kW (optional)
++ *   cars            {"<vehicleId>": {soc, odometer, cable, carTs}} snapshot (optional)
++ *
++ * Idempotent: the same (event, eventAt) twice is answered 200 and stored once.
++ * Same API key as receive_vehicle_data.php (VEHICLE_API_KEY, fail closed).
++ */
++require_once __DIR__ . '/../includes/ChargerEvents.php';
++
++$apiKey = Config::vehicleApiKey();
++if ($apiKey === '') {
++    http_response_code(503);
++    echo json_encode(['success' => false, 'error' => 'Endpoint not configured — set VEHICLE_API_KEY in .env']);
++    exit;
++}
++$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
++if (!str_starts_with($authHeader, 'Bearer ') || !hash_equals($apiKey, substr($authHeader, 7))) {
++    http_response_code(401);
++    header('WWW-Authenticate: Bearer realm="SparkSpend"');
++    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
++    exit;
++}
++if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
++    http_response_code(405);
++    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
++    exit;
++}
++
++$raw = file_get_contents('php://input');
++$input = is_string($raw) ? json_decode($raw, true) : null;
++if (!is_array($input)) {
++    http_response_code(400);
++    echo json_encode(['success' => false, 'error' => 'Invalid JSON format']);
++    exit;
++}
++
++$v = ChargerEvents::validate($input, time());
++if (!$v['ok']) {
++    http_response_code(400);
++    echo json_encode(['success' => false, 'error' => $v['error']]);
++    exit;
++}
++$row = $v['row'];
++
++$db = DatabaseManager::getChargesDb();
++$stmt = $db->prepare("
++    INSERT OR IGNORE INTO charger_events
++        (eventAt, receivedAt, event, chargerStatus, sessionEnergy, lifetimeEnergy, power, cars)
++    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
++");
++$stmt->execute([
++    $row['eventAt'], gmdate('Y-m-d\TH:i:s\Z'), $row['event'], $row['chargerStatus'],
++    $row['sessionEnergy'], $row['lifetimeEnergy'], $row['power'], $row['cars'],
++]);
++
++if ($stmt->rowCount() > 0) {
++    http_response_code(201);
++    echo json_encode(['success' => true, 'message' => 'Event stored']);
++} else {
++    http_response_code(200);
++    echo json_encode(['success' => true, 'message' => 'Duplicate ignored']);
++}
+-- 
+2.43.0
+

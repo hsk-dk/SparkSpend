@@ -1,0 +1,90 @@
+[
+ {
+  "eventAt": "2026-10-26T02:00:03Z",
+  "event": "charge_start",
+  "chargerStatus": "charging",
+  "sessionEnergy": null,
+  "lifetimeEnergy": 15192.6832241667,
+  "power": 0.25900000333786
+ },
+ {
+  "eventAt": "2026-10-26T04:07:12Z",
+  "event": "charge_end",
+  "chargerStatus": "completed",
+  "sessionEnergy": 22.1420192718506,
+  "lifetimeEnergy": 15203.1571922223,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-26T09:42:18Z",
+  "event": "unplugged",
+  "chargerStatus": "disconnected",
+  "sessionEnergy": 22.1420192718506,
+  "lifetimeEnergy": 15214.8252441667,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-26T19:25:45Z",
+  "event": "plugged",
+  "chargerStatus": "awaiting_authorization",
+  "sessionEnergy": null,
+  "lifetimeEnergy": 15214.8252441667,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-26T23:25:42Z",
+  "event": "charge_start",
+  "chargerStatus": "charging",
+  "sessionEnergy": null,
+  "lifetimeEnergy": 15214.8252441667,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-27T04:50:42Z",
+  "event": "charge_end",
+  "chargerStatus": "completed",
+  "sessionEnergy": 56.5326881408691,
+  "lifetimeEnergy": 15262.5749575001,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-27T10:04:36Z",
+  "event": "unplugged",
+  "chargerStatus": "disconnected",
+  "sessionEnergy": 0.0,
+  "lifetimeEnergy": 15271.3579341667,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-29T19:04:09Z",
+  "event": "plugged",
+  "chargerStatus": "awaiting_authorization",
+  "sessionEnergy": null,
+  "lifetimeEnergy": 15271.3579341667,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-30T00:29:53Z",
+  "event": "charge_start",
+  "chargerStatus": "charging",
+  "sessionEnergy": null,
+  "lifetimeEnergy": 15271.3579341667,
+  "power": 0.0
+ },
+ {
+  "eventAt": "2026-10-30T03:57:23Z",
+  "event": "charge_end",
+  "chargerStatus": "completed",
+  "sessionEnergy": 36.4494018554688,
+  "lifetimeEnergy": 15297.642098889,
+  "power": 0.776000022888184
+ },
+ {
+  "eventAt": "2026-10-30T06:00:16Z",
+  "event": "unplugged",
+  "chargerStatus": "disconnected",
+  "sessionEnergy": 0.0,
+  "lifetimeEnergy": 15307.8073352778,
+  "power": 0.0
+ }
+]

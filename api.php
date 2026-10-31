@@ -31,6 +31,7 @@ $routes = [
     'elspot-prices'        => ['handler' => 'routes/get_elspot_prices.php'],
     'heatpump'             => ['handler' => 'routes/get_heatpump_data.php'],
     'hourly-consumption'   => ['handler' => 'routes/get_hourly_consumption.php'],
+    'charger-sessions'     => ['handler' => 'routes/get_charger_sessions.php'],
     'house-power'          => ['handler' => 'routes/get_house_power_data.php'],
     'monthly-bill'         => ['handler' => 'routes/get_monthly_bill_data.php'],
     'providers'            => ['handler' => 'routes/get_providers.php'],
