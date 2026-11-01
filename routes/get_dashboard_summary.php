@@ -66,6 +66,11 @@ $daysElapsed = max(0.25, ($daysThisMonth - 1) + $dayFraction);
 // which case its last day is a complete day.
 $prevLastFrac = ($prevEndDt->format('j') === $todayDt->format('j'))           ? $dayFraction : 1.0;
 $lyLastFrac   = ($lastYearPeriodEndDt->format('j') === $todayDt->format('j')) ? $dayFraction : 1.0;
+// A comparison window cut short by a shorter month holds fewer days than the current
+// period; scale it to the same number of days so flat usage shows no trend (see
+// DashboardWindow::comparableScale). 1.0 whenever the window is not capped.
+$prevScale = DashboardWindow::comparableScale($prevEndDt->format('j') !== $todayDt->format('j'), (int)$prevEndDt->format('j'), $daysElapsed);
+$lyScale   = DashboardWindow::comparableScale($lastYearPeriodEndDt->format('j') !== $todayDt->format('j'), (int)$lastYearPeriodEndDt->format('j'), $daysElapsed);
 
 /**
  * Project this month's total. Thin wrapper over Projection::fullMonth() (see
@@ -149,7 +154,7 @@ foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             }
         }
         if ($day >= $prevStart && $day <= $prevEnd) {
-            $w = ($day === $prevEnd) ? $prevLastFrac : 1.0;
+            $w = (($day === $prevEnd) ? $prevLastFrac : 1.0) * $prevScale;
             $intPrevKwh  += $slice['kwh']  * $w;
             $intPrevCost += $slice['cost'] * $w;
         }
@@ -158,7 +163,7 @@ foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $intPrevFullCost += $slice['cost'];
         }
         if ($day >= $lastYearPeriodStart && $day <= $lastYearPeriodEnd) {
-            $w = ($day === $lastYearPeriodEnd) ? $lyLastFrac : 1.0;
+            $w = (($day === $lastYearPeriodEnd) ? $lyLastFrac : 1.0) * $lyScale;
             $intLYKwh  += $slice['kwh']  * $w;
             $intLYCost += $slice['cost'] * $w;
         }
@@ -199,7 +204,7 @@ foreach ($extRows as $row) {
         $extMonthCost += floatval($row['pris']);
     }
     if ($day >= $prevStart && $day <= $prevEnd) {
-        $w = ($day === $prevEnd) ? $prevLastFrac : 1.0;
+        $w = (($day === $prevEnd) ? $prevLastFrac : 1.0) * $prevScale;
         $extPrevKwh  += floatval($row['kwh'])  * $w;
         $extPrevCost += floatval($row['pris']) * $w;
     }
@@ -208,7 +213,7 @@ foreach ($extRows as $row) {
         $extPrevFullCost += floatval($row['pris']);
     }
     if ($day >= $lastYearPeriodStart && $day <= $lastYearPeriodEnd) {
-        $w = ($day === $lastYearPeriodEnd) ? $lyLastFrac : 1.0;
+        $w = (($day === $lastYearPeriodEnd) ? $lyLastFrac : 1.0) * $lyScale;
         $extLYKwh  += floatval($row['kwh'])  * $w;
         $extLYCost += floatval($row['pris']) * $w;
     }
@@ -244,7 +249,7 @@ $hpCurrent  = round(array_sum(array_filter($hpDailyMap, function($v, $k) use ($s
 }, ARRAY_FILTER_USE_BOTH)), 2);
 
 $hpPrevMap        = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevEnd);
-$hpPrev           = round(sumWithPartialLastDay($hpPrevMap, $prevEnd, $prevLastFrac), 2);
+$hpPrev           = round(sumWithPartialLastDay($hpPrevMap, $prevEnd, $prevLastFrac) * $prevScale, 2);
 
 $hpPrevFullMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevMonthEnd);
 $hpPrevFull       = round(array_sum($hpPrevFullMap), 2);
@@ -253,7 +258,7 @@ $hpLastYearMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lastYea
 $hpLastYear       = round(array_sum($hpLastYearMap), 2);
 
 $hpLYPeriodMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lastYearPeriodStart, $lastYearPeriodEnd);
-$hpLastYearPeriod = round(sumWithPartialLastDay($hpLYPeriodMap, $lastYearPeriodEnd, $lyLastFrac), 2);
+$hpLastYearPeriod = round(sumWithPartialLastDay($hpLYPeriodMap, $lastYearPeriodEnd, $lyLastFrac) * $lyScale, 2);
 
 $hpPctChange     = $hpPrev > 0
     ? round(($hpCurrent - $hpPrev) / $hpPrev * 100, 1)
@@ -287,13 +292,13 @@ try {
     }, ARRAY_FILTER_USE_BOTH)), 2);
 
     $husPrevMap     = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevEnd);
-    $husPrevKwh     = round(sumWithPartialLastDay($husPrevMap, $prevEnd, $prevLastFrac), 2);
+    $husPrevKwh     = round(sumWithPartialLastDay($husPrevMap, $prevEnd, $prevLastFrac) * $prevScale, 2);
 
     $husPrevFullMap = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevMonthEnd);
     $husPrevFullKwh = round(array_sum($husPrevFullMap), 2);
 
     $husLYMap       = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearPeriodStart, $lastYearPeriodEnd);
-    $husLastYearKwh = round(sumWithPartialLastDay($husLYMap, $lastYearPeriodEnd, $lyLastFrac), 2);
+    $husLastYearKwh = round(sumWithPartialLastDay($husLYMap, $lastYearPeriodEnd, $lyLastFrac) * $lyScale, 2);
 
     $husLYFullMap   = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearMonthStart, $lastYearMonthEnd);
     $husLastYearFullKwh = round(array_sum($husLYFullMap), 2);

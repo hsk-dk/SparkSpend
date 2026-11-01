@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Fixed (dashboard trends)
+- **"vs. forrige mdr" showed a false rise on the last days of a month when the previous month is shorter.** "Same period last month" is the first N days of last month (N = today's day-of-month), cut at that month's last day. On the 31st vs a 30-day month, or the 29th-31st vs February, that window holds fewer days than the current period, so flat usage looked like a rise of about 3 % (31 vs 30 days) up to about 9 % (31 March vs February). The capped window is now scaled to the same number of days (`DashboardWindow::comparableScale`), for kWh and cost of EV, heat pump, house and Rest, and for the pace the projection uses. Nothing changes on days where the window is not capped (28 of 31 days in most months), and the previous month's full-month figure is untouched.
+
 ### Changed (dashboard cards)
 - **The Hus card now shows only "Rest"**: the house meter minus the heat pump and EV home charging (`rest` in the dashboard JSON, computed server-side for every period so the trends, projection and sparkline are consistent). EV and heat pump have their own cards, so the EV/VP split bar and the whole-house kWh are gone from it. Its ~kr is the Rest share of the elvarme model, and the bottom total's Rest uses the same figure.
 - **Subscription in the monthly estimate.** `SUBSCRIPTION_PER_DAY` in `.env` (kr per day, e.g. `0.50`) is added to "Forventet elregning" as its own item (days in the month x the daily fee); the tooltip shows the total so far. Left at 0 the label stays "ekskl. abonnement". Monta's EV price already includes all tariffs and taxes, and the elvarme model has no per-kWh supplier surcharge, so the subscription is the only fixed addition.

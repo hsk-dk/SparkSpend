@@ -22,4 +22,23 @@ final class DashboardWindow {
         $sparkStart = (new DateTimeImmutable($today))->modify('-' . ($sparkDays - 1) . ' days')->format('Y-m-d');
         return min($monthStart, $sparkStart);     // ISO dates sort correctly as strings
     }
+
+    /**
+     * Factor that makes a CAPPED comparison window comparable to the current period.
+     *
+     * "Same period last month" is the first N days of last month, N = today's
+     * day-of-month. When last month is shorter than N (the 31st vs a 30-day month,
+     * the 29th-31st vs February) the window is cut at that month's last day and holds
+     * fewer days than the current period. Compared as totals, FLAT usage looks like a
+     * rising trend: +3 % for 31 vs 30 days, up to +11 % for 31 vs February's 28.
+     * Scaling the window to the current number of days removes that.
+     *
+     * @param bool  $capped       the window ended before today's day-of-month
+     * @param int   $windowDays   whole days the capped window holds (= its last day-of-month)
+     * @param float $daysElapsed  days elapsed in the current period (incl. the partial day)
+     * @return float 1.0 when the window is not capped (nothing changes on 28 of 31 days a month)
+     */
+    public static function comparableScale(bool $capped, int $windowDays, float $daysElapsed): float {
+        return ($capped && $windowDays > 0) ? $daysElapsed / $windowDays : 1.0;
+    }
 }
