@@ -240,7 +240,7 @@ require 'includes/QueryBuilder.php';
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-house-chimney"></i></span>
         <div>
-          <div class="dash-title">Hus</div>
+          <div class="dash-title" title="Husets måler minus varmepumpe og hjemmeladning">Hus</div>
           <div class="dash-period"></div>
         </div>
       </div>
@@ -261,17 +261,6 @@ require 'includes/QueryBuilder.php';
         </div>
         <div class="dash-meta">
           <span class="dash-projected"></span>
-        </div>
-        <div class="dash-split-wrap" id="hus-split-wrap" style="display:none">
-          <div class="dash-split-track">
-            <div class="dash-split-ev-fill"></div>
-            <div class="dash-split-hp-fill"></div>
-            <div class="dash-split-rest-fill"></div>
-          </div>
-          <div class="dash-split-labels">
-            <span class="dash-split-ev-lbl"></span>
-            <span class="dash-split-rest-lbl"></span>
-          </div>
         </div>
         <div class="dash-trend"></div>
         <div class="dash-sparkline">
@@ -877,6 +866,7 @@ require 'includes/QueryBuilder.php';
     elspotGln:  '<?= htmlspecialchars(Config::elspotGln(), ENT_QUOTES) ?>',
     weatherLat: '<?= htmlspecialchars(Config::weatherLat(), ENT_QUOTES) ?>',
     weatherLon: '<?= htmlspecialchars(Config::weatherLon(), ENT_QUOTES) ?>',
+    subscriptionPerDay: <?= json_encode(Config::subscriptionPerDay()) ?>,
     csrfToken:  '<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>'
   };</script>
   <script defer src="<?= asset('includes/app.js') ?>"></script>

@@ -72,8 +72,8 @@ async function loadDashboard(isRefresh = false) {
         const renderers = [
             ['ev-dashboard-card',  () => renderEvCard(data.ev)],
             ['hp-dashboard-card',  () => renderHeatpumpCard(data.heatpump)],
-            ['hus-dashboard-card', () => data.hus
-                ? renderHusCard(data.hus)
+            ['hus-dashboard-card', () => data.rest
+                ? renderHusCard(data.rest)
                 : _setCardNote('hus-dashboard-card', 'Hus-data ikke synkroniseret endnu')],
         ];
         for (const [id, render] of renderers) {
@@ -90,7 +90,7 @@ async function loadDashboard(isRefresh = false) {
         // Anomaly detection runs after card data is available (async, best-effort)
         loadAnomalies();
         // Async cost enrichment for VP and Hus cards
-        _enrichCardsWithCost(data.heatpump, data.hus || null, data.ev || null);
+        _enrichCardsWithCost(data.heatpump, data.rest || null, data.ev || null);
         // Elspot day-ahead forecast widget (self-throttled)
         loadElspotForecast();
         // Sync-status enrichment — async, non-blocking
@@ -237,72 +237,47 @@ function renderHeatpumpCard(hp) {
     _enrichHpWithWeather(card, hp);
 }
 
-function renderHusCard(hus) {
+// The Hus card shows ONLY "Rest": the house meter minus the heat pump and EV home
+// charging (computed by the server). EV and heat pump have their own cards.
+function renderHusCard(rest) {
     const card = document.getElementById('hus-dashboard-card');
     if (!card) return;
 
     const now   = new Date();
     const month = _monthName();
-    _setText(card, '.dash-period', month);
-    _setText(card, '.dash-stat-kwh', _fmt(hus.month_kwh, 1));
-    _setText(card, '.dash-stat-daily', hus.daily_avg_kwh !== null ? _fmt(hus.daily_avg_kwh, 1) : '—');
-    const husPrevEst = hus.prev_month_full_kwh > 0 ? Math.round(hus.prev_month_full_kwh) : null;
-    _setText(card, '.dash-projected', hus.projected_kwh !== null
-        ? `Forventet: ${_fmt(hus.projected_kwh)} kWh` + (husPrevEst ? ` (forrige: ${_fmt(husPrevEst)})` : '')
+    _setText(card, '.dash-period', `Øvrigt forbrug · ${month}`);
+    _setText(card, '.dash-stat-kwh', _fmt(rest.month_kwh, 1));
+    _setText(card, '.dash-stat-daily', rest.daily_avg_kwh !== null ? _fmt(rest.daily_avg_kwh, 1) : '—');
+    const prevFull = rest.prev_month_full_kwh > 0 ? Math.round(rest.prev_month_full_kwh) : null;
+    _setText(card, '.dash-projected', rest.projected_kwh !== null
+        ? `Forventet: ${_fmt(rest.projected_kwh)} kWh` + (prevFull ? ` (forrige: ${_fmt(prevFull)})` : '')
         : '');
-    _setProjectionBasis(card, hus.projection_basis);
+    _setProjectionBasis(card, rest.projection_basis);
 
     const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
-        if (showTrends && hus.pct_change !== null) {
-            const up = hus.pct_change >= 0;
+        if (showTrends && rest.pct_change !== null) {
+            const up = rest.pct_change >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${_fmt(Math.abs(hus.pct_change), 1)}% vs. forrige mdr</div>`;
+                    `${_fmt(Math.abs(rest.pct_change), 1)}% vs. forrige mdr</div>`;
         }
-        if (showTrends && hus.pct_change_year !== null) {
-            const up = hus.pct_change_year >= 0;
+        if (showTrends && rest.pct_change_year !== null) {
+            const up = rest.pct_change_year >= 0;
             html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
                     `${up ? '↑' : '↓'} ` +
-                    `${_fmt(Math.abs(hus.pct_change_year), 1)}% vs. sidste år</div>`;
+                    `${_fmt(Math.abs(rest.pct_change_year), 1)}% vs. sidste år</div>`;
         }
         trendEl.innerHTML = html;
         trendEl.className = 'dash-trend';
     }
 
-    // Hus composition split bar: EV home (blue) / Jordvarme (green) / Rest (amber)
-    const splitWrap = card.querySelector('#hus-split-wrap');
-    if (splitWrap && hus.month_kwh > 0 && hus.ev_home_kwh != null && hus.hp_kwh != null) {
-        const evKwh   = Math.min(hus.ev_home_kwh, hus.month_kwh);
-        const hpKwh   = Math.min(hus.hp_kwh, hus.month_kwh - evKwh);
-        const restKwh = Math.max(0, hus.month_kwh - evKwh - hpKwh);
-        const evPct   = evKwh   / hus.month_kwh * 100;
-        const hpPct   = hpKwh   / hus.month_kwh * 100;
-        const restPct = restKwh / hus.month_kwh * 100;
-        const evFill   = splitWrap.querySelector('.dash-split-ev-fill');
-        const hpFill   = splitWrap.querySelector('.dash-split-hp-fill');
-        const restFill = splitWrap.querySelector('.dash-split-rest-fill');
-        if (evFill)   evFill.style.width   = evPct.toFixed(1)   + '%';
-        if (hpFill)   hpFill.style.width   = hpPct.toFixed(1)   + '%';
-        if (restFill) restFill.style.width  = restPct.toFixed(1) + '%';
-        const evLbl   = splitWrap.querySelector('.dash-split-ev-lbl');
-        const restLbl = splitWrap.querySelector('.dash-split-rest-lbl');
-        // Compact percentage labels for all three components
-        const pctParts = [];
-        if (evPct >= 3) pctParts.push('EV ' + evPct.toFixed(0) + '%');
-        if (hpPct >= 3) pctParts.push('VP ' + hpPct.toFixed(0) + '%');
-        if (restPct >= 3) pctParts.push('Rest ' + restPct.toFixed(0) + '%');
-        if (evLbl) evLbl.textContent = pctParts.slice(0, 2).join(' \u00b7 ');
-        if (restLbl) restLbl.textContent = pctParts.length > 2 ? pctParts[2] : '';
-        splitWrap.style.display = '';
-    }
-
     const husSparkStart = new Date(); husSparkStart.setDate(husSparkStart.getDate() - 29); husSparkStart.setHours(0,0,0,0);
-    _husSparkChart = _renderSparkline('hus-sparkline', hus.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
-    _renderSparklineTrend('hus-dashboard-card', hus.sparkline);
-    _renderSeasonBadge(card, hus.pct_change_year);
+    _husSparkChart = _renderSparkline('hus-sparkline', rest.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
+    _renderSparklineTrend('hus-dashboard-card', rest.sparkline);
+    _renderSeasonBadge(card, rest.pct_change_year);
 }
 
 async function _enrichHpWithWeather(card, hp) {
@@ -538,7 +513,7 @@ async function loadElspotForecast(force = false) {
     }
 }
 
-async function _enrichCardsWithCost(hp, hus, ev) {
+async function _enrichCardsWithCost(hp, rest, ev) {
     const area = window.sparkConfig?.elspotArea || '';
     const gln  = window.sparkConfig?.elspotGln  || '';
     if (!area || !gln) return;
@@ -602,8 +577,9 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         const rateOpts  = weighted ? { vpRates: weighted.vp || undefined, restRates: weighted.rest || undefined } : {};
         const basisNote = weighted ? 'vægtet efter hvornår strømmen blev brugt (timepriser)' : 'gennemsnit af månedens priser';
 
-        // Month-to-date component kWh for the elvarme blend.
-        const mtdRestKwh = hus ? Math.max(0, hus.month_kwh - (hp ? hp.month_kwh : 0) - (hus.ev_home_kwh || 0)) : 0;
+        // Month-to-date component kWh for the elvarme blend. "Rest" comes from the server
+        // (house meter - heat pump - EV home charging), the same figure the Hus card shows.
+        const mtdRestKwh = rest ? rest.month_kwh : 0;
         const mtdBlend = appUtils.elvarmeCost({
             vpKwh: hp ? hp.month_kwh : 0,
             restKwh: mtdRestKwh,
@@ -620,12 +596,12 @@ async function _enrichCardsWithCost(hp, hus, ev) {
                 el.style.display = '';
             }
         }
-        // Hus card — whole-house elvarme total
-        if (hus && hus.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
+        // Hus card — the "Rest" share of the elvarme blend (EV is priced by Monta, VP in its own card)
+        if (rest && rest.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
             const el = document.getElementById('hus-cost-stat');
             if (el) {
-                el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.total, 0);
-                el.title = `Estimeret elvarme-model, ${basisNote}: første ≈${Math.round(highKwhMonth)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
+                el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.restCost, 0);
+                el.title = `Estimeret pris for det øvrige forbrug, ${basisNote}: første ≈${Math.round(highKwhMonth)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
                 el.style.display = '';
             }
         }
@@ -638,30 +614,14 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         const dayOfMonth  = now.getDate();
         const _linProj    = mtd => (dayOfMonth > 0 ? mtd / dayOfMonth * daysInMonth : mtd);
 
-        // Full-month projected kWh for VP and Hus (server value, linear fallback)
-        const hpProjectedKwh  = hp  ? (hp.projected_kwh  ?? _linProj(hp.month_kwh))   : 0;
-        const husProjectedKwh = hus ? (hus.projected_kwh ?? _linProj(hus.month_kwh))  : 0;
-        const evHomeKwh       = hus ? (hus.ev_home_kwh || 0) : 0;
-        // Project EV home kWh on the SAME basis as the house projection to avoid
-        // a partial double-count: the house meter physically includes EV home
-        // charging, so the EV energy removed from Rest must match what the
-        // pace-aware husProjectedKwh baked in. Using a linear _linProj here while
-        // husProjectedKwh is pace-aware left residual EV energy in Rest, which
-        // then got priced again on top of Monta's evProjectedCost. Derive the EV
-        // home share from its month-to-date fraction of the house meter and apply
-        // it to the projected house total instead.
-        const husMtdKwh        = hus ? (hus.month_kwh || 0) : 0;
-        const evHomeShare      = husMtdKwh > 0 ? Math.min(1, evHomeKwh / husMtdKwh) : 0;
-        const evHomeProjected  = husProjectedKwh * evHomeShare;
-        const restProjectedKwh = Math.max(0, husProjectedKwh - hpProjectedKwh - evHomeProjected);
+        // Full-month projected kWh for VP and Rest (server value, linear fallback)
+        const hpProjectedKwh   = hp   ? (hp.projected_kwh   ?? _linProj(hp.month_kwh))   : 0;
+        const restProjectedKwh = rest ? (rest.projected_kwh ?? _linProj(rest.month_kwh)) : 0;
 
         // Projected elvarme blend (full month → full monthly allowance).
-        // NOTE: EV home charging is NOT included here. Its cost already lives in
-        // Monta's projected_cost (which covers all charging, home + away), so
-        // folding evCost in again would double-count it. EV energy is excluded
-        // from restProjectedKwh above and passed as evKwh only so the model can
-        // reason about the high-rate allowance ordering (EV always uses the low
-        // rate); we deliberately drop projBlend.evCost from the total.
+        // EV is deliberately NOT part of it: its cost is Monta's (which includes all
+        // tariffs and taxes, home and away), and Rest already excludes EV home
+        // charging, so nothing is priced twice.
         // The projected kWh are priced at the month-to-date (weighted) rates: the
         // remaining days are assumed to follow the same usage pattern and price level.
         const projBlend = appUtils.elvarmeCost({
@@ -679,16 +639,26 @@ async function _enrichCardsWithCost(hp, hus, ev) {
         const evProjectedCost = ev
             ? (ev.projected_cost != null ? ev.projected_cost : ev.month_cost)
             : 0;
-        const totalCostProj = Math.round(evProjectedCost + hpCostProj + restCostProj);
+        // Fixed subscription (kr/day from .env SUBSCRIPTION_PER_DAY). Everything else
+        // is already inclusive: Monta prices EV with all tariffs and taxes, and the
+        // elvarme model adds tariffs, afgift and moms to the spot price.
+        const perDay          = Number(window.sparkConfig?.subscriptionPerDay) || 0;
+        const subscriptionMtd  = perDay * dayOfMonth;
+        const subscriptionProj = perDay * daysInMonth;
+        const totalCostProj = Math.round(evProjectedCost + hpCostProj + restCostProj + subscriptionProj);
+        const totalCostMtd  = Math.round((ev ? ev.month_cost : 0) + mtdBlend.vpCost + mtdBlend.restCost + subscriptionMtd);
 
         if (totalCostProj > 0) {
             const el = document.getElementById('total-cost-estimate');
             if (el) {
                 el.innerHTML = `<span class="total-cost-icon">\u26a1</span>` +
                     `<span class="total-cost-amount">Forventet elregning: ~${totalCostProj} kr</span>` +
-                    `<span class="total-cost-breakdown">EV: ~${Math.round(evProjectedCost)} \u00b7 VP: ~${hpCostProj} \u00b7 Rest: ~${restCostProj} kr \u00b7 ekskl. abonnement</span>`;
-                el.title = `Estimat. EV: faktisk pris fra Monta (hjemme og ude). VP og Rest: elvarme-model, ${basisNote}, ` +
-                           `inkl. tariffer, elafgift og moms. Uden abonnement og faste gebyrer.`;
+                    `<span class="total-cost-breakdown">EV: ~${Math.round(evProjectedCost)} \u00b7 VP: ~${hpCostProj} \u00b7 Rest: ~${restCostProj}` +
+                    (perDay > 0 ? ` \u00b7 Abonnement: ~${_fmt(subscriptionProj, 0)} kr` : ' kr \u00b7 ekskl. abonnement') + `</span>`;
+                el.title = `Estimat for hele måneden. Hidtil: ~${_fmt(totalCostMtd, 0)} kr. ` +
+                           `EV: faktisk pris fra Monta (inkl. tariffer og afgifter, hjemme og ude). ` +
+                           `VP og Rest: elvarme-model, ${basisNote}, inkl. tariffer, elafgift og moms. ` +
+                           (perDay > 0 ? `Abonnement: ${_fmt(perDay, 2)} kr/dag.` : 'Uden abonnement.');
                 el.style.display = '';
             }
         }

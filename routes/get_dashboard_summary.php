@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../includes/Projection.php';
+require_once __DIR__ . '/../includes/DashboardWindow.php';
 
 // ─── 5-minute file cache ──────────────────────────────────────────────────────
 $_dashCacheKey = 'dashboard_' . date('Y-m-d');
@@ -38,6 +39,8 @@ $currentMonth       = $todayDt->format('Y-m');
 $today              = $todayDt->format('Y-m-d');
 $sparkStart         = $currentStartDt->format('Y-m-d');
 $sparkWindowStart   = $todayDt->modify('-29 days')->format('Y-m-d');
+// Meter queries must cover BOTH the month to date and the 30-day sparkline.
+$meterWindowStart   = DashboardWindow::lagStart($sparkStart, $today);
 $prevStart          = $prevStartDt->format('Y-m-d');
 $prevEnd       = $prevEndDt->format('Y-m-d');
 $prevMonthEnd  = $prevMonthEndDt->format('Y-m-d');
@@ -222,6 +225,7 @@ $extMonth = ['cnt' => $extMonthCnt, 'kwh' => $extMonthKwh, 'cost' => $extMonthCo
 // =========================================================================
 // EV — sparkline: merge external charges into $evByDay
 // =========================================================================
+$intByDay = $evByDay;   // home (internal) charging only: this is what the house meter contains
 foreach ($extByDay as $day => $kwh) {
     $evByDay[$day] = ($evByDay[$day] ?? 0) + $kwh;
 }
@@ -234,7 +238,7 @@ for ($i = 29; $i >= 0; $i--) {
 // =========================================================================
 // Heatpump — current and previous month totals + sparkline
 // =========================================================================
-$hpDailyMap = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $sparkWindowStart, $today);
+$hpDailyMap = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $meterWindowStart, $today);
 $hpCurrent  = round(array_sum(array_filter($hpDailyMap, function($v, $k) use ($sparkStart) {
     return $k >= $sparkStart;
 }, ARRAY_FILTER_USE_BOTH)), 2);
@@ -277,7 +281,7 @@ $husLastYearFullKwh = null;
 $husSparkline  = null;
 
 try {
-    $husDailyMap   = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $sparkWindowStart, $today);
+    $husDailyMap   = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $meterWindowStart, $today);
     $husCurrentKwh = round(array_sum(array_filter($husDailyMap, function($v, $k) use ($sparkStart) {
         return $k >= $sparkStart;
     }, ARRAY_FILTER_USE_BOTH)), 2);
@@ -354,6 +358,42 @@ $_husProj         = $husCurrentKwh !== null
 $husProjected   = ($_husProj !== null && $_husProj['value'] !== null) ? round($_husProj['value'], 1) : null;
 $husPctChange   = ($husCurrentKwh !== null && $husPrevKwh > 0)
                     ? round(($husCurrentKwh - $husPrevKwh) / $husPrevKwh * 100, 1) : null;
+// =========================================================================
+// Rest = house meter - heat pump - EV home charging.
+// The Hus card shows ONLY this: EV and the heat pump have their own cards, so
+// repeating them in the house figures just muddles the picture. Every period is
+// derived the same way (same pro-rata day, same clamp at 0), so the trends,
+// projection and sparkline are consistent with the monthly figure.
+// =========================================================================
+$restPayload = null;
+if ($husCurrentKwh !== null) {
+    $restOf = static fn(float $house, float $heatPump, float $evHome): float => max(0.0, $house - $heatPump - $evHome);
+
+    $restCurrent  = $restOf($husCurrentKwh,                    $hpCurrent,        floatval($intMonth['kwh']));
+    $restPrev     = $restOf(floatval($husPrevKwh),             $hpPrev,           floatval($intPrev['kwh']));
+    $restPrevFull = $restOf(floatval($husPrevFullKwh),         $hpPrevFull,       $intPrevFullKwh);
+    $restLY       = $restOf(floatval($husLastYearKwh),         $hpLastYearPeriod, floatval($intLY['kwh']));
+    $restLYFull   = $restOf(floatval($husLastYearFullKwh),     $hpLastYear,       $intLYFullKwh);
+
+    $restSparkline = [];
+    for ($i = 29; $i >= 0; $i--) {
+        $day = date('Y-m-d', strtotime("-{$i} days"));
+        $restSparkline[] = round($restOf(floatval($husDailyMap[$day] ?? 0), floatval($hpDailyMap[$day] ?? 0), floatval($intByDay[$day] ?? 0)), 2);
+    }
+
+    $_restProj = projectMonth($restCurrent, $restPrev, $restPrevFull, $restLY, $restLYFull);
+    $restPayload = [
+        'month_kwh'           => round($restCurrent, 2),
+        'daily_avg_kwh'       => round($restCurrent / $daysElapsed, 2),
+        'projected_kwh'       => $_restProj['value'] !== null ? round($_restProj['value'], 1) : null,
+        'projection_basis'    => $_restProj['basis'],
+        'prev_month_full_kwh' => round($restPrevFull, 2),
+        'pct_change'          => $restPrev > 0 ? round(($restCurrent - $restPrev) / $restPrev * 100, 1) : null,
+        'pct_change_year'     => $restLY   > 0 ? round(($restCurrent - $restLY)   / $restLY   * 100, 1) : null,
+        'sparkline'           => $restSparkline,
+    ];
+}
+
 $husPctChangeYear = ($husCurrentKwh !== null && $husLastYearKwh > 0)
                     ? round(($husCurrentKwh - $husLastYearKwh) / $husLastYearKwh * 100, 1) : null;
 
@@ -408,6 +448,7 @@ $response = json_encode([
         'projection_basis' => $_husProj['basis'] ?? null,
         'sparkline'       => $husSparkline,
     ] : null,
+    'rest' => $restPayload,
 ]);
 QueryBuilder::fileCacheWrite($_dashCacheKey, $response);
 echo $response;

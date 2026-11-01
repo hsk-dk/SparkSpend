@@ -65,6 +65,9 @@ class Config {
             // Vehicle telemetry API key
             'vehicleApiKey' => env('VEHICLE_API_KEY', ''),
 
+            // Fixed electricity subscription, kr per day (added to the monthly estimate)
+            'subscriptionPerDay' => env('SUBSCRIPTION_PER_DAY', '0'),
+
             // Debug mode
             'debug' => env('DEBUG', 'false') === 'true',
 
@@ -159,6 +162,12 @@ class Config {
 
     public static function vehicleApiKey(): string {
         return self::get('vehicleApiKey', '');
+    }
+
+    /** Fixed subscription in kr per day (0 = not configured). Accepts "0.50" or "0,50". */
+    public static function subscriptionPerDay(): float {
+        $v = str_replace(',', '.', trim((string) self::get('subscriptionPerDay', '0')));
+        return (is_numeric($v) && (float) $v >= 0 && (float) $v <= 1000) ? (float) $v : 0.0;
     }
 
     public static function elspotArea(): string {
