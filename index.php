@@ -8,6 +8,7 @@ require 'includes/QueryBuilder.php';
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
   <meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES) ?>">
   <title>SparkSpend</title>
   <link rel="icon" type="image/svg+xml" href="includes/favicon.svg">

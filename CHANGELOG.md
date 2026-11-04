@@ -13,6 +13,11 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 - Raw Energi Data Service answers are cached per dataset and a 429 pauses all upstream calls; incomplete price answers are never cached.
 - `MOCK_EDS=true` (dev only) serves deterministic synthetic prices, so the local test instance works offline.
 
+### Fixed (mobile / iPhone)
+- **Background photo missing on iPhone:** `background-attachment: fixed` on `body` is not supported by iOS Safari. The photo now sits on a fixed full-screen layer (`body::after`).
+- **Unreadable text in dark mode:** the dark rules flipped the text colour to light but the cards stayed white (contrast 1.1-1.2:1 on headings and tables). The UI is now light-only (`color-scheme: light`); the half-built dark rules are removed. A proper dark theme would be a separate task.
+- **Low-contrast text:** accent blue, light green/red, and grey text on the white cards measured 1.6-3.4:1. Text now uses stronger variants (WCAG AA 4.5:1), active tabs/buttons are white on dark blue, and the cards are slightly more opaque.
+
 ### Fixed
 - **Regning/Fordeling: the current month's rate was diluted** by the unpublished future days of the month (rate 0). Month rates now average only days that have a price.
 - **Hus > År til dato showed `NaN kWh`**: the first day of each year has no previous meter reading (NULL delta). It now counts as 0.

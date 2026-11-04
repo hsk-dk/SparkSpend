@@ -1,5 +1,6 @@
 /* CSS Variables for Theming */
 :root {
+  color-scheme: light;   /* the UI is light-only (white cards); see CHANGELOG */
   --brand-bg: #C9CFD8;
   --brand-ink: #243140;
   --brand-accent: #6BA3FF;
@@ -23,15 +24,6 @@
 
 
 /* Dark Mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --brand-bg: #1a2635;
-    --brand-ink: #E8ECEF;
-    --brand-light: #243140;
-    --white: #ffffff;
-  }
-}
-
 /* Respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -61,11 +53,6 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
   background-color: #C9CFD8;
-  background-image: url('https://auth.useful.dk/media/public/background.jpg');
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center center;
-  background-attachment: fixed;
   color: #1f2937;
   padding: 0;
   margin: 0;
@@ -75,6 +62,21 @@ body {
   display: flex;
   flex-direction: column;
   font-size: 14px;
+}
+
+/* Background photo. It lives on a fixed full-screen layer instead of
+   `background-attachment: fixed` on the body: iOS Safari does not support that
+   (the image is dropped or stretched over the whole page height). */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+  background: var(--background-image) center center / cover no-repeat;
+  pointer-events: none;
 }
 
 /* Optional: Add a subtle animated background pattern */
@@ -1534,23 +1536,6 @@ header {
   font-weight: 600;
 }
 
-@media (prefers-color-scheme: dark) {
-  .dashboard-card {
-    background: rgba(36, 49, 64, 0.9);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .sub-nav-btn {
-    background: rgba(36, 49, 64, 0.7);
-    border-color: rgba(255, 255, 255, 0.15);
-    color: var(--brand-ink);
-  }
-
-  .sub-nav-btn:hover {
-    background: rgba(36, 49, 64, 0.9);
-  }
-}
-
 .site-footer a {
   color: #6BA3FF;
   text-decoration: none;
@@ -2046,10 +2031,6 @@ header {
   margin-top: 4px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .spark-error { color: #fca5a5; }
-}
-
 /* ===== MOBILE CARD LAYOUT FOR CHARGE TABLE ===== */
 /*
  * Under 600px the 8-column charge table becomes unreadable in a horizontal
@@ -2130,13 +2111,6 @@ header {
   }
 }
 
-@media (prefers-color-scheme: dark) and (max-width: 600px) {
-  #elbil-ladninger tbody tr {
-    background: rgba(36, 49, 64, 0.6);
-    border-color: rgba(148, 163, 184, 0.2);
-  }
-}
-
 /* ===== CONSISTENT FOCUS-VISIBLE (keyboard accessibility) ===== */
 /*
  * Guarantee a visible focus ring on all interactive controls that previously
@@ -2186,10 +2160,6 @@ header {
   margin-top: 4px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .spark-empty { color: #94a3b8; }
-}
-
 /* ===== DASHBOARD AUTO-REFRESH INDICATOR ===== */
 
 .dash-refresh-indicator {
@@ -2217,10 +2187,6 @@ header {
 
 @media (prefers-reduced-motion: reduce) {
   .dash-refresh-spinner { animation-duration: 2s; }
-}
-
-@media (prefers-color-scheme: dark) {
-  .dash-refresh-indicator { color: #94a3b8; }
 }
 
 /* ===== MOBILE HEADER & NAVIGATION (<= 768px) =====
@@ -2303,3 +2269,51 @@ header {
   .header-left h1 { font-size: 16px; }
   .header-tab-button { font-size: 10px; }
 }
+
+/* ===== READABLE CONTRAST (WCAG AA, 4.5:1) =====
+   Measured on the light theme: accent blue / light green / grey text on the white,
+   translucent cards fell to 1.6-3.4:1. Strong variants for TEXT; the bright brand
+   colours stay for fills and borders. */
+:root {
+  --accent-strong: #1d4ed8;   /* 6.7:1 on white */
+  --link-strong:   #1e3a8a;   /* links straight on the page background (no card behind) */
+  --ok-strong:     #166534;
+  --bad-strong:    #b91c1c;
+  --muted-strong:  #4b5563;   /* 7.5:1 on white */
+}
+
+.dashboard-card { background: rgba(255, 255, 255, 0.92); }
+
+.text-muted { color: var(--muted-strong) !important; }
+.dash-period, .dash-stat-label, .dash-projected, .trend-neutral,
+.dash-trend-micro, .dash-trend-micro.trend-stable, .hp-mode-btn,
+.total-cost-card .total-cost-breakdown, .dash-refresh-indicator { color: var(--muted-strong); }
+.dash-sync { color: var(--muted-strong); font-size: 11px; }
+.dash-sync.dash-sync-stale { color: var(--bad-strong); }
+
+.trend-down, .dash-trend-micro.trend-falling { color: var(--ok-strong); }
+.trend-up,   .dash-trend-micro.trend-rising  { color: var(--bad-strong); }
+.dash-split-home-lbl { color: var(--accent-strong); }
+th.sort-active { color: var(--accent-strong); }
+
+/* active/selected controls: white on a dark blue fill instead of white or blue on light blue */
+.sub-nav-btn.active,
+.hp-mode-btn.active {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #fff;
+}
+.btn-secondary {
+  color: var(--accent-strong);
+  border-color: var(--accent-strong);
+  background: rgba(29, 78, 216, 0.08);
+}
+.btn-secondary:hover { background: rgba(29, 78, 216, 0.16); color: var(--accent-strong); }
+
+.site-footer a {
+  color: var(--link-strong);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.site-footer a:hover { color: var(--brand-ink); }
+.site-footer { color: #1f2937; }
