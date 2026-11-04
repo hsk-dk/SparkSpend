@@ -4,7 +4,7 @@
     {
       "name": "sparkspend-dev",
       "runtimeExecutable": "php",
-      "runtimeArgs": ["-S", "localhost:8080"],
+      "runtimeArgs": ["-d", "extension=openssl", "-S", "localhost:8080"],
       "port": 8080,
       "env": { "SPARKSPEND_ENV_FILE": ".env.dev" }
     }
