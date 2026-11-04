@@ -432,7 +432,7 @@ const fordelingApp = (() => {
 
     function _setStatus(el, msg, cls = 'text-muted') {
         if (!el) return;
-        el.innerHTML = msg;
+        el.textContent = msg;
         el.className = 'small mb-3 ' + cls;
     }
 

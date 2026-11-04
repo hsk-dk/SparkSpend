@@ -3,6 +3,9 @@
  * Moved out of index.php so the Content-Security-Policy needs no inline scripts.
  */
 (function () {
+    // Server text goes into innerHTML templates below: escape it.
+    const _escHtml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
     const modal       = document.getElementById('syncModal');
     const listEl      = document.getElementById('syncStatusList');
     const msgEl       = document.getElementById('syncModalMsg');
@@ -73,7 +76,7 @@
             .then(d => {
                 logLoaded = true;
                 if (d.error) {
-                    logContent.innerHTML = `<span style="color:#f87171">${d.error}</span>`;
+                    logContent.innerHTML = `<span style="color:#f87171">${_escHtml(d.error)}</span>`;
                     return;
                 }
                 if (d.missing) {
@@ -128,13 +131,13 @@
             return `
             <div class="d-flex align-items-center justify-content-between py-2${isLast ? '' : ' border-bottom'}">
               <div>
-                <div class="fw-semibold small">${s.label}</div>
+                <div class="fw-semibold small">${_escHtml(s.label)}</div>
                 <small class="text-muted">${ago}${extra}</small>
               </div>
               <div class="d-flex align-items-center gap-2 ms-3">
                 ${badge}
                 <button class="btn btn-outline-secondary btn-sm py-0 px-2"
-                        data-sync-source="${s.id}" title="Sync ${s.label}">
+                        data-sync-source="${_escHtml(s.id)}" title="Sync ${_escHtml(s.label)}">
                   <i class="fas fa-sync-alt fa-xs"></i>
                 </button>
               </div>

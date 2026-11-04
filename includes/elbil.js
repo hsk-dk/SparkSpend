@@ -531,7 +531,7 @@ const elbilApp = (() => {
                 };
                 const [cls, label] = stateMap[charge.state] || ['bg-secondary', charge.state];
                 const reasonTip = charge.stopReason ? ` data-bs-toggle="tooltip" title="${appUtils.escapeHtml(charge.stopReason)}"` : '';
-                stateBadge = `<br><span class="badge ${cls}"${reasonTip}>${label}</span>`;
+                stateBadge = `<br><span class="badge ${cls}"${reasonTip}>${appUtils.escapeHtml(label)}</span>`;
             }
 
             let priceIcon = '', priceText = '';
@@ -627,7 +627,7 @@ const elbilApp = (() => {
         Object.keys(totals).forEach(v => {
             const avg = totals[v].totalKwh > 0 ? totals[v].totalPris / totals[v].totalKwh : 0;
             html += `<tr>
-                <td>${v}</td>
+                <td>${appUtils.escapeHtml(v)}</td>
                 <td>${totals[v].totalKwh.toFixed(2)} kWh</td>
                 <td>${totals[v].internalPris.toFixed(2)} kr</td>
                 <td>${totals[v].externalPris.toFixed(2)} kr</td>
@@ -998,8 +998,8 @@ const elbilApp = (() => {
         Object.keys(grouped).forEach(vid => {
             const entries = grouped[vid].sort((a, b) => a.timestamp - b.timestamp);
             const vName   = (vehicles.find(v => v.id == vid) || {}).vehicleName || 'Bil ' + vid;
-            kmSeries.push({ name: vName, data: entries.map(e => [e.timestamp * 1000, e.totalKmPerKwh]) });
-            krSeries.push({ name: vName, data: entries.map(e => [e.timestamp * 1000, e.totalKrPerKm]) });
+            kmSeries.push({ name: appUtils.escapeHtml(vName), data: entries.map(e => [e.timestamp * 1000, e.totalKmPerKwh]) });
+            krSeries.push({ name: appUtils.escapeHtml(vName), data: entries.map(e => [e.timestamp * 1000, e.totalKrPerKm]) });
         });
 
         const baseOpts = { chart: { type: 'line', height: 300 }, xaxis: { type: 'datetime', title: { text: 'Dato' } }, stroke: { curve: 'smooth' } };
@@ -1420,7 +1420,7 @@ const elbilApp = (() => {
 
     function _showManageMsg(msg, type = 'danger') {
         const el = document.getElementById('manageMsg');
-        if (el) el.innerHTML = `<span class="text-${type}">${msg}</span>`;
+        if (el) el.innerHTML = `<span class="text-${type}">${_esc(msg)}</span>`;
     }
 
     function openManageModal() {

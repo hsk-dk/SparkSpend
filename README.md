@@ -60,6 +60,10 @@ Ny rute: tilføj en linje i `includes/routes.php` (`'method' => 'GET'|'POST'`, `
 
 `dev/test_routes.php` starter appen på en seedet midlertidig database og kalder alle ruter over HTTP (session og CSRF med). Med `--record`/`--compare` kan man bevise, at en refaktorering ikke har ændret et eneste svar.
 
+## Frontend og CSP
+
+Siden har ingen inline scripts og ingen inline event-handler-attributter (CSP `script-src` uden `'unsafe-inline'`). Klik i markup skrives som `data-action="navn"` med `data-*`-argumenter og håndteres i `includes/actions.js`; en ny handling tilføjes som ét opslag i `handlers`-tabellen dér. Serverkonfigurationen til JS ligger som en JSON-datablok i `index.php` og læses af `includes/config.js`. Data fra serveren (navne, fejlbeskeder) skal escapes med `appUtils.escapeHtml` (eller `textContent`), før de indsættes i `innerHTML`.
+
 ## Tests
 
 ```bash
