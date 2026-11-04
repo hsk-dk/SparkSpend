@@ -14,6 +14,7 @@ return [
     'charges'              => ['handler' => 'routes/get_charges.php',             'method' => 'GET'],
     'charge-analytics'     => ['handler' => 'routes/get_charge_analytics.php',    'method' => 'GET'],
     'charge-compare'       => ['handler' => 'routes/get_charge_compare.php',      'method' => 'GET'],
+    'charge-optimization'  => ['handler' => 'routes/get_charge_optimization.php', 'method' => 'GET'],
     'annual'               => ['handler' => 'routes/get_annual_summary.php',      'method' => 'GET'],
     'anomalies'            => ['handler' => 'routes/get_anomaly_stats.php',       'method' => 'GET'],
     'efficiency'           => ['handler' => 'routes/get_efficiency_stats.php',    'method' => 'GET'],

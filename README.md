@@ -119,6 +119,8 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 | `WEATHER_LAT` | Breddegrad (decimal) | — |
 | `WEATHER_LON` | Længdegrad (decimal) | — |
 | `TIMEZONE` | PHP-tidszone | `Europe/Copenhagen` |
+| `EV_FLEX_HOURS` | Ladeoptimering: timer efter tilslutning, bilen regnes for tilgængelig | `12` |
+| `EV_MAX_KW` | Ladeoptimering: laderens effekt i kW | `7.4` |
 | `AUTO_MIGRATE` | Kør DB-migrationer automatisk ved web-requests (højst en gang i timen) | `true` |
 | `EDS_WEB_FETCH` | `false` = kun `cron/warm_prices.php` kalder Energi Data Service | `true` |
 | `VEHICLE_API_KEY` | Bearer-nøgle til `receive_vehicle_data.php` og `receive_charger_event.php` (uden nøgle svarer de 503) | — |

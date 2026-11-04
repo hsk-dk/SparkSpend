@@ -128,6 +128,7 @@ $gets = [
     'charges (vehicle+dates)' => ["action=charges&filter=1&dateRange=$from+til+$today", null],
     'charge-analytics'     => ['action=charge-analytics&filter=all&groupBy=month', ['trend', 'statistics', 'meta']],
     'charge-compare'       => ['action=charge-compare', null],
+    'charge-optimization'  => ['action=charge-optimization&months=3', ['available', 'totals', 'charges', 'months', 'params']],
     'annual'               => ['action=annual', ['years']],
     'anomalies'            => ['action=anomalies', ['anomalies', 'insufficient_data']],
     'efficiency'           => ['action=efficiency', ['vehicles', 'series']],

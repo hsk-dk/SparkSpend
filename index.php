@@ -514,6 +514,24 @@ require 'includes/DatabaseManager.php';
   <!-- Sub-section: Analyse -->
   <div id="elbil-analyse" class="sub-section">
 
+    <!-- Charging optimisation: what the charges cost vs. the cheapest hours -->
+    <div class="card p-4" id="chargeOptCard">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+        <h3 class="mb-0">Ladeoptimering</h3>
+        <label class="small text-muted d-flex align-items-center gap-2 mb-0">Periode
+          <select id="chargeOptMonths" class="form-select form-select-sm w-auto">
+            <option value="3" selected>3 måneder</option>
+            <option value="6">6 måneder</option>
+            <option value="12">12 måneder</option>
+          </select>
+        </label>
+      </div>
+      <p class="text-muted small mb-3">
+        Hvad dine ladninger hjemme kostede til timeprisen, og hvad de samme kWh ville have kostet i de billigste timer, bilen stod tilsluttet.
+      </p>
+      <div id="chargeOptContent"><p class="text-muted small mb-0">Indlæser…</p></div>
+    </div>
+
     <!-- Efficiency Charts Card -->
     <div class="card p-4">
       <h3>Forbrug pr. km</h3>

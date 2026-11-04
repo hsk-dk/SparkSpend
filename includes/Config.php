@@ -65,6 +65,11 @@ class Config {
             // Vehicle telemetry API key
             'vehicleApiKey' => env('VEHICLE_API_KEY', ''),
 
+            // Charging optimisation (see ChargeOptimizer): how long after plug-in the car is
+            // assumed to be available for charging, and the charger's rate in kW.
+            'evFlexHours' => (float) env('EV_FLEX_HOURS', '12'),
+            'evMaxKw'     => (float) env('EV_MAX_KW', '7.4'),
+
             // Fixed electricity subscription, kr per day (added to the monthly estimate)
             'subscriptionPerDay' => env('SUBSCRIPTION_PER_DAY', '0'),
 
@@ -184,6 +189,16 @@ class Config {
 
     public static function weatherLon(): string {
         return self::get('weatherLon', '');
+    }
+
+    /** Hours after plug-in the car counts as available for (re)scheduling, 1..48. */
+    public static function evFlexHours(): float {
+        return max(1.0, min(48.0, (float) self::get('evFlexHours', 12.0)));
+    }
+
+    /** Charger rate in kW (kWh per hour a charge can be moved at), 1..50. */
+    public static function evMaxKw(): float {
+        return max(1.0, min(50.0, (float) self::get('evMaxKw', 7.4)));
     }
 
     public static function debug(): bool {
