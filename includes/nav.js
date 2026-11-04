@@ -338,7 +338,7 @@ const SparkNav = (() => {
         }
     }
 
-    return { init, switchMainTab, switchSubTab, switchHusSubTab, navigateTo, getHashDateRange: () => _hashDateRange };
+    return { init, switchMainTab, switchSubTab, switchHusSubTab, navigateTo, updateHash, getHashDateRange: () => _hashDateRange };
 })();
 
 window.SparkNav = SparkNav;

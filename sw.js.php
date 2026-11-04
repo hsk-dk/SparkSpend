@@ -16,6 +16,7 @@ header('X-Content-Type-Options: nosniff');
 // Compute content hash from all cacheable source files
 $files = array_merge(
     glob(__DIR__ . '/includes/*.js')  ?: [],
+    glob(__DIR__ . '/includes/elbil/*.js') ?: [],
     glob(__DIR__ . '/includes/*.css') ?: [],
     glob(__DIR__ . '/routes/*.php')   ?: [],
     [

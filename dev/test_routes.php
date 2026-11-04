@@ -114,7 +114,7 @@ check('index.php has no inline <script> (only src= and JSON data blocks)', !$inl
 $markup = preg_replace('#<script\b.*?</script>#is', '', $page['body']);
 check('index.php has no inline event-handler attributes', !preg_match('/\son[a-z]+\s*=\s*["\']/i', $markup));
 $jsHandlers = [];
-foreach (glob($root . '/includes/*.js') as $f) {
+foreach (array_merge(glob($root . '/includes/*.js'), glob($root . '/includes/elbil/*.js')) as $f) {
     if (preg_match('/\bon(click|change|input|submit|load|error|keydown|keyup|mouse\w+)\s*=\s*["\']/i', file_get_contents($f), $m)) $jsHandlers[] = basename($f) . ': ' . $m[0];
 }
 check('no JS file builds inline event-handler attributes', !$jsHandlers, implode('; ', $jsHandlers));

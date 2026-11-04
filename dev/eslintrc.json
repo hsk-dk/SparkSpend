@@ -1,0 +1,35 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2022
+  },
+  "globals": {
+    "appUtils": "readonly",
+    "Chart": "readonly",
+    "ChartDataLabels": "readonly",
+    "ApexCharts": "readonly",
+    "flatpickr": "readonly",
+    "bootstrap": "readonly",
+    "SparkNav": "readonly",
+    "SparkPricing": "readonly",
+    "Elbil": "writable",
+    "elbilApp": "writable",
+    "jordvarmeApp": "writable",
+    "husApp": "writable",
+    "regningApp": "writable",
+    "fordelingApp": "writable",
+    "annualApp": "writable",
+    "Apex": "readonly",
+    "loadDashboard": "readonly",
+    "startDashboardAutoRefresh": "readonly",
+    "stopDashboardAutoRefresh": "readonly"
+  },
+  "rules": {
+    "no-undef": "error",
+    "no-unused-vars": "off"
+  }
+}

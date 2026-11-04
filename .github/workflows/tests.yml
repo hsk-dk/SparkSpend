@@ -29,5 +29,8 @@ jobs:
           # find, not a glob: a directory without .js files must not fail the check
           find includes dev -name '*.js' -print0 | xargs -0 -n1 node --check
 
+      - name: JS lint (undefined names)
+        run: npx --yes eslint@8 --no-eslintrc -c dev/eslintrc.json "includes/*.js" "includes/elbil/*.js"
+
       - name: Unit tests
         run: php dev/run_tests.php

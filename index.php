@@ -897,7 +897,16 @@ require 'includes/DatabaseManager.php';
   <!-- Module Scripts (defer: run in order after the deferred libraries above) -->
   <script defer src="<?= asset('includes/nav.js') ?>"></script>
   <script defer src="<?= asset('includes/dashboard.js') ?>"></script>
-  <script defer src="<?= asset('includes/elbil.js') ?>"></script>
+  <!-- Elbil: parts share the Elbil namespace (core first, main last) -->
+  <script defer src="<?= asset('includes/elbil/core.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/charges.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/optimization.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/efficiency.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/analytics.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/yearly.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/manage.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/tou.js') ?>"></script>
+  <script defer src="<?= asset('includes/elbil/main.js') ?>"></script>
   <script defer src="<?= asset('includes/jordvarme.js') ?>"></script>
   <script defer src="<?= asset('includes/hus.js') ?>"></script>
   <script defer src="<?= asset('includes/regning.js') ?>"></script>

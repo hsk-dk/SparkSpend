@@ -62,6 +62,8 @@ Ny rute: tilføj en linje i `includes/routes.php` (`'method' => 'GET'|'POST'`, `
 
 ## Frontend og CSP
 
+Elbil-fanen er delt i dele i `includes/elbil/` (indlæses i den rækkefølge, `index.php` angiver: `core` først, `main` sidst). Delt tilstand er `Elbil.state`; delene kalder hinanden som `Elbil.modules.<del>.<funktion>()`; indgangen udadtil er stadig `window.elbilApp`. Ny funktion i en del skal med i dens eksportliste nederst i filen, hvis en anden del skal kalde den. CI kører ESLint (`dev/eslintrc.json`), som fanger navne, ingen del definerer.
+
 Siden har ingen inline scripts og ingen inline event-handler-attributter (CSP `script-src` uden `'unsafe-inline'`). Klik i markup skrives som `data-action="navn"` med `data-*`-argumenter og håndteres i `includes/actions.js`; en ny handling tilføjes som ét opslag i `handlers`-tabellen dér. Serverkonfigurationen til JS ligger som en JSON-datablok i `index.php` og læses af `includes/config.js`. Data fra serveren (navne, fejlbeskeder) skal escapes med `appUtils.escapeHtml` (eller `textContent`), før de indsættes i `innerHTML`.
 
 ## Tests
