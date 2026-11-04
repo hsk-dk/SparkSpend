@@ -51,7 +51,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => '/',
-        'secure'   => true,
+        // Always secure, except for explicit local http dev (DEV_INSECURE_COOKIE=true)
+        'secure'   => env('DEV_INSECURE_COOKIE', 'false') !== 'true',
         'httponly' => true,
         'samesite' => 'Strict',
     ]);

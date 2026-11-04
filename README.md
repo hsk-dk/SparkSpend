@@ -48,6 +48,16 @@ php cron/update_monta_data.php
 
 ---
 
+## Lokal testinstans (syntetiske data, uden Authentik)
+
+```bash
+cp .env.dev.example .env.dev
+SPARKSPEND_ENV_FILE=.env.dev php dev/seed_dev.php     # opretter data-dev/*.db
+SPARKSPEND_ENV_FILE=.env.dev php -S localhost:8080
+```
+
+`SPARKSPEND_ENV_FILE` peger appen på en anden env-fil end `.env`, og `DEV_INSECURE_COOKIE=true` tillader session-cookie over `http://localhost`. Seed-scriptet bruger kun genererede data. `.claude/launch.json` starter instansen direkte fra Claude.
+
 ## Cron-jobs
 
 Tilføj til `/etc/crontab` eller cPanel's cron-manager:

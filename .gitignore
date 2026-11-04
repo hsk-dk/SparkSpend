@@ -18,6 +18,8 @@ vendor/
 # Database files (managed outside git)
 *.db
 data/
+data-dev/
+.env.dev
 
 # OS files
 .DS_Store

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sparkspend-dev",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["-S", "localhost:8080"],
+      "port": 8080,
+      "env": { "SPARKSPEND_ENV_FILE": ".env.dev" }
+    }
+  ]
+}

@@ -18,7 +18,9 @@ class EnvLoader {
         }
 
         self::$variables = [];
-        $envFile = dirname(dirname(__FILE__)) . '/.env';
+        // SPARKSPEND_ENV_FILE lets a local/dev instance use a separate env file
+        // (e.g. .env.dev) without touching the real .env.
+        $envFile = getenv('SPARKSPEND_ENV_FILE') ?: dirname(dirname(__FILE__)) . '/.env';
 
         if (!file_exists($envFile)) {
             return; // .env file not found, use defaults
