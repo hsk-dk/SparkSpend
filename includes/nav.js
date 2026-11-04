@@ -19,6 +19,17 @@ const SparkNav = (() => {
     let husForbrugLoaded  = false;
     let husRegningLoaded  = false;
     let husFordelingLoaded = false;
+    // Run a tab's init once its section is laid out. Two animation frames let Chart.js and
+    // the datalabels plugin measure a visible canvas; the timeout is the fallback for
+    // pages that get no frames (background tab, hidden pane), so a tab never stays on
+    // "Indlæser…" waiting for a paint that does not come.
+    function afterLayout(fn) {
+        let done = false;
+        const once = () => { if (!done) { done = true; fn(); } };
+        requestAnimationFrame(() => requestAnimationFrame(once));
+        setTimeout(once, 250);
+    }
+
     let aarsrapportLoaded = false;
 
     // Resize all Chart.js charts in a section after it becomes visible.
@@ -82,7 +93,7 @@ const SparkNav = (() => {
             }
             if (!elbilLoaded) {
                 elbilLoaded = true;
-                requestAnimationFrame(() => requestAnimationFrame(() => window.elbilApp?.init()));
+                afterLayout(() => window.elbilApp?.init());
             }
         }
         if (tabId === 'jordvarme-section') {
@@ -91,7 +102,7 @@ const SparkNav = (() => {
                 // Double-RAF: first frame lets the browser apply display:block + layout;
                 // second frame lets Chart.js ResizeObserver settle before we create charts.
                 // Prevents the chartjs-plugin-datalabels _listened crash on intermittent loads.
-                requestAnimationFrame(() => requestAnimationFrame(() => window.jordvarmeApp?.init()));
+                afterLayout(() => window.jordvarmeApp?.init());
             }
         }
         if (tabId === 'hus-section') {
@@ -112,7 +123,7 @@ const SparkNav = (() => {
             if (!aarsrapportLoaded) {
                 aarsrapportLoaded = true;
                 // Double-RAF for the same datalabels-compatibility reason as jordvarme above.
-                requestAnimationFrame(() => requestAnimationFrame(() => window.annualApp?.init()));
+                afterLayout(() => window.annualApp?.init());
             }
             // No _resizeSection on return visits: responsive:true lets Chart.js handle
             // its own resizing via the internal ResizeObserver. Calling chart.resize()
@@ -170,15 +181,15 @@ const SparkNav = (() => {
 
         if (activeSubId === 'hus-forbrug' && !husForbrugLoaded) {
             husForbrugLoaded = true;
-            requestAnimationFrame(() => requestAnimationFrame(() => window.husApp?.init()));
+            afterLayout(() => window.husApp?.init());
         }
         if (activeSubId === 'hus-regning' && !husRegningLoaded) {
             husRegningLoaded = true;
-            requestAnimationFrame(() => requestAnimationFrame(() => window.regningApp?.init()));
+            afterLayout(() => window.regningApp?.init());
         }
         if (activeSubId === 'hus-fordeling' && !husFordelingLoaded) {
             husFordelingLoaded = true;
-            requestAnimationFrame(() => requestAnimationFrame(() => window.fordelingApp?.init()));
+            afterLayout(() => window.fordelingApp?.init());
         }
     }
 

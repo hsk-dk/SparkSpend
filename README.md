@@ -103,8 +103,16 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 | `WEATHER_LAT` | Breddegrad (decimal) | — |
 | `WEATHER_LON` | Længdegrad (decimal) | — |
 | `TIMEZONE` | PHP-tidszone | `Europe/Copenhagen` |
+| `AUTO_MIGRATE` | Kør DB-migrationer automatisk ved web-requests (højst en gang i timen) | `true` |
+| `EDS_WEB_FETCH` | `false` = kun `cron/warm_prices.php` kalder Energi Data Service | `true` |
+| `VEHICLE_API_KEY` | Bearer-nøgle til `receive_vehicle_data.php` og `receive_charger_event.php` (uden nøgle svarer de 503) | — |
 
 Se `.env.example` for fuld liste.
+
+### Anbefalet produktionsopsætning
+
+- `AUTO_MIGRATE=false` og kør `php migrate.php` som en del af deploy: så ændres databaseskemaet aldrig af en tilfældig brugeranmodning. `php migrate.php --status` viser, hvad der er anvendt.
+- `DEBUG=false`, `VEHICLE_API_KEY` sat til en lang tilfældig værdi, og `EDS_WEB_FETCH=false` når `cron/warm_prices.php` kører i cron.
 
 ---
 

@@ -14,20 +14,9 @@
  * Same API key as receive_vehicle_data.php (VEHICLE_API_KEY, fail closed).
  */
 require_once __DIR__ . '/../includes/ChargerEvents.php';
+require_once __DIR__ . '/../includes/ApiAuth.php';
 
-$apiKey = Config::vehicleApiKey();
-if ($apiKey === '') {
-    http_response_code(503);
-    echo json_encode(['success' => false, 'error' => 'Endpoint not configured — set VEHICLE_API_KEY in .env']);
-    exit;
-}
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-if (!str_starts_with($authHeader, 'Bearer ') || !hash_equals($apiKey, substr($authHeader, 7))) {
-    http_response_code(401);
-    header('WWW-Authenticate: Bearer realm="SparkSpend"');
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit;
-}
+ApiAuth::requireBearer(Config::vehicleApiKey());
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'error' => 'Method not allowed']);

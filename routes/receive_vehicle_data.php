@@ -7,21 +7,10 @@
  * - odometer: Current odometer reading (km)
  */
 
-// API key authentication — required. If VEHICLE_API_KEY is not set in .env,
-// the endpoint rejects all requests (fail closed).
-$apiKey = Config::vehicleApiKey();
-if ($apiKey === '') {
-    http_response_code(503);
-    echo json_encode(['success' => false, 'error' => 'Endpoint not configured — set VEHICLE_API_KEY in .env']);
-    exit;
-}
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-if (!str_starts_with($authHeader, 'Bearer ') || !hash_equals($apiKey, substr($authHeader, 7))) {
-    http_response_code(401);
-    header('WWW-Authenticate: Bearer realm="SparkSpend"');
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit;
-}
+require_once __DIR__ . '/../includes/ApiAuth.php';
+
+// API key authentication — required (fails closed: no key configured = 503).
+ApiAuth::requireBearer(Config::vehicleApiKey());
 
 // Validate request method
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
