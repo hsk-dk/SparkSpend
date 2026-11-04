@@ -9,7 +9,9 @@
  *   api.php?action=charges&filter=all
  *   api.php?action=create-ext-charge  (POST)
  *
- * Legacy endpoint files (getCharges.php, etc.) are thin shims that delegate here.
+ * Standalone entry points (receive_vehicle_data.php, receive_charger_event.php) exist
+ * only so the Home Assistant calls can bypass the auth proxy; everything else goes
+ * through this router.
  */
 
 require __DIR__ . '/includes/configuration.php';

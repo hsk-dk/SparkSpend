@@ -48,6 +48,15 @@ php cron/update_monta_data.php
 
 ---
 
+## Tests
+
+```bash
+php dev/run_tests.php          # alle dev/test_*.php og dev/test_*.js (Node kræves til JS-testen)
+php dev/run_tests.php pricing  # kun tests med "pricing" i filnavnet
+```
+
+Kører også i GitHub Actions (`.github/workflows/tests.yml`) ved push og pull requests. `test_config_rates.php` fejler fra 1. januar, hvis afgiftstabellerne i `includes/Config.php` ikke har en række for det nye år.
+
 ## Lokal testinstans (syntetiske data, uden Authentik)
 
 ```bash
