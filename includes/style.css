@@ -18,8 +18,9 @@
   --text-xl: 20px;
   --text-2xl: 24px;
 
-  /* Background Image - Using shared auth.useful.dk background */
-  --background-image: url('https://auth.useful.dk/media/public/background.jpg');
+  /* Background photo, served from this app (it used to be hot-linked from the
+     Authentik server, which can fail on iOS and ties the app to that host) */
+  --background-image: url('../images/background.jpg');
 }
 
 
