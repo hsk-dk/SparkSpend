@@ -17,7 +17,7 @@ const jordvarmeApp = (() => {
 
         // State
         let currentMode  = "daily";
-        let currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+        let currentMonth = appUtils.ymd().slice(0, 7); // YYYY-MM
         let currentYear  = String(new Date().getFullYear());     // YYYY
         let heatpumpChart = null;
 
@@ -215,7 +215,7 @@ const jordvarmeApp = (() => {
         function fetchElCosts(kwhData) {
             if (!elSettingsReady()) return;
             const { area, gln } = getElSettings();
-            const today = new Date().toISOString().slice(0, 10);
+            const today = appUtils.ymd();
 
             let start, end;
             if (currentMode === 'daily') {
@@ -320,7 +320,7 @@ const jordvarmeApp = (() => {
         function initBaseline() {
             if (!weatherSettingsReady()) return;
             const { lat, lon } = getWeatherSettings();
-            const today = new Date().toISOString().slice(0, 10);
+            const today = appUtils.ymd();
             fetch('api.php?action=heatpump&mode=compare')
                 .then(r => r.json())
                 .then(compareData => {
@@ -358,7 +358,7 @@ const jordvarmeApp = (() => {
         function fetchWeatherData(kwhData) {
             if (!weatherSettingsReady()) return;
             const { lat, lon } = getWeatherSettings();
-            const today = new Date().toISOString().slice(0, 10);
+            const today = appUtils.ymd();
 
             let start, end;
             if (currentMode === 'daily') {

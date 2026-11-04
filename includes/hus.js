@@ -30,7 +30,7 @@ const husApp = (() => {
 
         // State
         let currentMode  = 'daily';
-        let currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+        let currentMonth = appUtils.ymd().slice(0, 7); // YYYY-MM
         let currentYear  = String(new Date().getFullYear());     // YYYY
         let husChart     = null;
         let lastData     = null;

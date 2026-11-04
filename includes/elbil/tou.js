@@ -22,9 +22,9 @@
         if (!area || !gln) return; // unconfigured — placeholder text already shown
 
         const now    = new Date();
-        const end    = now.toISOString().slice(0, 10);
+        const end    = appUtils.ymd(now);
         const dStart = new Date(now); dStart.setDate(now.getDate() - (days - 1));
-        const start  = dStart.toISOString().slice(0, 10);
+        const start  = appUtils.ymd(dStart);
 
         container.innerHTML = '<p class="text-muted small">Indlæser elspot-data…</p>';
 

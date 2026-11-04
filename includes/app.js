@@ -75,6 +75,15 @@ const formatCurrency = (value) => {
  * @param {string|Date} dateStr - Date string or Date object
  * @returns {string} Formatted date
  */
+/**
+ * Local calendar date as YYYY-MM-DD. Use this instead of date.toISOString().slice(0, 10):
+ * toISOString() is UTC, so a date at local midnight (the start of a month, "today" before
+ * 02:00 in Denmark) comes out one day early.
+ * @param {Date} [d] defaults to now
+ */
+const ymd = (d = new Date()) =>
+  d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
 const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('da-DK', {
     day: '2-digit',
@@ -569,6 +578,7 @@ window.appUtils = {
   initializeTooltips,
   formatCurrency,
   formatDate,
+  ymd,
   escapeHtml,
   updateChartInstance,
   showFormMessage,

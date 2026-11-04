@@ -103,7 +103,7 @@
         const first = months[0] + '-01';
         const [ly, lm] = months[months.length - 1].split('-').map(Number);
         const lastDay = new Date(ly, lm, 0).getDate();
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = appUtils.ymd();
         const last = months[months.length - 1] + '-' + String(lastDay).padStart(2, '0');
         const end = last > todayStr ? todayStr : last;
         if (end < first) return;

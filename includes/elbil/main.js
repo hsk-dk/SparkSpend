@@ -39,6 +39,7 @@
             if (hashDr) {
                 S.dateRangeEl._flatpickr.setDate([hashDr.start, hashDr.end]);
                 S.quickFilterEl.value = '';
+                window.SparkNav?.updateHash();   // keep ?dr= in the URL after restoring it
             } else {
                 const today = new Date();
                 const start = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -56,7 +57,7 @@
         if (!S.dateRangeEl?._flatpickr) return null;
         const dates = S.dateRangeEl._flatpickr.selectedDates;
         if (dates.length < 2) return null;
-        const fmt = d => d.toISOString().slice(0, 10);
+        const fmt = d => appUtils.ymd(d);
         return { start: fmt(dates[0]), end: fmt(dates[1]) };
     }
 
