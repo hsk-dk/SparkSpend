@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="300" viewBox="0 0 1000 300">
+  <!-- Transparent background -->
+  <defs>
+    <style>
+      .brand { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 800; }
+      .tagline { font-family: "Georgia", "Times New Roman", serif; font-weight: 600; letter-spacing: 3px; }
+    </style>
+  </defs>
+
+  <!-- Outer frame -->
+  <rect x="15" y="15" width="970" height="200" fill="none" stroke="#b3b3b3" stroke-width="12" rx="2" ry="2"/>
+  
+  <!-- Left tile area divider -->
+  <line x1="270" y1="15" x2="270" y2="215" stroke="#b3b3b3" stroke-width="12"/>
+
+  <!-- Left tile (abstract grid) -->
+  <rect x="45" y="45" width="190" height="140" fill="none" stroke="#b3b3b3" stroke-width="10"/>
+  <path d="M55 55 L225 110" stroke="#b3b3b3" stroke-width="10" fill="none"/>
+  <path d="M55 90 L225 145" stroke="#b3b3b3" stroke-width="10" fill="none"/>
+  <path d="M55 125 L225 180" stroke="#b3b3b3" stroke-width="10" fill="none"/>
+  <path d="M95 55 L95 185" stroke="#b3b3b3" stroke-width="10" fill="none"/>
+  <path d="M150 55 L150 185" stroke="#b3b3b3" stroke-width="10" fill="none"/>
+
+  <!-- USEFUL block -->
+  <text x="320" y="145" class="brand" font-size="120" fill="#b3b3b3">USEFUL</text>
+
+  <!-- Tagline -->
+  <text x="500" y="280" class="tagline" font-size="42" fill="#b3b3b3" text-anchor="middle">IDEAS ENGINEERED AT HOME</text>
+</svg>

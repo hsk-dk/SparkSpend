@@ -40,7 +40,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 // handlers. Tightening script-src therefore requires first migrating every
 // inline handler to addEventListener across index.php and the JS modules.
 // Tracked as a larger hardening task; kept as-is here to avoid breaking the UI.
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com cdnjs.cloudflare.com; font-src fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data: auth.useful.dk; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com cdnjs.cloudflare.com; font-src fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com");
 
 // ============================================================================
 // CSRF Protection

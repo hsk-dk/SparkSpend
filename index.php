@@ -1076,7 +1076,7 @@ require 'includes/QueryBuilder.php';
     <div class="footer-content">
       <p>SparkSpend • <a href="https://useful.dk" target="_blank" rel="noopener noreferrer">Powered by Useful</a></p>
       <div class="logo">
-        <img src="https://auth.useful.dk/media/public/logo_2.svg" alt="Useful Logo" />
+        <img src="images/useful-logo.svg" alt="Useful Logo" />
       </div>
     </div>
   </footer>
