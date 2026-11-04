@@ -11,8 +11,7 @@
 
 // ─── 5-minute file cache (keyed by date) ──────────────────────────────────────
 $_cacheKey = 'anomaly_' . date('Y-m-d');
-$_cached   = QueryBuilder::fileCacheRead($_cacheKey, CacheHelper::TTL_MEDIUM);
-if ($_cached !== null) { echo $_cached; exit; }
+ApiCache::serve($_cacheKey, CacheHelper::TTL_MEDIUM);
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -72,8 +71,7 @@ $dayOfMonth = (int)$today->format('j');
 // Require at least 5 days before raising alerts
 if ($dayOfMonth < 5) {
     $json = json_encode(['anomalies' => [], 'insufficient_data' => true]);
-    QueryBuilder::fileCacheWrite($_cacheKey, $json);
-    echo $json;
+    ApiCache::respond($_cacheKey, $json);
     exit;
 }
 
@@ -287,5 +285,4 @@ if (!empty($anomalies)) {
 }
 
 $json = json_encode(['anomalies' => $anomalies, 'insufficient_data' => false]);
-QueryBuilder::fileCacheWrite($_cacheKey, $json);
-echo $json;
+ApiCache::respond($_cacheKey, $json);

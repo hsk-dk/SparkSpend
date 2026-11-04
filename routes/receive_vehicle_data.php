@@ -14,9 +14,7 @@ ApiAuth::requireBearer(Config::vehicleApiKey());
 
 // Validate request method
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-    exit;
+    Http::fail('Method not allowed', 405);
 }
 
 // Read and parse JSON input
@@ -38,24 +36,18 @@ if ($input === null) {
 
 // Validate required fields
 if (!isset($input['vehicleId']) || !isset($input['odometer'])) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing vehicleId or odometer']);
-    exit;
+    Http::fail('Missing vehicleId or odometer');
 }
 
 $vehicleId = (int) $input['vehicleId'];
 $odometer  = $input['odometer'];
 
 if ($vehicleId <= 0) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'vehicleId must be a positive integer']);
-    exit;
+    Http::fail('vehicleId must be a positive integer');
 }
 
 if (!is_numeric($odometer) || (float)$odometer <= 0 || (float)$odometer >= 2000000) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'odometer must be a number between 0 and 2,000,000']);
-    exit;
+    Http::fail('odometer must be a number between 0 and 2,000,000');
 }
 
 // Generate current timestamp in UTC
@@ -69,9 +61,7 @@ $vehicleName = isset($input['vehicleName']) ? trim((string) $input['vehicleName'
 // Verify vehicleId exists in vehicles table
 $existing = QueryBuilder::selectVehicleById($db, $vehicleId);
 if ($existing === null && $vehicleName === '') {
-    http_response_code(422);
-    echo json_encode(['success' => false, 'error' => 'Unknown vehicleId and no vehicleName provided to create it']);
-    exit;
+    Http::fail('Unknown vehicleId and no vehicleName provided to create it', 422);
 }
 
 // Upsert vehicles table

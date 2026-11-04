@@ -11,7 +11,7 @@ require __DIR__ . '/../includes/env.php';
 require __DIR__ . '/../includes/MigrationRunner.php';
 
 $root = dirname(__DIR__);
-$dir  = $root . '/data-dev';
+$dir  = getenv('SEED_DIR') ?: $root . '/data-dev';   // SEED_DIR: seed somewhere else (dev/test_routes.php)
 if (!is_dir($dir . '/cache')) mkdir($dir . '/cache', 0777, true);
 foreach (['charging_data.db', 'powerlog_data.db'] as $f) {
     foreach (['', '-wal', '-shm'] as $sfx) @unlink("$dir/$f$sfx");

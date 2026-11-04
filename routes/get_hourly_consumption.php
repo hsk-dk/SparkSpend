@@ -29,11 +29,9 @@ if (!$validDate($start) || !$validDate($end) || $end < $start
 }
 
 $_cacheKey = 'hourlycons_' . $start . '_' . $end;
-$_cached = QueryBuilder::fileCacheRead($_cacheKey, CacheHelper::TTL_MEDIUM);
-if ($_cached !== null) { echo $_cached; exit; }
+ApiCache::serve($_cacheKey, CacheHelper::TTL_MEDIUM);
 
 $response = json_encode(HourlyConsumption::series(
     DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), $start, $end
 ));
-QueryBuilder::fileCacheWrite($_cacheKey, $response);
-echo $response;
+ApiCache::respond($_cacheKey, $response);

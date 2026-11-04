@@ -10,8 +10,7 @@ require_once __DIR__ . '/../includes/DashboardWindow.php';
 
 // ─── 5-minute file cache ──────────────────────────────────────────────────────
 $_dashCacheKey = 'dashboard_' . date('Y-m-d');
-$_cached = QueryBuilder::fileCacheRead($_dashCacheKey, CacheHelper::TTL_MEDIUM);
-if ($_cached !== null) { echo $_cached; exit; }
+ApiCache::serve($_dashCacheKey, CacheHelper::TTL_MEDIUM);
 // ─────────────────────────────────────────────────────────────────────────────
 
 $chargesDb = DatabaseManager::getChargesDb();
@@ -74,15 +73,11 @@ $lyScale   = DashboardWindow::comparableScale($lastYearPeriodEndDt->format('j') 
 
 /**
  * Project this month's total. Thin wrapper over Projection::fullMonth() (see
- * includes/Projection.php) that supplies the elapsed-day globals.
+ * includes/Projection.php) bound to the elapsed-day figures of this request.
  * @return array{value:?float, basis:string}
  */
-if (!function_exists('projectMonth')) {
-function projectMonth(float $mtd, float $prevMtd, float $prevFull, float $lyMtd = 0.0, float $lyFull = 0.0): array {
-    global $daysElapsed, $daysInMonth;
-    return Projection::fullMonth($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, (float)$daysElapsed, (int)$daysInMonth);
-}
-}
+$projectMonth = static fn(float $mtd, float $prevMtd, float $prevFull, float $lyMtd = 0.0, float $lyFull = 0.0): array
+    => Projection::fullMonth($mtd, $prevMtd, $prevFull, $lyMtd, $lyFull, (float) $daysElapsed, (int) $daysInMonth);
 
 /**
  * Sum a [Y-m-d => value] map, counting the window's final day only pro rata
@@ -336,7 +331,7 @@ $_unpricedKwh        = floatval($intMonth['unpriced_kwh']);
 $_pricedKwh          = $totalKwh - $_unpricedKwh;
 $evCostPerKwh        = $_pricedKwh > 0.001 ? round($totalCost / $_pricedKwh, 3) : null;
 $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
-$_evProj             = projectMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
+$_evProj             = $projectMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
 $evProjected         = $_evProj['value'] !== null ? round($_evProj['value']) : null;
 $evPctChangeKwh      = $prevTotalKwh  > 0 ? round(($totalKwh - $prevTotalKwh) / $prevTotalKwh * 100, 1) : null;
 $evPctChangeKwhYear  = $lyTotalKwh    > 0 ? round(($totalKwh - $lyTotalKwh)   / $lyTotalKwh   * 100, 1) : null;
@@ -353,12 +348,12 @@ $extCpKwh   = $extKwh  > 0 ? round($extCost  / $extKwh,  3) : null;
 $prevExtPct = $prevTotalKwh > 0 ? round($extPrevKwh / $prevTotalKwh * 100, 1) : null;
 
 $hpDailyAvg     = round($hpCurrent / $daysElapsed, 2);
-$_hpProj         = projectMonth($hpCurrent, $hpPrev, $hpPrevFull, $hpLastYearPeriod, $hpLastYear);
+$_hpProj         = $projectMonth($hpCurrent, $hpPrev, $hpPrevFull, $hpLastYearPeriod, $hpLastYear);
 $hpProjected     = $_hpProj['value'] !== null ? round($_hpProj['value'], 1) : null;
 
 $husDailyAvg    = $husCurrentKwh !== null ? round($husCurrentKwh / $daysElapsed, 2) : null;
 $_husProj         = $husCurrentKwh !== null
-                    ? projectMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh),
+                    ? $projectMonth($husCurrentKwh, floatval($husPrevKwh), floatval($husPrevFullKwh),
                                    floatval($husLastYearKwh), floatval($husLastYearFullKwh)) : null;
 $husProjected   = ($_husProj !== null && $_husProj['value'] !== null) ? round($_husProj['value'], 1) : null;
 $husPctChange   = ($husCurrentKwh !== null && $husPrevKwh > 0)
@@ -397,7 +392,7 @@ if ($husCurrentKwh !== null) {
         if ($raw < -0.5) { $restNegDays++; $restNegKwh += -$raw; }
     }
 
-    $_restProj = projectMonth($restCurrent, $restPrev, $restPrevFull, $restLY, $restLYFull);
+    $_restProj = $projectMonth($restCurrent, $restPrev, $restPrevFull, $restLY, $restLYFull);
     $restPayload = [
         'month_kwh'           => round($restCurrent, 2),
         'daily_avg_kwh'       => round($restCurrent / $daysElapsed, 2),
@@ -498,5 +493,4 @@ try {
 }
 
 $response = json_encode($payload);
-QueryBuilder::fileCacheWrite($_dashCacheKey, $response);
-echo $response;
+ApiCache::respond($_dashCacheKey, $response);

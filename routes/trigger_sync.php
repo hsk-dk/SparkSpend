@@ -7,8 +7,7 @@
  * POST body (JSON): { "source": "monta" | "heatpump" | "hus" | "all" }
  */
 
-$data   = json_decode(file_get_contents('php://input'), true);
-$source = isset($data['source']) ? (string) $data['source'] : '';
+$source = Http::str(Http::body(), 'source');
 
 // Whitelist of allowed sources → absolute script paths
 $scripts = [
@@ -22,18 +21,14 @@ if ($source === 'all') {
 } elseif (isset($scripts[$source])) {
     $toRun = [$scripts[$source]];
 } else {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Ukendt kilde']);
-    exit;
+    Http::fail('Ukendt kilde');
 }
 
 // Rate-limit: max 1 sync request per 30 seconds
 $_cacheDir    = Config::cacheDir();
 $_cooldownFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_cooldown.lock';
 if (file_exists($_cooldownFile) && (time() - filemtime($_cooldownFile)) < 30) {
-    http_response_code(429);
-    echo json_encode(['success' => false, 'error' => 'Vent venligst 30 sekunder mellem synkroniseringer']);
-    exit;
+    Http::fail('Vent venligst 30 sekunder mellem synkroniseringer', 429);
 }
 touch($_cooldownFile);
 

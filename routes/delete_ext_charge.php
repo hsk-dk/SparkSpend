@@ -1,39 +1,18 @@
 <?php
-/**
- * Delete external charge
- *
- * POST JSON body:
- * - id: Charge ID to delete
- */
+/** Delete an external charge. POST JSON: { id } */
 
-$json = file_get_contents('php://input');
-$data = json_decode($json, true);
-
-if (!$data || !isset($data['id'])) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Missing id parameter'
-    ]);
-    exit;
+$data = Http::body();
+if (!isset($data['id'])) {
+    Http::fail('Missing id parameter');
 }
+$id = Http::int($data, 'id');
 
 $db = DatabaseManager::getChargesDb();
-$chk = $db->prepare("SELECT 1 FROM ext_charges WHERE id = ?");
-$chk->execute([intval($data['id'])]);
-if (!$chk->fetchColumn()) {
-    jsonError('Ladning ikke fundet', 404);
+if (!QueryBuilder::rowExists($db, 'ext_charges', $id)) {
+    Http::fail('Ladning ikke fundet', 404);
 }
-$result = QueryBuilder::deleteExternalCharge($db, intval($data['id']));
-
-if ($result) {
-    QueryBuilder::invalidateChargeCaches();
-    http_response_code(200);
-    echo json_encode(['success' => true]);
-} else {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Error deleting charge'
-    ]);
+if (!QueryBuilder::deleteExternalCharge($db, $id)) {
+    Http::fail('Error deleting charge', 500);
 }
+QueryBuilder::invalidateChargeCaches();
+Http::send(['success' => true]);

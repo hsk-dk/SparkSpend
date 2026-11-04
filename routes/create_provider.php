@@ -1,12 +1,12 @@
 <?php
-$data = json_decode(file_get_contents('php://input'), true);
-$name = isset($data['name']) ? trim((string) $data['name']) : '';
+/** Create a charging provider. POST JSON: { name } */
 
+$name = Http::str(Http::body(), 'name');
 if ($name === '') {
-    jsonError('Navn må ikke være tomt', 400);
+    Http::fail('Navn må ikke være tomt');
 }
 
-$db  = DatabaseManager::getChargesDb();
-$id  = QueryBuilder::insertProvider($db, $name);
+$db = DatabaseManager::getChargesDb();
+$id = QueryBuilder::insertProvider($db, $name);
 QueryBuilder::invalidateProviderCaches();
-echo json_encode(['success' => true, 'id' => $id, 'providerName' => $name]);
+Http::send(['success' => true, 'id' => $id, 'providerName' => $name]);

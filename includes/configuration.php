@@ -85,21 +85,6 @@ function csrfVerify(): void {
 }
 
 /**
- * Emit a standardized JSON error response and terminate.
- *
- * All error responses follow the envelope: {"success": false, "error": "..."}
- *
- * @param string $message Human-readable error message
- * @param int    $httpCode HTTP status code (default 400)
- */
-function jsonError(string $message, int $httpCode = 400): never {
-    http_response_code($httpCode);
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'error' => $message]);
-    exit;
-}
-
-/**
  * Build a cache-busted URL for a local asset (CSS/JS).
  *
  * Appends ?v=<filemtime> so the browser always fetches a fresh copy after a

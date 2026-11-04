@@ -8,8 +8,7 @@
 
 // ─── 1-hour file cache (resets at midnight) ───────────────────────────────────
 $_compareCacheKey = 'ev_compare_' . date('Y-m-d');
-$_cached = QueryBuilder::fileCacheRead($_compareCacheKey, CacheHelper::TTL_LONG);
-if ($_cached !== null) { echo $_cached; exit; }
+ApiCache::serve($_compareCacheKey, CacheHelper::TTL_LONG);
 // ─────────────────────────────────────────────────────────────────────────────
 
 $db = DatabaseManager::getChargesDb();
@@ -79,5 +78,4 @@ foreach ($byYearMonth as $year => $months) {
 }
 
 $response = json_encode($result);
-QueryBuilder::fileCacheWrite($_compareCacheKey, $response);
-echo $response;
+ApiCache::respond($_compareCacheKey, $response);

@@ -48,6 +48,18 @@ php cron/update_monta_data.php
 
 ---
 
+## API-opbygning
+
+Al JSON-trafik går gennem `api.php`, som kun slår handlingen op i ruttetabellen `includes/routes.php` og kalder `Router`. Routeren tjekker HTTP-metoden (405), CSRF på mutationer (403) og fanger fejl centralt (500, uden interne detaljer medmindre `DEBUG=true`).
+
+Ny rute: tilføj en linje i `includes/routes.php` (`'method' => 'GET'|'POST'`, `'csrf' => true` på mutationer) og en fil i `routes/`. Rutefilen bruger:
+
+- `Http::body()`, `Http::int()`, `Http::str()`, `Http::query()` og validatorerne `Http::isDate/isMonth/isYear` til input,
+- `Http::fail($besked, $status)` til fejl (altid `{"success": false, "error": "…"}`) og `Http::send()` til svar,
+- `ApiCache::serve($nøgle, $ttl)` øverst og `ApiCache::respond($nøgle, $data, $gem)` nederst for filcachede svar.
+
+`dev/test_routes.php` starter appen på en seedet midlertidig database og kalder alle ruter over HTTP (session og CSRF med). Med `--record`/`--compare` kan man bevise, at en refaktorering ikke har ændret et eneste svar.
+
 ## Tests
 
 ```bash

@@ -28,27 +28,19 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
     !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)   ||
     !is_numeric($lat) || (float)$lat < -90  || (float)$lat > 90  ||
     !is_numeric($lon) || (float)$lon < -180 || (float)$lon > 180) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Ugyldige parametre. Forventet: start, end (YYYY-MM-DD), lat (-90–90), lon (-180–180).']);
-    exit;
+    Http::fail('Ugyldige parametre. Forventet: start, end (YYYY-MM-DD), lat (-90–90), lon (-180–180).');
 }
 
 if ($end < $start) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'end skal være >= start.']);
-    exit;
+    Http::fail('end skal være >= start.');
 }
 if ((strtotime($end) - strtotime($start)) / 86400 > 7300) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Perioden må højst være 20 år.']);
-    exit;
+    Http::fail('Perioden må højst være 20 år.');
 }
 
 if (Config::weatherLat() !== '' && Config::weatherLon() !== '' &&
     (abs((float)$lat - (float)Config::weatherLat()) > 0.0001 || abs((float)$lon - (float)Config::weatherLon()) > 0.0001)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Ukendte koordinater.']);
-    exit;
+    Http::fail('Ukendte koordinater.');
 }
 
 $lat = (float)$lat;
@@ -88,9 +80,7 @@ $ctx = stream_context_create([
 $raw = file_get_contents($url, false, $ctx);
 if ($raw === false) {
     error_log('getWeatherData: connection failed (allow_url_fopen=' . ini_get('allow_url_fopen') . ')');
-    http_response_code(502);
-    echo json_encode(['success' => false, 'error' => 'Kunne ikke forbinde til Open-Meteo.']);
-    exit;
+    Http::fail('Kunne ikke forbinde til Open-Meteo.', 502);
 }
 
 $statusLine = $http_response_header[0] ?? 'unknown';
@@ -98,9 +88,7 @@ $data       = json_decode($raw, true);
 
 if (!is_array($data) || !isset($data['daily']['time'])) {
     error_log("getWeatherData: unexpected response — HTTP: $statusLine — body: " . substr($raw, 0, 200));
-    http_response_code(502);
-    echo json_encode(['success' => false, 'error' => 'Uventet svar fra Open-Meteo.']);
-    exit;
+    Http::fail('Uventet svar fra Open-Meteo.', 502);
 }
 
 // ─── Calculate HDD per day ───────────────────────────────────────────────────

@@ -9,8 +9,7 @@
 
 // ─── 5-minute file cache ─────────────────────────────────────────────────────────────
 $_provCacheKey = 'providerstats_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
-$_cached = QueryBuilder::fileCacheRead($_provCacheKey, CacheHelper::TTL_MEDIUM);
-if ($_cached !== null) { echo $_cached; exit; }
+ApiCache::serve($_provCacheKey, CacheHelper::TTL_MEDIUM);
 // ─────────────────────────────────────────────────────────────────────────────
 
 $db = DatabaseManager::getChargesDb();
@@ -87,5 +86,4 @@ usort($result, fn($a, $b) => $a['avg_cost_per_kwh'] <=> $b['avg_cost_per_kwh']);
 
 http_response_code(200);
 $json = json_encode($result);
-QueryBuilder::fileCacheWrite($_provCacheKey, $json);
-echo $json;
+ApiCache::respond($_provCacheKey, $json);

@@ -9,19 +9,8 @@
 require __DIR__ . '/includes/configuration.php';
 require __DIR__ . '/includes/DatabaseManager.php';
 require __DIR__ . '/includes/QueryBuilder.php';
+require __DIR__ . '/includes/Router.php';
 
 header('Content-Type: application/json');
 
-try {
-    require __DIR__ . '/routes/receive_vehicle_data.php';
-} catch (PDOException $e) {
-    http_response_code(500);
-    error_log("receive_vehicle_data.php DB error: " . $e->getMessage());
-    echo json_encode(['success' => false, 'error' => 'Database error occurred']);
-} catch (\Throwable $e) {
-    http_response_code(500);
-    error_log("receive_vehicle_data.php error: " . $e->getMessage());
-    // Never leak internal messages/paths to the client in production.
-    $clientError = Config::debug() ? $e->getMessage() : 'Der opstod en intern fejl';
-    echo json_encode(['success' => false, 'error' => $clientError]);
-}
+Router::run('routes/receive_vehicle_data.php', 'receive_vehicle_data.php');

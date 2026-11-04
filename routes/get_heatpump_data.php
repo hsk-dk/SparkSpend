@@ -13,8 +13,7 @@
 // ─── 1-hour file cache (skip sync_status mode — changes frequently) ───────────────
 $_hpCacheKey = 'heatpump_' . md5($_SERVER['QUERY_STRING'] ?? '');
 if (($_GET['mode'] ?? '') !== 'sync_status') {
-    $_cached = QueryBuilder::fileCacheRead($_hpCacheKey, CacheHelper::TTL_LONG);
-    if ($_cached !== null) { echo $_cached; exit; }
+    ApiCache::serve($_hpCacheKey, CacheHelper::TTL_LONG);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -26,9 +25,7 @@ $response = [];
 if ($mode === 'daily' && isset($_GET['month'])) {
     $month = $_GET['month']; // Format: YYYY-MM
     if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid month format. Use YYYY-MM.']);
-        exit;
+        Http::fail('Invalid month format. Use YYYY-MM.');
     }
     $dayStart = $month . '-01';
     $dayEnd   = date('Y-m-t', strtotime($dayStart));
@@ -41,9 +38,7 @@ if ($mode === 'daily' && isset($_GET['month'])) {
 } elseif ($mode === 'monthly' && isset($_GET['year'])) {
     $year = $_GET['year']; // Format: YYYY
     if (!preg_match('/^\d{4}$/', $year)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid year format. Use YYYY.']);
-        exit;
+        Http::fail('Invalid year format. Use YYYY.');
     }
     $yearStart = $year . '-01-01';
     $yearEnd   = $year . '-12-31';
@@ -121,12 +116,10 @@ if ($mode === 'daily' && isset($_GET['month'])) {
 if (empty($response)) {
     http_response_code(200);
     $json = json_encode([]);
-    QueryBuilder::fileCacheWrite($_hpCacheKey, $json);
-    echo $json;
+    ApiCache::respond($_hpCacheKey, $json);
     exit;
 }
 
 http_response_code(200);
 $json = json_encode($response);
-QueryBuilder::fileCacheWrite($_hpCacheKey, $json);
-echo $json;
+ApiCache::respond($_hpCacheKey, $json);

@@ -28,38 +28,26 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
     !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)   ||
     !in_array($area, ['DK1', 'DK2'], true)        ||
     !preg_match('/^\d+$/', $gln)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Ugyldige parametre. Forventet: start, end (YYYY-MM-DD), area (DK1|DK2), gln (tal).']);
-    exit;
+    Http::fail('Ugyldige parametre. Forventet: start, end (YYYY-MM-DD), area (DK1|DK2), gln (tal).');
 }
 if (!in_array($format, ['daily', 'hourly'], true)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'format skal være daily eller hourly.']);
-    exit;
+    Http::fail('format skal være daily eller hourly.');
 }
 if (!in_array($tariff, ['high', 'low'], true)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'tariff skal være high eller low.']);
-    exit;
+    Http::fail('tariff skal være high eller low.');
 }
 
 // Only the configured price area / grid operator is served — arbitrary values
 // would each create their own cache file and upstream request.
 if (Config::elspotGln() !== '' && $gln !== Config::elspotGln()) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Ukendt gln.']);
-    exit;
+    Http::fail('Ukendt gln.');
 }
 
 if ($end < $start) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'end skal være >= start.']);
-    exit;
+    Http::fail('end skal være >= start.');
 }
 if ((strtotime($end) - strtotime($start)) / 86400 > 7300) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Perioden må højst være 20 år.']);
-    exit;
+    Http::fail('Perioden må højst være 20 år.');
 }
 
 // ─── File cache ──────────────────────────────────────────────────────────────

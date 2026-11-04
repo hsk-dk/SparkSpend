@@ -27,11 +27,7 @@ if (!empty($dateRange)) {
 
 // ─── 5-minute file cache ──────────────────────────────────────────────────
 $_cacheKey = 'vehicle_compare_' . md5($dateRange . '|' . $sortBy);
-$_cached   = QueryBuilder::fileCacheRead($_cacheKey, CacheHelper::TTL_MEDIUM);
-if ($_cached !== null) {
-    echo $_cached;
-    exit;
-}
+ApiCache::serve($_cacheKey, CacheHelper::TTL_MEDIUM);
 $vehicleComparison = QueryBuilder::getVehicleCostComparison($db, $filters);
 
 // Sort data based on sortBy parameter
@@ -52,5 +48,4 @@ $response = json_encode([
         'count' => count($vehicleComparison)
     ]
 ]);
-QueryBuilder::fileCacheWrite($_cacheKey, $response);
-echo $response;
+ApiCache::respond($_cacheKey, $response);

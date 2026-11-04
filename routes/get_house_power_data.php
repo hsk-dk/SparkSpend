@@ -27,8 +27,7 @@ function _extEvByKey(PDO $chargesDb, string $from, string $to, string $keyFmt): 
 // ─── 1-hour file cache (skip sync_status mode — changes frequently) ───────────────
 $_hwCacheKey = 'housepower_' . md5($_SERVER['QUERY_STRING'] ?? '');
 if (($_GET['mode'] ?? '') !== 'sync_status') {
-    $_cached = QueryBuilder::fileCacheRead($_hwCacheKey, CacheHelper::TTL_LONG);
-    if ($_cached !== null) { echo $_cached; exit; }
+    ApiCache::serve($_hwCacheKey, CacheHelper::TTL_LONG);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -43,8 +42,7 @@ function _husFinish(array $resp, ?array $cost, string $cacheKey): void {
     if ($cost !== null) { $complete = $cost['complete']; unset($cost['complete']); }
     $resp['cost'] = $cost;
     $json = json_encode($resp);
-    if ($complete) QueryBuilder::fileCacheWrite($cacheKey, $json);
-    echo $json;
+    ApiCache::respond($cacheKey, $json, $complete);
 }
 
 $powerlogDb = DatabaseManager::getPowerlogDb();
@@ -58,9 +56,7 @@ $mode = $_GET['mode'] ?? 'daily';
 if ($mode === 'daily') {
     $month = $_GET['month'] ?? date('Y-m');
     if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid month format. Use YYYY-MM.']);
-        exit;
+        Http::fail('Invalid month format. Use YYYY-MM.');
     }
     $dayStart = $month . '-01';
     $dayEnd   = date('Y-m-t', strtotime($dayStart));
@@ -124,9 +120,7 @@ if ($mode === 'daily') {
 } elseif ($mode === 'monthly') {
     $year = $_GET['year'] ?? date('Y');
     if (!preg_match('/^\d{4}$/', $year)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid year format. Use YYYY.']);
-        exit;
+        Http::fail('Invalid year format. Use YYYY.');
     }
     $yearStart = $year . '-01-01';
     $yearEnd   = $year . '-12-31';
@@ -252,8 +246,7 @@ if ($mode === 'daily') {
         error_log('getHousePowerData ytd: ' . $e->getMessage());
     }
     $json = json_encode(['mode' => 'ytd', 'data' => $data]);
-    QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
-    echo $json;
+    ApiCache::respond($_hwCacheKey, $json);
 
 // =========================================================================
 // SYNC STATUS

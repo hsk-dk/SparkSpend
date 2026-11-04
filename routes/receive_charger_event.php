@@ -18,24 +18,18 @@ require_once __DIR__ . '/../includes/ApiAuth.php';
 
 ApiAuth::requireBearer(Config::vehicleApiKey());
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-    exit;
+    Http::fail('Method not allowed', 405);
 }
 
 $raw = file_get_contents('php://input');
 $input = is_string($raw) ? json_decode($raw, true) : null;
 if (!is_array($input)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Invalid JSON format']);
-    exit;
+    Http::fail('Invalid JSON format');
 }
 
 $v = ChargerEvents::validate($input, time());
 if (!$v['ok']) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => $v['error']]);
-    exit;
+    Http::fail($v['error']);
 }
 $row = $v['row'];
 

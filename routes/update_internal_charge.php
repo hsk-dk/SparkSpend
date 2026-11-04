@@ -1,55 +1,27 @@
 <?php
 /**
- * Update internal charge vehicle assignment
- *
- * POST JSON body:
- * - id: Charge ID
- * - vehicleId: New Vehicle ID
+ * Update the vehicle of an internal (Monta) charge; marks it as manually paired.
+ * POST JSON: { id, vehicleId }
  */
 
-$json = file_get_contents('php://input');
-$data = json_decode($json, true);
-
-$id        = intval($data['id']        ?? 0);
-$vehicleId = intval($data['vehicleId'] ?? 0);
-
-if (!$data || $id <= 0 || $vehicleId <= 0) {
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Missing required fields: id, vehicleId'
-    ]);
-    exit;
+$data      = Http::body();
+$id        = Http::int($data, 'id');
+$vehicleId = Http::int($data, 'vehicleId');
+if ($id <= 0 || $vehicleId <= 0) {
+    Http::fail('Missing required fields: id, vehicleId');
 }
 
 $db = DatabaseManager::getChargesDb();
-
-$chk = $db->prepare("SELECT 1 FROM vehicles WHERE id = ?");
-$chk->execute([$vehicleId]);
-if (!$chk->fetchColumn()) {
-    jsonError('Ukendt vehicleId', 422);
+if (!QueryBuilder::rowExists($db, 'vehicles', $vehicleId)) {
+    Http::fail('Ukendt vehicleId', 422);
 }
-$chk = $db->prepare("SELECT 1 FROM charges WHERE id = ?");
-$chk->execute([$id]);
-if (!$chk->fetchColumn()) {
-    jsonError('Ladning ikke fundet', 404);
+if (!QueryBuilder::rowExists($db, 'charges', $id)) {
+    Http::fail('Ladning ikke fundet', 404);
 }
 
-// Update vehicleId and mark as manually paired
 $stmt = $db->prepare("UPDATE charges SET vehicleId = ?, pairingSource = 'manual' WHERE id = ?");
-$result = $stmt->execute([$vehicleId, $id]);
-
-if ($result) {
-    QueryBuilder::invalidateChargeCaches();
-    http_response_code(200);
-    echo json_encode([
-        'success' => true,
-        'message' => 'Internal charge updated'
-    ]);
-} else {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Error updating charge'
-    ]);
+if (!$stmt->execute([$vehicleId, $id])) {
+    Http::fail('Error updating charge', 500);
 }
+QueryBuilder::invalidateChargeCaches();
+Http::send(['success' => true, 'message' => 'Internal charge updated']);

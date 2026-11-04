@@ -25,9 +25,7 @@ $bearer      = str_starts_with($authHeader, 'Bearer ') ? substr($authHeader, 7) 
 $adminKeyOk  = $adminKey !== '' && hash_equals($adminKey, $bearer);
 
 if (!$csrfOk && !$adminKeyOk) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Adgang nægtet']);
-    exit;
+    Http::fail('Adgang nægtet', 403);
 }
 
 // Hardcoded log paths — never derived from user input

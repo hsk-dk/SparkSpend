@@ -6,8 +6,7 @@
  */
 
 // ─── 30-second cache ──────────────────────────────────────────────────────────
-$_cached = QueryBuilder::fileCacheRead('syncstatus', CacheHelper::TTL_SHORT);
-if ($_cached !== null) { echo $_cached; exit; }
+ApiCache::serve('syncstatus', CacheHelper::TTL_SHORT);
 // ─────────────────────────────────────────────────────────────────────────────
 
 $sources = [];
@@ -127,5 +126,4 @@ try {
 }
 
 $response = json_encode(['sources' => $sources]);
-QueryBuilder::fileCacheWrite('syncstatus', $response);
-echo $response;
+ApiCache::respond('syncstatus', $response);

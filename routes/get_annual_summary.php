@@ -14,8 +14,7 @@
 $_annualCacheKey = 'annual_' . date('Y-m-d');
 $_skipCache = false; // ?nocache removed: unauthenticated cache bypass was a cheap DoS lever
 if (!$_skipCache) {
-    $_cached = QueryBuilder::fileCacheRead($_annualCacheKey, CacheHelper::TTL_LONG);
-    if ($_cached !== null) { echo $_cached; exit; }
+    ApiCache::serve($_annualCacheKey, CacheHelper::TTL_LONG);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -127,8 +126,5 @@ try {
     $_costsComplete = false;
 }
 
-$response = json_encode(['years' => $years]);
-if (!$_skipCache && $_costsComplete) {
-    QueryBuilder::fileCacheWrite($_annualCacheKey, $response);
-}
-echo $response;
+// Not stored when prices were incomplete (rate-limited) or ?nocache was used.
+ApiCache::respond($_annualCacheKey, ['years' => $years], !$_skipCache && $_costsComplete);

@@ -25,8 +25,7 @@ require_once __DIR__ . '/../includes/EfficiencyCalc.php';
 
 // ─── 5-minute file cache ─────────────────────────────────────────────────────────────
 $_effCacheKey = 'efficiency_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
-$_cached = QueryBuilder::fileCacheRead($_effCacheKey, CacheHelper::TTL_MEDIUM);
-if ($_cached !== null) { echo $_cached; exit; }
+ApiCache::serve($_effCacheKey, CacheHelper::TTL_MEDIUM);
 // ─────────────────────────────────────────────────────────────────────────────
 
 $db = DatabaseManager::getChargesDb();
@@ -42,7 +41,7 @@ if ($dateRange !== '') {
     try {
         $dateFilters = QueryBuilder::parseDateRange($dateRange);
     } catch (\Throwable $e) {
-        jsonError('Ugyldigt dateRange-format. Forventet: "YYYY-MM-DD til YYYY-MM-DD".', 400);
+        Http::fail('Ugyldigt dateRange-format. Forventet: "YYYY-MM-DD til YYYY-MM-DD".');
     }
 }
 $fromTs = $dateFilters ? strtotime($dateFilters['start'] . ' 00:00:00') : null;
@@ -133,5 +132,4 @@ if ($vehicleFilter === null) {
 }
 
 $json = json_encode(['vehicles' => $vehicles, 'series' => $series, 'unassigned' => $unassigned]);
-QueryBuilder::fileCacheWrite($_effCacheKey, $json);
-echo $json;
+ApiCache::respond($_effCacheKey, $json);

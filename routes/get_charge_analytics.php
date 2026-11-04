@@ -27,11 +27,7 @@ $showZeroKwh = (isset($_GET['showZeroKwh']) && $_GET['showZeroKwh'] === 'true') 
 
 // ─── 5-minute file cache ──────────────────────────────────────────────────
 $_analyticsCacheKey = 'analytics_' . md5($filter . '|' . $dateRange . '|' . $groupBy . '|' . ($showZeroKwh ? '1' : '0'));
-$_cached = QueryBuilder::fileCacheRead($_analyticsCacheKey, CacheHelper::TTL_MEDIUM);
-if ($_cached !== null) {
-    echo $_cached;
-    exit;
-}
+ApiCache::serve($_analyticsCacheKey, CacheHelper::TTL_MEDIUM);
 // ─────────────────────────────────────────────────────────────────────────
 
 // Build filter array for QueryBuilder methods
@@ -124,5 +120,4 @@ $response = json_encode([
         'groupBy' => $groupBy
     ]
 ]);
-QueryBuilder::fileCacheWrite($_analyticsCacheKey, $response);
-echo $response;
+ApiCache::respond($_analyticsCacheKey, $response);
