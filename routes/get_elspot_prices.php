@@ -86,8 +86,51 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < CACHE_TTL_SECO
 
 // ─── Helper: fetch from Energi Data Service ──────────────────────────────────
 
+// Raw upstream responses are cached per dataset+query so that the high/low tariff
+// requests, the dashboard forecast and the monthly rate calls share ONE set of
+// Energi Data Service calls. Files use the .dat extension on purpose: the sync
+// trigger wipes sparkspend_*.json, and prices are independent of meter syncs.
+define('EDS_TTL_TARIFF',  86400);        // DatahubPricelist: changes a few times a year
+define('EDS_TTL_PAST',    30 * 86400);   // spot prices of finished days never change
+define('EDS_TTL_LIVE',    900);          // ranges touching today/tomorrow (15 min)
+define('EDS_STALE_MAX',   7 * 86400);    // serve expired data at most this old when upstream is unavailable
+
+function eds_cache_file(string $name): string {
+    return Config::cacheDir() . DIRECTORY_SEPARATOR . 'sparkspend_eds_' . $name . '.dat';
+}
+
+function eds_read_cache(string $file, int $ttl, bool $allowStale = false): ?array {
+    if (!is_file($file)) return null;
+    $age = time() - (int) @filemtime($file);
+    if ($age >= $ttl && !($allowStale && $age < EDS_STALE_MAX)) return null;
+    $json = @file_get_contents($file);
+    $rec  = $json !== false ? json_decode($json, true) : null;
+    return is_array($rec) ? $rec : null;
+}
+
+// Seconds until the rate limit is lifted (0 = not limited).
+function eds_backoff_remaining(): int {
+    $f = eds_cache_file('backoff');
+    $until = is_file($f) ? (int) @file_get_contents($f) : 0;
+    return max(0, $until - time());
+}
+
 // Returns array of records, or null on rate-limit (429).
-function eds_fetch(string $dataset, array $params): ?array {
+// $ttl: how long a cached response stays fresh. On rate-limit / outage an expired
+// copy is still used rather than returning nothing.
+function eds_fetch(string $dataset, array $params, int $ttl = EDS_TTL_LIVE): ?array {
+    $cacheFile = eds_cache_file(md5($dataset . '?' . http_build_query($params)));
+
+    $fresh = eds_read_cache($cacheFile, $ttl);
+    if ($fresh !== null) return $fresh;
+
+    // Rate-limited recently: do not call upstream at all.
+    $_left = eds_backoff_remaining();
+    if ($_left > 0) {
+        error_log("getElspotPrices eds_fetch: skipping $dataset — rate-limit pause, {$_left}s left");
+        return eds_read_cache($cacheFile, $ttl, true);   // stale copy, or null = "rate-limited"
+    }
+
     $url = EDS_BASE_URL . $dataset . '?' . http_build_query($params);
     $ctx = stream_context_create([
         'http' => [
@@ -100,22 +143,35 @@ function eds_fetch(string $dataset, array $params): ?array {
     $raw = file_get_contents($url, false, $ctx);
     if ($raw === false) {
         error_log("getElspotPrices eds_fetch: connection failed for $dataset (allow_url_fopen=" . ini_get('allow_url_fopen') . ")");
-        return [];
+        return eds_read_cache($cacheFile, $ttl, true) ?? [];
     }
     $statusLine = $http_response_header[0] ?? 'unknown';
 
-    // Detect rate-limiting — return null so callers can stop gracefully
+    // Detect rate-limiting — remember it, so no further calls are made until it
+    // is lifted, and return null so callers can stop gracefully
     if (str_contains($statusLine, '429')) {
-        error_log("getElspotPrices eds_fetch: rate-limited (429) for $dataset — will use partial data");
-        return null;
+        $wait = preg_match('/in (\d+) seconds/i', $raw, $m) ? (int) $m[1] : 60;
+        @file_put_contents(eds_cache_file('backoff'), (string) (time() + max(5, min(600, $wait)) + 2));
+        error_log("getElspotPrices eds_fetch: rate-limited (429) for $dataset — backing off {$wait}s");
+        return eds_read_cache($cacheFile, $ttl, true);
     }
 
     $data = json_decode($raw, true);
-    $count = is_array($data) ? count($data['records'] ?? []) : 0;
+    $records = is_array($data) ? ($data['records'] ?? []) : [];
+    $count = count($records);
     if ($count === 0) {
         error_log("getElspotPrices eds_fetch: 0 records from $dataset — HTTP: $statusLine — body: " . substr($raw, 0, 200));
+        return eds_read_cache($cacheFile, $ttl, true) ?? [];   // never cache an empty/failed answer
     }
-    return is_array($data) ? ($data['records'] ?? []) : [];
+    if (str_starts_with($statusLine, 'HTTP/') && str_contains($statusLine, ' 200')) {
+        @file_put_contents($cacheFile, json_encode($records), LOCK_EX);
+    }
+    return $records;
+}
+
+// Spot-price TTL: finished days are final; ranges reaching today/tomorrow are not.
+function eds_spot_ttl(string $chunkEnd): int {
+    return $chunkEnd < date('Y-m-d', strtotime('-1 day')) ? EDS_TTL_PAST : EDS_TTL_LIVE;
 }
 
 // ─── Helper: get hourly tariff from applicable record ────────────────────────
@@ -184,7 +240,7 @@ if ($start <= $ELSPOT_CUTOFF) {
             'filter'  => json_encode(['PriceArea' => $area]),
             'columns' => 'HourDK,SpotPriceDKK',
             'limit'   => 0,
-        ]);
+        ], eds_spot_ttl($chunkEnd));
         if ($spotRecords === null) break; // rate-limited — use what we have
         foreach ($spotRecords as $rec) {
             $hourDK = (string)($rec['HourDK'] ?? '');
@@ -207,7 +263,7 @@ if ($daStart <= $end) {
             'filter'  => json_encode(['PriceArea' => $area]),
             'columns' => 'TimeDK,DayAheadPriceDKK',
             'limit'   => 0,
-        ]);
+        ], eds_spot_ttl($chunkEnd));
         if ($dayAheadRecords === null) break; // rate-limited — use what we have
         $hourAccum = [];
         foreach ($dayAheadRecords as $rec) {
@@ -235,7 +291,7 @@ $systemtarifRecords = eds_fetch('DatahubPricelist', [
     'columns' => PRICE_COLUMNS,
     'limit'   => 50,
     'sort'    => 'ValidFrom desc',
-]) ?? [];
+], EDS_TTL_TARIFF) ?? [];
 
 // ─── 3. Residential nettarif from user's DSO ────────────────────────────────
 
@@ -245,7 +301,7 @@ $nettarifAll = eds_fetch('DatahubPricelist', [
     'end'     => $end,
     'limit'   => 500,
     'sort'    => 'ValidFrom desc',
-]) ?? [];
+], EDS_TTL_TARIFF) ?? [];
 
 $netPatterns     = ['nettarif c', 'nettarif a lav', 'nettarif a'];
 $nettarifRecords = [];
@@ -332,10 +388,15 @@ $response = json_encode([
     'components' => $components,
 ]);
 
-if ($components['spot_hours'] > 0) {
+// Only cache COMPLETE answers: a response built while a tariff lookup was
+// rate-limited (nettarif/systemtarif missing) would otherwise be served with
+// wrong prices for the whole TTL. The raw upstream pieces are cached separately.
+$complete = $components['spot_hours'] > 0 && !empty($systemtarifRecords) && !empty($nettarifRecords);
+if ($complete) {
     @file_put_contents($cacheFile, $response);
 } else {
-    error_log("getElspotPrices: spot_hours=0 for area=$area start=$start end=$end — skipping cache write.");
+    error_log("getElspotPrices: incomplete (spot_hours={$components['spot_hours']}, system=" . count($systemtarifRecords)
+        . ", nettarif=" . count($nettarifRecords) . ") for area=$area start=$start end=$end — skipping cache write.");
 }
 
 echo $response;
