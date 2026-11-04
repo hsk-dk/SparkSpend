@@ -24,6 +24,19 @@
 }
 
 
+/* Bootstrap 5.3 draws with CSS variables whose defaults differ from 5.1 (which the design was
+   made on). Pin the few that change how the app looks, so upgrading Bootstrap does not. */
+:root {
+  --bs-body-color: #1f2937;          /* the app's own ink colour (5.3: #212529) */
+  --bs-border-radius: 0.25rem;       /* 5.3: 0.375rem */
+  --bs-border-radius-sm: 0.2rem;     /* 5.3: 0.25rem  */
+  --bs-border-radius-lg: 0.3rem;     /* 5.3: 0.5rem   */
+}
+/* 5.3 paints every table cell opaque white; the cards are translucent, so stay transparent */
+.table { --bs-table-bg: transparent; }
+/* 5.1 drew a 2px rule between thead / tbody / tfoot; 5.3 made that opt-in (.table-group-divider) */
+.table > :not(:first-child) { border-top: 2px solid currentcolor; }
+
 /* Dark Mode */
 /* Respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
