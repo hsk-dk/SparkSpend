@@ -6,6 +6,18 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (electricity cost model moved to the server)
+- **The elvarme cost model now exists once, in PHP** (`includes/ElvarmeCost.php`, assembled by `includes/CostEstimates.php`). It used to be duplicated in JavaScript (`elvarmeCost` in `app.js`, `includes/pricing.js`). The Dashboard, Årsrapport, Hus > Forbrug, Regning and Fordeling views now receive finished kr amounts (`cost` in their API responses) and only display them. 550 random cases were verified identical between the JS and PHP versions before the JS copies were removed, and every view was compared before/after on a seeded test instance.
+- **Fewer requests from the browser:** the views no longer fetch hourly/daily prices and hourly consumption themselves (the dashboard dropped three requests, the others two each).
+- `includes/ElspotPrices.php` is the price assembly extracted from `routes/get_elspot_prices.php` (output byte-identical); `HourlyConsumption::series()` is shared by the hourly-consumption route and the cost estimate.
+- Raw Energi Data Service answers are cached per dataset and a 429 pauses all upstream calls (see `routes/..` history); incomplete price answers are never cached.
+- `MOCK_EDS=true` (dev only) serves deterministic synthetic prices, so the local test instance works offline.
+
+### Fixed
+- **Regning/Fordeling: the current month's rate was diluted** by the unpublished future days of the month (rate 0). Month rates now average only days that have a price.
+- **Hus > År til dato showed `NaN kWh`**: the first day of each year has no previous meter reading (NULL delta). It now counts as 0.
+- **Elpris-prognosen and the EV price heatmap returned HTTP 400** (they sent `tariff=household`, which the route stopped accepting). They now use `tariff=low`.
+
 ### Changed (consumption per km)
 - **New calculation of consumption per km** (`includes/EfficiencyCalc.php`, `routes/get_efficiency_stats.php`). Km come from the odometer at plug-in and kWh from the charges that refilled it; both are summed over a period before dividing. The old per-interval filter (kWh > 0 and km >= 20) is gone: it discarded a short interval together with the energy in its window, but that energy belonged to the drive before it, whose km were already counted. With a daily plug-in after short trips the old method showed 15.3 kWh/100 km for a car that really uses 18.0 (new: 17.7).
 - **The card shows the last 30 / 90 days, the selected period and a month table per vehicle**, in kWh/100 km as well as km/kWh and kr/km, each with a confidence level (`lav` / `middel` / `høj`, with the reason as tooltip). The date range selects the drives that END in it, so a drive that started before the range is not lost. Charges without a vehicle are reported instead of silently left out, and unpriced charges are estimated at the average price of the priced ones (marked with `*`).

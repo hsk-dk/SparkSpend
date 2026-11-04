@@ -2,10 +2,9 @@
 /**
  * Tests for includes/ElvarmeCost.php, the server-side electricity-heating cost model.
  *
- *  1. Unit cases (hand-computed).
- *  2. Parity: random cases are also run through the JavaScript implementations
- *     (includes/app.js + includes/pricing.js, via dev/parity_elvarme.js) and the
- *     results must agree. Skipped with a notice when Node is not installed.
+ * The model used to exist in JavaScript too (app.js elvarmeCost + pricing.js). Before
+ * those copies were removed, 550 random cases were checked to be identical between the
+ * two; the JS test cases live on here.
  *
  * Run:  php dev/test_elvarme_cost.php
  */
@@ -59,83 +58,47 @@ check('sum(kWh*price)/sum(kWh)', close(ElvarmeCost::weightedRate(['h0', 'h1', 'h
 check('hours without a price are left out of both sums', close(ElvarmeCost::weightedRate(['h0', 'h1', 'h9'], [1, 1, 100], $prices), 1.5));
 check('no usable hour -> null', ElvarmeCost::weightedRate(['h9'], [1], $prices) === null && ElvarmeCost::weightedRate([], [], $prices) === null);
 
-// ── Parity with the JavaScript implementation ────────────────────────────────
-echo "parity with JS (app.js / pricing.js)\n";
-$node = trim((string) @shell_exec(stripos(PHP_OS_FAMILY, 'Windows') !== false ? 'where node 2>NUL' : 'command -v node 2>/dev/null'));
-if ($node === '') {
-    echo "  skip node not installed\n";
-} else {
-    mt_srand(20260101);
-    $rnd  = fn(float $a, float $b) => $a + mt_rand() / mt_getrandmax() * ($b - $a);
-    $pick = fn(array $xs) => $xs[mt_rand(0, count($xs) - 1)];
-    $cases = ['cost' => [], 'weight' => []];
+echo "weightedRates()\n";
+$cons = ['hours' => ['2026-10-01 00', '2026-10-01 01'], 'vp' => [3, 1], 'rest' => [1, 3]];
+$rec  = fn($a, $b) => [['date' => '2026-10-01', 'hour' => 0, 'kr_kwh' => $a], ['date' => '2026-10-01', 'hour' => 1, 'kr_kwh' => $b]];
+$wr = ElvarmeCost::weightedRates($cons, $rec(1, 2), $rec(0.5, 1));
+check('vp: high', close($wr['vp']['high'], (3 * 1 + 1 * 2) / 4));
+check('vp: low',  close($wr['vp']['low'],  (3 * 0.5 + 1 * 1) / 4));
+check('rest is weighted by its own consumption', close($wr['rest']['high'], (1 * 1 + 3 * 2) / 4));
+check('no consumption series -> null', ElvarmeCost::weightedRates([], $rec(1, 2), $rec(1, 2)) === null);
+check('prices missing -> null', ElvarmeCost::weightedRates($cons, [], []) === null);
+check('the weighted price differs from the plain average when use is skewed',
+    !close(ElvarmeCost::weightedRate(['h0', 'h1', 'h2'], [1, 1, 2], $prices), 2.0));
+check('night-time use is priced at night prices', ElvarmeCost::weightedRate(['h0', 'h2'], [9, 1], $prices) < 2.0);
+check('hours without consumption are ignored', close(ElvarmeCost::weightedRate(['h0', 'h1'], [0, 4], $prices), 2.0));
 
-    for ($i = 0; $i < 400; $i++) {
-        $c = [
-            'highRate' => $rnd(0.5, 6), 'lowRate' => $rnd(0.2, 3), 'highKwhPerMonth' => $pick([0, 100, 333.33, 1000]),
-            'vpKwh' => $pick([0, -3, $rnd(0, 800)]), 'restKwh' => $pick([0, -1, $rnd(0, 600)]), 'evKwh' => $pick([0, $rnd(0, 400)]),
-        ];
-        if (mt_rand(0, 2) === 0) $c['vpRates']   = ['high' => $rnd(0.5, 6), 'low' => $rnd(0.2, 3)];
-        if (mt_rand(0, 2) === 0) $c['restRates'] = ['high' => $rnd(0.5, 6), 'low' => $rnd(0.2, 3)];
-        if (mt_rand(0, 9) === 0) unset($c['evKwh']);
-        $cases['cost'][] = $c;
-    }
-    for ($i = 0; $i < 150; $i++) {
-        $hours = []; $recsH = []; $recsL = [];
-        $nH = mt_rand(0, 60);
-        for ($h = 0; $h < $nH; $h++) {
-            $d = sprintf('2026-10-%02d', 1 + intdiv($h, 24)); $hr = $h % 24;
-            $hours[] = sprintf('%s %02d', $d, $hr);
-            if (mt_rand(0, 7) !== 0) { $recsH[] = ['date' => $d, 'hour' => $hr, 'kr_kwh' => $pick([$rnd(0.1, 4), null, '2.5', 'x'])]; }
-            if (mt_rand(0, 7) !== 0) { $recsL[] = ['date' => $d, 'hour' => $hr, 'kr_kwh' => $rnd(0.1, 4)]; }
-            if (mt_rand(0, 15) === 0) $recsH[] = ['date' => $d, 'hour' => $hr, 'kr_kwh' => $rnd(0.1, 4)];   // DST duplicate
-        }
-        $vp = $rest = [];
-        for ($h = 0; $h < $nH; $h++) {
-            $vp[]   = $pick([0, null, $rnd(0, 3), '1.5', -1]);
-            $rest[] = $pick([0, $rnd(0, 2)]);
-        }
-        $cons = ['hours' => $hours, 'vp' => $vp, 'rest' => $rest];
-        if (mt_rand(0, 19) === 0) unset($cons['rest']);
-        $cases['weight'][] = ['consumption' => $cons, 'high' => $recsH, 'low' => $recsL];
-    }
-
-    $tmp = tempnam(sys_get_temp_dir(), 'elv');
-    file_put_contents($tmp, json_encode($cases));
-    $raw = shell_exec('node ' . escapeshellarg(__DIR__ . '/parity_elvarme.js') . ' ' . escapeshellarg($tmp) . ' 2>&1');
-    @unlink($tmp);
-    $js = json_decode((string) $raw, true);
-    if (!is_array($js)) {
-        check('node ran the JS implementation', false, substr((string) $raw, 0, 200));
-    } else {
-        $bad = 0; $first = '';
-        foreach ($cases['cost'] as $i => $c) {
-            $php = ElvarmeCost::cost($c);
-            foreach (['vpCost', 'restCost', 'evCost', 'total'] as $k) {
-                if (!close($php[$k], $js['cost'][$i][$k])) { $bad++; $first = $first ?: "case $i $k php={$php[$k]} js={$js['cost'][$i][$k]}"; }
-            }
-        }
-        check(count($cases['cost']) . ' random cost() cases identical to JS', $bad === 0, $first);
-
-        $bad = 0; $first = '';
-        foreach ($cases['weight'] as $i => $c) {
-            $pm = ElvarmeCost::priceByHour($c['high']); $jm = $js['priceByHour'][$i] ?? [];
-            if (count($pm) !== count($jm)) { $bad++; $first = $first ?: "priceByHour size case $i"; }
-            foreach ($pm as $k => $v) if (!isset($jm[$k]) || !close($v, $jm[$k])) { $bad++; $first = $first ?: "priceByHour $k case $i"; }
-
-            $pw = ElvarmeCost::weightedRates($c['consumption'], $c['high'], $c['low']);
-            $jw = $js['weightedRates'][$i];
-            if (($pw === null) !== ($jw === null)) { $bad++; $first = $first ?: "weightedRates null-ness case $i"; continue; }
-            if ($pw === null) continue;
-            foreach (['vp', 'rest'] as $part) {
-                if (($pw[$part] === null) !== (($jw[$part] ?? null) === null)) { $bad++; $first = $first ?: "weightedRates $part null-ness case $i"; continue; }
-                if ($pw[$part] === null) continue;
-                foreach (['high', 'low'] as $t) if (!close($pw[$part][$t], $jw[$part][$t])) { $bad++; $first = $first ?: "weightedRates $part $t case $i"; }
-            }
-        }
-        check(count($cases['weight']) . ' random weighting cases identical to JS', $bad === 0, $first);
-    }
+echo "cost(): property checks\n";
+$b = ['vpKwh' => 200, 'restKwh' => 300, 'evKwh' => 40, 'highRate' => 3.0, 'lowRate' => 2.0, 'highKwhPerMonth' => 333];
+$legacy = ElvarmeCost::cost($b);
+$hk = 333; $vr = 500; $lowK = $vr - $hk;
+check('without per-component rates: the flat model', close($legacy['total'], $hk * 3 + $lowK * 2 + 40 * 2)
+    && close($legacy['vpCost'] + $legacy['restCost'], $hk * 3 + $lowK * 2));
+$same = ElvarmeCost::cost($b + ['vpRates' => ['high' => 3, 'low' => 2], 'restRates' => ['high' => 3, 'low' => 2]]);
+check('equal per-component rates == flat model', close($same['vpCost'], $legacy['vpCost']) && close($same['restCost'], $legacy['restCost']) && close($same['total'], $legacy['total']));
+$worst = 0.0; $seed = 12345;
+$rnd = function () use (&$seed) { $seed = ($seed * 1103515245 + 12345) % 2147483648; return $seed / 2147483648; };
+for ($i = 0; $i < 20000; $i++) {
+    $p = ['vpKwh' => $rnd() * 800, 'restKwh' => $rnd() * 800, 'evKwh' => $rnd() * 200, 'highRate' => 1 + $rnd() * 3, 'lowRate' => $rnd() * 3, 'highKwhPerMonth' => $rnd() * 700];
+    $x = ElvarmeCost::cost($p);
+    $y = ElvarmeCost::cost($p + ['vpRates' => ['high' => $p['highRate'], 'low' => $p['lowRate']], 'restRates' => ['high' => $p['highRate'], 'low' => $p['lowRate']]]);
+    $worst = max($worst, abs($x['total'] - $y['total']), abs($x['vpCost'] - $y['vpCost']), abs($x['restCost'] - $y['restCost']));
 }
+check('20000 random inputs: equal rates give the flat result (max diff ' . sprintf('%.1e', $worst) . ')', $worst < 1e-9);
+$cheapVp = ElvarmeCost::cost($b + ['vpRates' => ['high' => 2.5, 'low' => 1.5], 'restRates' => ['high' => 3.5, 'low' => 2.5]]);
+check('cheaper VP hours -> lower VP cost, higher Rest cost', $cheapVp['vpCost'] < $legacy['vpCost'] && $cheapVp['restCost'] > $legacy['restCost']);
+$f = $hk / $vr;
+check('allowance shared pro rata', close($cheapVp['vpCost'], 200 * ($f * 2.5 + (1 - $f) * 1.5)) && close($cheapVp['restCost'], 300 * ($f * 3.5 + (1 - $f) * 2.5)));
+check('total = VP + Rest + EV', close($cheapVp['total'], $cheapVp['vpCost'] + $cheapVp['restCost'] + $cheapVp['evCost']));
+check('EV cost is unaffected by component rates', close($cheapVp['evCost'], $legacy['evCost']));
+$onlyVp = ElvarmeCost::cost($b + ['vpRates' => ['high' => 2.5, 'low' => 1.5]]);
+check('only vpRates given: Rest falls back to the flat rates', close($onlyVp['restCost'], $f * 300 * 3 + (1 - $f) * 300 * 2));
+check('zero consumption with component rates -> zero cost, no NaN',
+    ElvarmeCost::cost(['highRate' => 3, 'lowRate' => 2, 'highKwhPerMonth' => 333, 'vpRates' => ['high' => 1, 'low' => 1]])['total'] === 0.0);
 
 echo "\n$n checks, $fails failed\n";
 exit($fails === 0 ? 0 : 1);

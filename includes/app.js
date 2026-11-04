@@ -57,51 +57,6 @@ const initializeTooltips = () => {
 };
 
 /**
- * Danish electricity-heating tax model. The meter can't tell purpose apart, so
- * the first `highKwhPerMonth` kWh/month of VP+Rest consumption is taxed at the
- * HIGH rate and the rest at the LOW (elvarme) rate. EV charging always uses the
- * LOW rate (VP+Rest is assumed to consume the whole high-rate allowance).
- *
- * Returns the blended cost split back onto VP and Rest by their kWh share.
- *
- * @param {object} p
- * @param {number} p.vpKwh   VP kWh for the month
- * @param {number} p.restKwh Rest (household) kWh for the month
- * @param {number} p.evKwh   EV home-charging kWh for the month (optional)
- * @param {number} p.highRate kr/kWh HIGH rate (incl. tariffs+VAT)
- * @param {number} p.lowRate  kr/kWh LOW rate
- * @param {number} p.highKwhPerMonth kWh taxed at HIGH before LOW kicks in
- * @param {{high:number,low:number}} [p.vpRates]   per-component rates for VP (e.g. consumption-weighted)
- * @param {{high:number,low:number}} [p.restRates] per-component rates for Rest
- * @returns {{vpCost:number, restCost:number, evCost:number, total:number}}
- */
-const elvarmeCost = ({ vpKwh = 0, restKwh = 0, evKwh = 0, highRate, lowRate, highKwhPerMonth, vpRates, restRates }) => {
-  const vpRest = Math.max(0, vpKwh) + Math.max(0, restKwh);
-  const highKwh = Math.min(vpRest, highKwhPerMonth);
-  const lowKwh = Math.max(0, vpRest - highKwh);
-  const evCost = Math.max(0, evKwh) * lowRate;
-
-  // Optional per-component rates ({high, low}, e.g. consumption-weighted, see
-  // pricing.js). The high-rate allowance is shared pro rata, so each component
-  // pays high/low in the same proportion. With equal rates this is identical to
-  // the flat model below.
-  if (vpRates || restRates) {
-    const flat = { high: highRate, low: lowRate };
-    const f = vpRest > 0 ? highKwh / vpRest : 0;
-    const mix = r => f * r.high + (1 - f) * r.low;
-    const vpCost = Math.max(0, vpKwh) * mix(vpRates || flat);
-    const restCost = Math.max(0, restKwh) * mix(restRates || flat);
-    return { vpCost, restCost, evCost, total: vpCost + restCost + evCost };
-  }
-
-  const vpRestCost = highKwh * highRate + lowKwh * lowRate;
-  // Split the blended cost back onto VP and Rest by their kWh share.
-  const vpCost = vpRest > 0 ? vpRestCost * (Math.max(0, vpKwh) / vpRest) : 0;
-  const restCost = vpRest > 0 ? vpRestCost * (Math.max(0, restKwh) / vpRest) : 0;
-  return { vpCost, restCost, evCost, total: vpRestCost + evCost };
-};
-
-/**
  * Format currency to Danish Krone format
  * @param {number} value - Value to format
  * @returns {string} Formatted value
@@ -613,7 +568,6 @@ window.appUtils = {
   handleFetchResponse,
   initializeTooltips,
   formatCurrency,
-  elvarmeCost,
   formatDate,
   escapeHtml,
   updateChartInstance,

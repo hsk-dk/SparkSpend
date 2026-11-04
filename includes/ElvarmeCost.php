@@ -2,11 +2,9 @@
 /**
  * Danish electricity-heating cost model (server-side, pure functions).
  *
- * This is the single source of truth for the model. It is a line-for-line port of
- * `elvarmeCost` (includes/app.js) and the consumption weighting in
- * includes/pricing.js, kept identical by dev/test_elvarme_cost.php, which also
- * runs the JS versions through Node on random inputs and compares the results.
- * Once the front end consumes the amounts computed here, the JS copies can go.
+ * This is the single source of truth for the model (it replaced identical copies in
+ * app.js and pricing.js, verified on 550 random cases before they were removed). The
+ * browser only displays the amounts computed here, see CostEstimates.
  *
  * Model: the meter cannot tell purpose apart, so the first `highKwhPerMonth` kWh
  * a month of heat pump + rest consumption is taxed at the HIGH rate and the rest
