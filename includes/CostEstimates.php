@@ -88,6 +88,63 @@ final class CostEstimates
     }
 
     /**
+     * Monthly bill: heat pump and "rest" cost per month at that month's mean HIGH/LOW
+     * rate (mean over the days that HAVE a price: days without one, such as the
+     * unpublished future days of the current month, must not drag the rate down).
+     * Rest = house - EV - heat pump (never negative); EV cost comes from Monta.
+     *
+     * @param string[] $months  'YYYY-MM'
+     * @param array<string,array{kwh:float}> $hp, $hus   kWh per month
+     * @param array<string,array{kwh:float,cost:float}> $ev
+     * @return array{costs: array<string,array{vp:float,rest:float}>, complete: bool}|null
+     *         null when prices are not configured or not available at all
+     */
+    public static function monthly(array $months, array $hp, array $hus, array $ev, string $start, string $end): ?array
+    {
+        $area = Config::elspotArea();
+        $gln  = Config::elspotGln();
+        if ($area === '' || $gln === '') return null;
+
+        $high = ElspotPrices::compute($start, $end, $area, $gln, 'high');
+        $low  = ElspotPrices::compute($start, $end, $area, $gln, 'low');
+        if (!$high['daily'] && !$low['daily']) return null;
+        $highAvg = self::meanByMonth($high['daily']);
+        $lowAvg  = self::meanByMonth($low['daily']);
+        $highKwhPerMonth = Config::elvarmeHighKwhPerMonth();
+
+        $costs = [];
+        foreach ($months as $m) {
+            $hpKwh  = (float) ($hp[$m]['kwh']  ?? 0);
+            $evKwh  = (float) ($ev[$m]['kwh']  ?? 0);
+            $husKwh = (float) ($hus[$m]['kwh'] ?? 0);
+            $residualKwh = $husKwh > 0 ? $husKwh - $evKwh - $hpKwh : 0.0;
+            $c = ElvarmeCost::cost([
+                'vpKwh' => $hpKwh, 'restKwh' => max(0.0, $residualKwh),
+                'highRate' => $highAvg[$m] ?? 0.0, 'lowRate' => $lowAvg[$m] ?? 0.0,
+                'highKwhPerMonth' => $highKwhPerMonth,
+            ]);
+            $costs[$m] = ['vp' => $c['vpCost'], 'rest' => $c['restCost']];
+        }
+        return ['costs' => $costs, 'complete' => $high['complete'] && $low['complete']];
+    }
+
+    /** Mean kr/kWh per 'YYYY-MM' over the daily records that have a price (> 0). */
+    private static function meanByMonth(array $dailyRecords): array
+    {
+        $sum = []; $cnt = [];
+        foreach ($dailyRecords as $r) {
+            $rate = (float) $r['kr_kwh'];
+            if (!($rate > 0)) continue;
+            $m = substr($r['date'], 0, 7);
+            $sum[$m] = ($sum[$m] ?? 0.0) + $rate;
+            $cnt[$m] = ($cnt[$m] ?? 0) + 1;
+        }
+        $avg = [];
+        foreach ($sum as $m => $t) $avg[$m] = $t / $cnt[$m];
+        return $avg;
+    }
+
+    /**
      * Dashboard cost block: month-to-date and projected cost of the heat pump and the
      * rest of the house, plus the total electricity bill estimate.
      *

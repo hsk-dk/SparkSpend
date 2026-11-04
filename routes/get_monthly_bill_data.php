@@ -112,12 +112,26 @@ foreach ($allMonths as $m) {
     ];
 }
 
+// Heat pump / rest cost per month (elvarme model, server-side). null = no prices.
+require_once __DIR__ . '/../includes/CostEstimates.php';
+$_billCost = null; $_billComplete = true;
+try {
+    $_m = CostEstimates::monthly($months, $hpByMonth, $husByMonth, $evByMonth, $rangeStart, $rangeEnd);
+    if ($_m !== null) { $_billCost = $_m['costs']; $_billComplete = $_m['complete']; }
+} catch (\Throwable $e) {
+    error_log('getMonthlyBillData cost estimate: ' . $e->getMessage());
+    $_billComplete = false;
+}
+
 $json = json_encode([
     'months' => $months,
     'ev'     => $evByMonth,
     'hp'     => $hpByMonth,
     'hus'    => $husByMonth,
+    'cost'   => $_billCost,
     'range'  => ['start' => $rangeStart, 'end' => $rangeEnd],
 ]);
-QueryBuilder::fileCacheWrite($_billCacheKey, $json);
+if ($_billComplete) {
+    QueryBuilder::fileCacheWrite($_billCacheKey, $json);
+}
 echo $json;
