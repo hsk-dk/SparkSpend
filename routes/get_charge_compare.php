@@ -70,8 +70,8 @@ foreach ($byYearMonth as $year => $months) {
     ksort($months);
     foreach ($months as $month => $data) {
         $result[] = [
-            'year'       => $year,
-            'month'      => $month,
+            'year'       => (int) $year,
+            'month'      => sprintf('%02d', (int) $month),   // always "01".."12" (array keys turn "12" into int 12)
             'total_kwh'  => round($data['kwh'],  2),
             'total_cost' => round($data['cost'], 2),
         ];

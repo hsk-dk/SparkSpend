@@ -106,13 +106,55 @@ $makeAnomaly = function (
     float $curKwh,
     float $lyKwh,
     string $navSection,
-    ?string $navSub
+    ?string $navSub,
+    bool $continuousLoad = false   // hus / jordvarme: unusually LOW use is also suspicious
 ) use ($curDays, $lyDays, $threshCritical, $threshWarning, $threshInfo): ?array {
-    if ($lyKwh <= 0 || $curKwh <= 0) return null;
+    if ($lyKwh <= 0) return null;
 
     $curAvg   = $curKwh / $curDays;
     $lyAvg    = $lyKwh  / $lyDays;
+
+    // A continuous load with no consumption at all means a dead/unsynced meter.
+    if ($continuousLoad && $curKwh <= 0) {
+        return [
+            'category'     => $category,
+            'severity'     => 'critical',
+            'direction'    => 'none',
+            'title'        => $title,
+            'headline'     => 'Intet forbrug registreret',
+            'message'      => 'Ingen måledata denne måned, mod '
+                . number_format($lyAvg, 1, ',', '.') . ' kWh/dag samme periode sidste år. Tjek måler og synkronisering.',
+            'pct_above'    => -100,
+            'current_avg'  => 0.0,
+            'baseline_avg' => round($lyAvg, 2),
+            'nav_section'  => $navSection,
+            'nav_sub'      => $navSub,
+        ];
+    }
+    if ($curKwh <= 0) return null;
+
     $pctAbove = (int)round(($curAvg / $lyAvg - 1) * 100);
+
+    // Unusually LOW consumption (continuous loads only; EV charging varies naturally).
+    if ($continuousLoad && $pctAbove <= -30) {
+        $below = -$pctAbove;
+        return [
+            'category'     => $category,
+            'severity'     => $below >= 50 ? 'warning' : 'info',
+            'direction'    => 'low',
+            'title'        => $title,
+            'headline'     => $below . '% under baseline',
+            'message'      => 'Dagligt gennemsnit '
+                . number_format($curAvg, 1, ',', '.')
+                . ' kWh — ' . $below . '% under samme periode sidste år ('
+                . number_format($lyAvg, 1, ',', '.') . ' kWh/dag).',
+            'pct_above'    => $pctAbove,
+            'current_avg'  => round($curAvg, 2),
+            'baseline_avg' => round($lyAvg, 2),
+            'nav_section'  => $navSection,
+            'nav_sub'      => $navSub,
+        ];
+    }
 
     if ($pctAbove < $threshInfo) return null;
 
@@ -122,7 +164,9 @@ $makeAnomaly = function (
     return [
         'category'     => $category,
         'severity'     => $severity,
+        'direction'    => 'high',
         'title'        => $title,
+        'headline'     => $pctAbove . '% over baseline',
         'message'      => 'Dagligt gennemsnit '
             . number_format($curAvg, 1, ',', '.')
             . ' kWh — ' . $pctAbove . '% over samme periode sidste år ('
@@ -141,7 +185,7 @@ $makeAnomaly = function (
 try {
     $husCur = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $curMonthStart, $curMonthEnd));
     $husLy  = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lyMonthStart, $lyMonthEnd));
-    $a = $makeAnomaly('hus', 'Husforbrug', $husCur, $husLy, 'hus-section', 'hus-forbrug');
+    $a = $makeAnomaly('hus', 'Husforbrug', $husCur, $husLy, 'hus-section', 'hus-forbrug', true);
     if ($a) $anomalies[] = $a;
 } catch (\Throwable $husEx) {
     error_log('getAnomalyStats hus: ' . $husEx->getMessage());
@@ -152,7 +196,7 @@ try {
 // =========================================================================
 $hpCur = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $curMonthStart, $curMonthEnd));
 $hpLy  = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lyMonthStart, $lyMonthEnd));
-$a = $makeAnomaly('hp', 'Jordvarme', $hpCur, $hpLy, 'jordvarme-section', null);
+$a = $makeAnomaly('hp', 'Jordvarme', $hpCur, $hpLy, 'jordvarme-section', null, true);
 if ($a) $anomalies[] = $a;
 
 // =========================================================================
@@ -189,6 +233,29 @@ $a = $makeAnomaly('ev', 'El-bil', $evCurKwh, $evLyKwh, 'elbil-section', 'elbil-l
 if ($a) $anomalies[] = $a;
 
 // =========================================================================
+// Stale meters: latest reading older than 36 h => sync/meter problem
+// =========================================================================
+foreach ([['powerloghus', 'hus', 'Husmåler', 'hus-section', 'hus-forbrug'],
+          ['powerlogjord', 'hp', 'Jordvarmemåler', 'jordvarme-section', null]] as [$tbl, $cat, $label, $navS, $navSub]) {
+    try {
+        $last = $powerlogDb->query("SELECT MAX(logdate) FROM $tbl")->fetchColumn();
+        $lastTs = $last ? strtotime((string) $last) : false;
+        if ($lastTs !== false && (time() - $lastTs) > 36 * 3600) {
+            $hours = (int) round((time() - $lastTs) / 3600);
+            $anomalies[] = [
+                'category' => $cat, 'severity' => 'warning', 'direction' => 'stale',
+                'title' => $label, 'headline' => 'Ingen nye målinger',
+                'message' => "Seneste måling er {$hours} timer gammel ({$last}). Tjek synkroniseringen.",
+                'pct_above' => 0, 'current_avg' => 0.0, 'baseline_avg' => 0.0,
+                'nav_section' => $navS, 'nav_sub' => $navSub,
+            ];
+        }
+    } catch (\Throwable $e) {
+        error_log("getAnomalyStats stale-check {$tbl}: " . $e->getMessage());
+    }
+}
+
+// =========================================================================
 // Sort: critical first, then warning, then info
 // =========================================================================
 $severityRank = ['critical' => 0, 'warning' => 1, 'info' => 2];
@@ -207,6 +274,12 @@ if (!empty($anomalies)) {
             ? ($hddCur / $hddLy - 1) * 100
             : null;
         foreach ($anomalies as &$anomaly) {
+            if (in_array($anomaly['direction'] ?? '', ['none', 'stale'], true)) continue;
+            if (($anomaly['direction'] ?? '') === 'low') {
+                // milder weather than last year explains lower heating-driven use
+                $anomaly['possible_cause'] = ($hddPct !== null && $hddPct <= -25.0) ? 'vejr' : 'forbrug';
+                continue;
+            }
             $anomaly['possible_cause'] = ($hddPct !== null && $hddPct >= 40.0) ? 'vejr' : 'forbrug';
         }
         unset($anomaly);

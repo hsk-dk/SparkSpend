@@ -270,6 +270,11 @@ function renderHusCard(rest) {
                     `${up ? '↑' : '↓'} ` +
                     `${_fmt(Math.abs(rest.pct_change_year), 1)}% vs. sidste år</div>`;
         }
+        if (rest.negative_days > 0) {
+            html += `<div class="trend-neutral" title="Husmåler minus jordvarme minus elbil er negativ på disse dage og vises som 0. Tjek om målerne er i synk.">` +
+                    `⚠️ Målerne stemmer ikke på ${rest.negative_days} dag${rest.negative_days === 1 ? '' : 'e'} ` +
+                    `(${_fmt(rest.negative_kwh, 1)} kWh)</div>`;
+        }
         trendEl.innerHTML = html;
         trendEl.className = 'dash-trend';
     }
@@ -392,7 +397,7 @@ async function loadElspotForecast(force = false) {
     try {
         const res = await fetch(
             `api.php?action=elspot-prices&start=${today}&end=${tmrStr}` +
-            `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=household`
+            `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=low`
         );
         if (!res.ok) return;
         const data    = await res.json();
@@ -811,13 +816,13 @@ function _renderAnomalies(anomalies) {
             ? `onclick="SparkNav.navigateTo('${a.nav_section}', '${a.nav_sub}')"`
             : `onclick="SparkNav.navigateTo('${a.nav_section}')"`;
         const causeHtml = a.possible_cause
-            ? `<span class="anomaly-cause anomaly-cause-${a.possible_cause}">${a.possible_cause === 'vejr' ? '\u2601\ufe0f Vejret kan v\u00e6re \u00e5rsagen' : '\ud83d\udd0d Tjek forbrugsmm\u00f8ster'}</span>`
+            ? `<span class="anomaly-cause anomaly-cause-${a.possible_cause}">${a.possible_cause === 'vejr' ? '\u2601\ufe0f Vejret kan v\u00e6re \u00e5rsagen' : '\ud83d\udd0d Tjek forbrugsm\u00f8nster'}</span>`
             : '';
         return `
         <div class="anomaly-item">
           <div class="anomaly-item-icon ${a.severity}">${iconMap[a.severity]}</div>
           <div class="anomaly-item-body">
-            <div class="anomaly-item-title">${appUtils.escapeHtml(a.title)} — ${a.pct_above}% over baseline</div>
+            <div class="anomaly-item-title">${appUtils.escapeHtml(a.title)} — ${appUtils.escapeHtml(a.headline || (a.pct_above + '% over baseline'))}</div>
             <div class="anomaly-item-msg">${appUtils.escapeHtml(a.message)}</div>
             ${causeHtml}
           </div>

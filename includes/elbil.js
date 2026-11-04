@@ -943,9 +943,9 @@ const elbilApp = (() => {
                     tile('Valgt periode', v.overall) + `</div>`;
             if (months.length) {
                 html += `<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr>` +
-                        `<th>Måned</th><th class="text-end">km</th><th class="text-end">kWh</th><th class="text-end">kWh/100 km</th>` +
+                        `<th>Måned</th><th class="text-end" title="Gennemsnitstemperatur i måneden (Open-Meteo)">Temp.</th><th class="text-end">km</th><th class="text-end">kWh</th><th class="text-end">kWh/100 km</th>` +
                         `<th class="text-end">km/kWh</th><th class="text-end">kr/km</th><th>Sikkerhed</th></tr></thead><tbody>` +
-                        months.map(m => `<tr><td>${esc(monthLabel(m.month))}</td><td class="text-end">${num(m.km, 0)}</td>` +
+                        months.map(m => `<tr><td>${esc(monthLabel(m.month))}</td><td class="text-end text-muted eff-temp" data-month="${esc(m.month)}">—</td><td class="text-end">${num(m.km, 0)}</td>` +
                             `<td class="text-end">${num(m.kwh, 0)}</td><td class="text-end">${num(m.kwh_per_100km, 1)}</td>` +
                             `<td class="text-end">${num(m.km_per_kwh, 2)}</td><td class="text-end">${krTxt(m)}</td><td>${badge(m)}</td></tr>`).join('') +
                         `</tbody></table></div>`;
@@ -955,6 +955,39 @@ const elbilApp = (() => {
         });
         if (anyEstimated) html += `<div class="text-muted small">* Indeholder ladninger uden pris, som er regnet med gennemsnitsprisen for de øvrige.</div>`;
         el.innerHTML = html;
+        _fillEfficiencyTemps(el);
+    }
+
+    // Efficiency (kWh/100 km) swings with the season; show each month's mean
+    // temperature next to it so a "worse" winter month is read in context.
+    function _fillEfficiencyTemps(root) {
+        const lat = window.sparkConfig?.weatherLat, lon = window.sparkConfig?.weatherLon;
+        const cells = root.querySelectorAll('.eff-temp[data-month]');
+        if (!lat || !lon || !cells.length) return;
+        const months = [...cells].map(c => c.dataset.month).sort();
+        const first = months[0] + '-01';
+        const [ly, lm] = months[months.length - 1].split('-').map(Number);
+        const lastDay = new Date(ly, lm, 0).getDate();
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const last = months[months.length - 1] + '-' + String(lastDay).padStart(2, '0');
+        const end = last > todayStr ? todayStr : last;
+        if (end < first) return;
+        const params = new URLSearchParams({ action: 'weather', start: first, end, lat, lon });
+        fetch('api.php?' + params)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+                if (!d || !Array.isArray(d.records)) return;
+                const acc = {};
+                d.records.forEach(r => {
+                    const k = String(r.date).slice(0, 7);
+                    (acc[k] = acc[k] || []).push(Number(r.mean_temp_c));
+                });
+                cells.forEach(c => {
+                    const v = acc[c.dataset.month];
+                    if (v && v.length) c.textContent = (v.reduce((a, b) => a + b, 0) / v.length).toLocaleString('da-DK', { maximumFractionDigits: 1 }) + ' °C';
+                });
+            })
+            .catch(() => { /* temperature is optional context */ });
     }
 
     function _renderEfficiencyCharts(data) {
@@ -1632,7 +1665,7 @@ const elbilApp = (() => {
         try {
             const res = await fetch(
                 `api.php?action=elspot-prices&start=${start}&end=${end}` +
-                `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=household`
+                `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=low`
             );
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();

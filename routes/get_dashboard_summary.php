@@ -386,6 +386,17 @@ if ($husCurrentKwh !== null) {
         $restSparkline[] = round($restOf(floatval($husDailyMap[$day] ?? 0), floatval($hpDailyMap[$day] ?? 0), floatval($intByDay[$day] ?? 0)), 2);
     }
 
+    // Data quality: days (this month) where house - heat pump - EV is clearly
+    // negative are clamped to 0 above. That means the meters disagree (EV not on
+    // the house meter, a sync gap, ...) - surface it instead of hiding it.
+    $restNegDays = 0; $restNegKwh = 0.0;
+    $monthStartStr = date('Y-m-01');
+    foreach ($husDailyMap as $day => $houseKwh) {
+        if ($day < $monthStartStr) continue;
+        $raw = floatval($houseKwh) - floatval($hpDailyMap[$day] ?? 0) - floatval($intByDay[$day] ?? 0);
+        if ($raw < -0.5) { $restNegDays++; $restNegKwh += -$raw; }
+    }
+
     $_restProj = projectMonth($restCurrent, $restPrev, $restPrevFull, $restLY, $restLYFull);
     $restPayload = [
         'month_kwh'           => round($restCurrent, 2),
@@ -396,6 +407,8 @@ if ($husCurrentKwh !== null) {
         'pct_change'          => $restPrev > 0 ? round(($restCurrent - $restPrev) / $restPrev * 100, 1) : null,
         'pct_change_year'     => $restLY   > 0 ? round(($restCurrent - $restLY)   / $restLY   * 100, 1) : null,
         'sparkline'           => $restSparkline,
+        'negative_days'       => $restNegDays,
+        'negative_kwh'        => round($restNegKwh, 2),
     ];
 }
 
