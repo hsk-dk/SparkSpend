@@ -24,7 +24,7 @@ $response = [];
 
 if ($mode === 'daily' && isset($_GET['month'])) {
     $month = $_GET['month']; // Format: YYYY-MM
-    if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
+    if (!Http::isMonth($month)) {
         Http::fail('Invalid month format. Use YYYY-MM.');
     }
     $dayStart = $month . '-01';
@@ -37,7 +37,7 @@ if ($mode === 'daily' && isset($_GET['month'])) {
 
 } elseif ($mode === 'monthly' && isset($_GET['year'])) {
     $year = $_GET['year']; // Format: YYYY
-    if (!preg_match('/^\d{4}$/', $year)) {
+    if (!Http::isYear($year)) {
         Http::fail('Invalid year format. Use YYYY.');
     }
     $yearStart = $year . '-01-01';

@@ -24,8 +24,8 @@ $format = isset($_GET['format']) ? trim($_GET['format']) : 'daily';
 // two using the monthly high-rate kWh threshold returned in components.
 $tariff = isset($_GET['tariff']) ? trim($_GET['tariff']) : 'low';
 
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
-    !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)   ||
+if (!Http::isDate($start) ||
+    !Http::isDate($end)   ||
     !in_array($area, ['DK1', 'DK2'], true)        ||
     !preg_match('/^\d+$/', $gln)) {
     Http::fail('Ugyldige parametre. Forventet: start, end (YYYY-MM-DD), area (DK1|DK2), gln (tal).');

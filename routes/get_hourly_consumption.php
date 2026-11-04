@@ -17,15 +17,9 @@ require_once __DIR__ . '/../includes/HourlyConsumption.php';
 $start = isset($_GET['start']) ? trim($_GET['start']) : '';
 $end   = isset($_GET['end'])   ? trim($_GET['end'])   : '';
 
-$validDate = static function (string $d): bool {
-    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $d, $m)) return false;
-    return checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
-};
-if (!$validDate($start) || !$validDate($end) || $end < $start
+if (!Http::isDate($start) || !Http::isDate($end) || $end < $start
     || (new DateTimeImmutable($start))->diff(new DateTimeImmutable($end))->days > 62) {
-    http_response_code(400);
-    echo json_encode(['error' => 'start and end must be valid YYYY-MM-DD dates, end >= start, at most 62 days apart']);
-    exit;
+    Http::fail('start and end must be valid YYYY-MM-DD dates, end >= start, at most 62 days apart');
 }
 
 $_cacheKey = 'hourlycons_' . $start . '_' . $end;

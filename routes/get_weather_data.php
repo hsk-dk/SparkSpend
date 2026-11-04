@@ -24,8 +24,8 @@ $end   = isset($_GET['end'])   ? trim($_GET['end'])   : '';
 $lat   = isset($_GET['lat'])   ? trim($_GET['lat'])   : '';
 $lon   = isset($_GET['lon'])   ? trim($_GET['lon'])   : '';
 
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ||
-    !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)   ||
+if (!Http::isDate($start) ||
+    !Http::isDate($end)   ||
     !is_numeric($lat) || (float)$lat < -90  || (float)$lat > 90  ||
     !is_numeric($lon) || (float)$lon < -180 || (float)$lon > 180) {
     Http::fail('Ugyldige parametre. Forventet: start, end (YYYY-MM-DD), lat (-90–90), lon (-180–180).');
