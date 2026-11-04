@@ -69,6 +69,14 @@ function eds_fetch(string $dataset, array $params, int $ttl = EDS_TTL_LIVE): ?ar
     $fresh = eds_read_cache($cacheFile, $ttl);
     if ($fresh !== null) return $fresh;
 
+    // EDS_WEB_FETCH=false: web requests only READ the cache; cron/warm_prices.php (CLI) is
+    // the only one allowed to call Energi Data Service. Useful because the API allows only
+    // a handful of requests, and page loads would otherwise compete with the warm-up job
+    // for them. Stale data is still served.
+    if (PHP_SAPI !== 'cli' && env('EDS_WEB_FETCH', 'true') === 'false') {
+        return eds_read_cache($cacheFile, $ttl, true);
+    }
+
     // Rate-limited recently: do not call upstream at all.
     $_left = eds_backoff_remaining();
     if ($_left > 0) {
