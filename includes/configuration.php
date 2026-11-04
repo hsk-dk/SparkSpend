@@ -34,14 +34,14 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 
-// NOTE on script-src 'unsafe-inline': the UI relies on inline event-handler
-// attributes (onclick=…) on buttons/cards and in JS-rendered HTML. A nonce- or
-// hash-based CSP does NOT cover inline handlers, and per the CSP spec a nonce
-// would actually cause browsers to IGNORE 'unsafe-inline' — breaking those
-// handlers. Tightening script-src therefore requires first migrating every
-// inline handler to addEventListener across index.php and the JS modules.
-// Tracked as a larger hardening task; kept as-is here to avoid breaking the UI.
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com cdnjs.cloudflare.com; font-src fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com");
+// Content-Security-Policy. script-src has NO 'unsafe-inline': the page has no inline <script>
+// and no inline event-handler attributes (clicks use data-action, see includes/actions.js;
+// the server config is a JSON data block read by includes/config.js). So an injected
+// <script> or onerror= from stored data does not run, even if some output was not escaped.
+// Library scripts come from cdn.jsdelivr.net with Subresource Integrity.
+// style-src keeps 'unsafe-inline': the UI uses many inline style="" attributes (and the chart
+// libraries set styles); inline styles cannot run code. Tightening that is a separate task.
+header("Content-Security-Policy: default-src 'self'; script-src 'self' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com cdnjs.cloudflare.com; font-src 'self' fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
 
 // ============================================================================
 // CSRF Protection

@@ -102,6 +102,23 @@ $api = fn(string $q, array $h = []) => http('GET', '/api.php?' . $q, null, $h);
 $post = fn(string $action, array $data, bool $withCsrf = true) =>
     http('POST', '/api.php?action=' . $action, json_encode($data), array_merge(['Content-Type: application/json'], $withCsrf ? ["X-CSRF-Token: $csrf"] : []));
 
+// ── Content-Security-Policy: no inline scripts, no inline handlers ────────────────────────
+echo "CSP\n";
+$csp = $page['headers']['content-security-policy'] ?? '';
+preg_match("/script-src([^;]*)/", $csp, $sm);
+check("script-src has no 'unsafe-inline' / 'unsafe-eval'", $sm && !str_contains($sm[1], 'unsafe-inline') && !str_contains($sm[1], 'unsafe-eval'), $csp);
+check("object-src 'none', base-uri and frame-ancestors are restricted", str_contains($csp, "object-src 'none'") && str_contains($csp, "base-uri 'self'") && str_contains($csp, "frame-ancestors 'none'"));
+preg_match_all('#<script\b([^>]*)>#i', $page['body'], $tags);
+$inline = array_filter($tags[1], fn($attrs) => !preg_match('/\bsrc=/i', $attrs) && !preg_match('/type="application\/json"/i', $attrs));
+check('index.php has no inline <script> (only src= and JSON data blocks)', !$inline, json_encode(array_values($inline)));
+$markup = preg_replace('#<script\b.*?</script>#is', '', $page['body']);
+check('index.php has no inline event-handler attributes', !preg_match('/\son[a-z]+\s*=\s*["\']/i', $markup));
+$jsHandlers = [];
+foreach (glob($root . '/includes/*.js') as $f) {
+    if (preg_match('/\bon(click|change|input|submit|load|error|keydown|keyup|mouse\w+)\s*=\s*["\']/i', file_get_contents($f), $m)) $jsHandlers[] = basename($f) . ': ' . $m[0];
+}
+check('no JS file builds inline event-handler attributes', !$jsHandlers, implode('; ', $jsHandlers));
+
 // ── GET routes: status, JSON, and a few structural keys ───────────────────────
 $month = date('Y-m'); $year = date('Y'); $today = date('Y-m-d'); $from = date('Y-m-01');
 $gln = '5790000705689';

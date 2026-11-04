@@ -706,9 +706,8 @@ function _renderAnomalies(anomalies) {
     };
 
     listEl.innerHTML = visible.map(a => {
-        const navAttr = a.nav_sub
-            ? `onclick="SparkNav.navigateTo('${a.nav_section}', '${a.nav_sub}')"`
-            : `onclick="SparkNav.navigateTo('${a.nav_section}')"`;
+        const navAttr = `data-action="nav" data-section="${appUtils.escapeHtml(a.nav_section)}"` +
+            (a.nav_sub ? ` data-sub="${appUtils.escapeHtml(a.nav_sub)}"` : '');
         const causeHtml = a.possible_cause
             ? `<span class="anomaly-cause anomaly-cause-${a.possible_cause}">${a.possible_cause === 'vejr' ? '\u2601\ufe0f Vejret kan v\u00e6re \u00e5rsagen' : '\ud83d\udd0d Tjek forbrugsm\u00f8nster'}</span>`
             : '';

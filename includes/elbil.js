@@ -1444,15 +1444,15 @@ const elbilApp = (() => {
               <input type="text" class="form-control form-control-sm d-none" id="vinput-${v.id}"
                      value="${_esc(v.vehicleName)}" maxlength="80">
               <button class="btn btn-sm btn-outline-secondary" id="vedit-${v.id}"
-                      onclick="elbilApp.startEditVehicle(${v.id})">
+                      data-action="vehicle-edit" data-id="${v.id}">
                 <i class="fas fa-pencil"></i>
               </button>
               <button class="btn btn-sm btn-success d-none" id="vsave-${v.id}"
-                      onclick="elbilApp.saveVehicle(${v.id})">
+                      data-action="vehicle-save" data-id="${v.id}">
                 <i class="fas fa-check"></i>
               </button>
               <button class="btn btn-sm btn-outline-secondary d-none" id="vcancel-${v.id}"
-                      onclick="elbilApp.cancelEditVehicle(${v.id}, ${JSON.stringify(v.vehicleName)})">
+                      data-action="vehicle-cancel" data-id="${v.id}" data-name="${_esc(v.vehicleName)}">
                 <i class="fas fa-times"></i>
               </button>
             </div>`).join('');
@@ -1471,19 +1471,19 @@ const elbilApp = (() => {
               <input type="text" class="form-control form-control-sm d-none" id="pinput-${p.id}"
                      value="${_esc(p.providerName)}" maxlength="80">
               <button class="btn btn-sm btn-outline-secondary" id="pedit-${p.id}"
-                      onclick="elbilApp.startEditProvider(${p.id})">
+                      data-action="provider-edit" data-id="${p.id}">
                 <i class="fas fa-pencil"></i>
               </button>
               <button class="btn btn-sm btn-success d-none" id="psave-${p.id}"
-                      onclick="elbilApp.saveProvider(${p.id})">
+                      data-action="provider-save" data-id="${p.id}">
                 <i class="fas fa-check"></i>
               </button>
               <button class="btn btn-sm btn-outline-secondary d-none" id="pcancel-${p.id}"
-                      onclick="elbilApp.cancelEditProvider(${p.id}, ${JSON.stringify(p.providerName)})">
+                      data-action="provider-cancel" data-id="${p.id}" data-name="${_esc(p.providerName)}">
                 <i class="fas fa-times"></i>
               </button>
               <button class="btn btn-sm btn-outline-danger" id="pdel-${p.id}"
-                      onclick="elbilApp.deleteProvider(${p.id})">
+                      data-action="provider-delete" data-id="${p.id}">
                 <i class="fas fa-trash"></i>
               </button>
             </div>`).join('');
