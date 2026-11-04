@@ -145,6 +145,73 @@ final class CostEstimates
     }
 
     /**
+     * House view (Hus > Forbrug): estimated cost per row and in total, for the three
+     * modes that show kr.
+     *
+     *  daily   rows have day,hp,ev,rest   -> that day's rate; the monthly HIGH allowance is
+     *                                       prorated to the day so it is not applied 30 times
+     *  monthly rows have month,hp,ev,rest -> that month's mean rate, full monthly allowance
+     *  compare rows have year,month,kwh   -> whole-house kWh only (no VP/EV split): the
+     *                                       elvarme allowance is applied to the house total
+     *
+     * @return array|null null when prices are not configured/available
+     */
+    public static function house(string $mode, array $rows, string $start, string $end): ?array
+    {
+        $area = Config::elspotArea();
+        $gln  = Config::elspotGln();
+        if ($area === '' || $gln === '' || $end < $start) return null;
+
+        $high = ElspotPrices::compute($start, $end, $area, $gln, 'high');
+        $low  = ElspotPrices::compute($start, $end, $area, $gln, 'low');
+        if (!$high['daily']) return null;
+
+        $highDay = []; $lowDay = [];
+        foreach ($high['daily'] as $r) $highDay[$r['date']] = (float) $r['kr_kwh'];
+        foreach ($low['daily']  as $r) $lowDay[$r['date']]  = (float) $r['kr_kwh'];
+        $highMonth = self::meanByMonth($high['daily']);
+        $lowMonth  = self::meanByMonth($low['daily']);
+        $highKwhMonth = Config::elvarmeHighKwhPerMonth();
+
+        if ($mode === 'compare') {
+            $years = [];
+            foreach ($rows as $d) {
+                $m = $d['year'] . '-' . str_pad((string) ($d['month'] ?? ''), 2, '0', STR_PAD_LEFT);
+                $c = ElvarmeCost::cost([
+                    'restKwh' => (float) $d['kwh'],
+                    'highRate' => $highMonth[$m] ?? 0.0, 'lowRate' => $lowMonth[$m] ?? 0.0,
+                    'highKwhPerMonth' => $highKwhMonth,
+                ]);
+                $years[$d['year']] = ($years[$d['year']] ?? 0.0) + $c['total'];
+            }
+            return ['years' => $years, 'components' => $low['components'], 'complete' => $high['complete'] && $low['complete']];
+        }
+
+        $out = []; $tot = ['vp' => 0.0, 'rest' => 0.0, 'ev' => 0.0, 'total' => 0.0];
+        foreach ($rows as $d) {
+            if ($mode === 'daily') {
+                $key = $d['day'];
+                $highRate = $highDay[$key] ?? 0.0;
+                $lowRate  = $lowDay[$key]  ?? 0.0;
+                $dim = (int) date('t', strtotime($key));
+                $allowance = $highKwhMonth / ($dim ?: 30);
+            } else {
+                $key = $d['month'];
+                $highRate = $highMonth[$key] ?? 0.0;
+                $lowRate  = $lowMonth[$key]  ?? 0.0;
+                $allowance = $highKwhMonth;
+            }
+            $c = ElvarmeCost::cost([
+                'vpKwh' => (float) ($d['hp'] ?? 0), 'restKwh' => (float) ($d['rest'] ?? 0), 'evKwh' => (float) ($d['ev'] ?? 0),
+                'highRate' => $highRate, 'lowRate' => $lowRate, 'highKwhPerMonth' => $allowance,
+            ]);
+            $out[$key] = ['vp' => $c['vpCost'], 'rest' => $c['restCost'], 'ev' => $c['evCost'], 'total' => $c['total']];
+            $tot['vp'] += $c['vpCost']; $tot['rest'] += $c['restCost']; $tot['ev'] += $c['evCost']; $tot['total'] += $c['total'];
+        }
+        return ['rows' => $out, 'totals' => $tot, 'components' => $low['components'], 'complete' => $high['complete'] && $low['complete']];
+    }
+
+    /**
      * Dashboard cost block: month-to-date and projected cost of the heat pump and the
      * rest of the house, plus the total electricity bill estimate.
      *

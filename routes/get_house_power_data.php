@@ -32,6 +32,21 @@ if (($_GET['mode'] ?? '') !== 'sync_status') {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+require_once __DIR__ . '/../includes/CostEstimates.php';
+
+/**
+ * Attach the server-side cost estimate to a response array and cache it only when the
+ * prices behind it were complete (a rate-limited answer must not stick for an hour).
+ */
+function _husFinish(array $resp, ?array $cost, string $cacheKey): void {
+    $complete = true;
+    if ($cost !== null) { $complete = $cost['complete']; unset($cost['complete']); }
+    $resp['cost'] = $cost;
+    $json = json_encode($resp);
+    if ($complete) QueryBuilder::fileCacheWrite($cacheKey, $json);
+    echo $json;
+}
+
 $powerlogDb = DatabaseManager::getPowerlogDb();
 $chargesDb  = DatabaseManager::getChargesDb();
 
@@ -99,9 +114,9 @@ if ($mode === 'daily') {
         $days[] = ['day' => $day, 'hus' => round($hus, 2), 'ev' => $ev, 'hp' => $hp, 'rest' => $rest];
     }
 
-    $json = json_encode(['mode' => 'daily', 'days' => $days]);
-    QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
-    echo $json;
+    $_end = min($dayEnd, date('Y-m-d'));
+    _husFinish(['mode' => 'daily', 'days' => $days],
+        CostEstimates::house('daily', $days, $dayStart, $_end), $_hwCacheKey);
 
 // =========================================================================
 // MONTHLY — per-month breakdown for a single year
@@ -164,9 +179,9 @@ if ($mode === 'daily') {
         }
     }
 
-    $json = json_encode(['mode' => 'monthly', 'months' => $months]);
-    QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
-    echo $json;
+    $_end = $year === date('Y') ? date('Y-m-d') : $yearEnd;
+    _husFinish(['mode' => 'monthly', 'months' => $months],
+        CostEstimates::house('monthly', $months, $yearStart, $_end), $_hwCacheKey);
 
 // =========================================================================
 // COMPARE — house meter monthly totals across all years
@@ -201,9 +216,10 @@ if ($mode === 'daily') {
     } catch (\Throwable $e) {
         error_log('getHousePowerData compare: ' . $e->getMessage());
     }
-    $json = json_encode(['mode' => 'compare', 'data' => $data]);
-    QueryBuilder::fileCacheWrite($_hwCacheKey, $json);
-    echo $json;
+    $_years = array_values(array_filter(array_map(fn($r) => (int) $r['year'], $data)));
+    $_start = ($_years ? min($_years) : (int) date('Y') - 2) . '-01-01';
+    _husFinish(['mode' => 'compare', 'data' => $data],
+        $data ? CostEstimates::house('compare', $data, $_start, date('Y-m-d')) : null, $_hwCacheKey);
 
 // =========================================================================
 // YTD — house meter daily totals per year, Jan 1 through today's day-of-year
@@ -223,7 +239,7 @@ if ($mode === 'daily') {
             ),
             daily_delta AS (
                 SELECT day, year,
-                       MAX(max_kwh - LAG(max_kwh) OVER (PARTITION BY year ORDER BY day), 0) AS kwh
+                       COALESCE(MAX(max_kwh - LAG(max_kwh) OVER (PARTITION BY year ORDER BY day), 0), 0) AS kwh
                 FROM daily_max
             )
             SELECT year, day, ROUND(kwh, 2) AS kwh

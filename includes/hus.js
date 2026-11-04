@@ -35,24 +35,10 @@ const husApp = (() => {
         let husChart     = null;
         let lastData     = null;
 
-        // ── Electricity price settings & cost state ──────────────────────────
-        function getElSettings() {
-            return {
-                area: window.sparkConfig?.elspotArea || '',
-                gln:  window.sparkConfig?.elspotGln  || '',
-            };
-        }
-        function elSettingsReady() {
-            const s = getElSettings();
-            return s.area !== '' && s.gln !== '';
-        }
-        // Cost state: date string (YYYY-MM-DD) → kr/kWh for HIGH and LOW elafgift,
-        // populated by fetchElCosts(). The elvarme model blends them per month.
-        let activeHighMap    = {};
-        let activeLowMap     = {};
-        let activeHighKwh    = 4000 / 12; // kWh/month at HIGH rate (from server)
-        // Representative component breakdown for the period (from getElspotPrices.php)
-        let activeComponents = null;
+        // ── Electricity cost ─────────────────────────────────────────────────
+        // The elvarme model (rates, allowance, split) runs on the server
+        // (CostEstimates::house): every house-power response carries `cost`, which is
+        // null when prices are not configured/available.
 
         // DOM refs
         const canvas        = document.getElementById('husChart');
@@ -138,8 +124,6 @@ const husApp = (() => {
             canvas.style.display    = 'none';
             if (yearContainer) yearContainer.style.display = 'none';
             statsContent.innerHTML  = '<p>Indlæser data...</p>';
-            // Reset cost state for the new period; fetchElCosts repopulates it.
-            activeHighMap = {}; activeLowMap = {}; activeComponents = null;
 
             fetch(buildUrl())
                 .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -154,105 +138,12 @@ const husApp = (() => {
                     renderChart(resp);
                     renderStats(resp);
                     canvas.style.display = '';
-                    // Estimated cost enrichment (async, best-effort) — re-renders
-                    // stats + chart tooltip once daily kr/kWh rates arrive.
-                    fetchElCosts();
                 })
                 .catch(err => {
                     console.error('husApp fetch:', err);
                     errorEl.style.display = '';
                     statsContent.innerHTML = '<p class="text-muted">Kunne ikke hente data.</p>';
                 });
-        }
-
-        // ── Electricity cost estimation ──────────────────────────────────────
-        // Fetches all-in kr/kWh for HIGH and LOW elafgift. The elvarme model
-        // then bills the first 4000 kWh/year (≈333/month) of VP+Rest at the HIGH
-        // rate and the rest (plus all EV) at the LOW rate.
-        function fetchElCosts() {
-            if (!elSettingsReady()) return;
-            const { area, gln } = getElSettings();
-            const today = new Date().toISOString().slice(0, 10);
-
-            let start, end;
-            if (currentMode === 'daily') {
-                const [y, m]  = currentMonth.split('-').map(Number);
-                const lastDay = new Date(y, m, 0).getDate();
-                start = currentMonth + '-01';
-                end   = currentMonth + '-' + String(lastDay).padStart(2, '0');
-                if (end > today) end = today;
-            } else if (currentMode === 'monthly') {
-                start = currentYear + '-01-01';
-                end   = currentYear === String(new Date().getFullYear())
-                            ? today : currentYear + '-12-31';
-            } else {
-                // compare / ytd — derive year range from the data actually present
-                const data = (lastData && lastData.data) || [];
-                let minYear = new Date().getFullYear() - 2;
-                if (data.length > 0) {
-                    const years = data.map(d => parseInt(d.year)).filter(y => !isNaN(y));
-                    if (years.length > 0) minYear = Math.min(...years);
-                }
-                start = minYear + '-01-01';
-                end   = today;
-            }
-
-            const highParams = new URLSearchParams({ start, end, area, gln, tariff: 'high' });
-            const lowParams  = new URLSearchParams({ start, end, area, gln, tariff: 'low' });
-            Promise.all([
-                fetch('api.php?action=elspot-prices&' + highParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
-                fetch('api.php?action=elspot-prices&' + lowParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
-            ])
-                .then(([highData, lowData]) => {
-                    activeHighMap = {}; activeLowMap = {};
-                    activeComponents = lowData.components || null;
-                    (highData.records || []).forEach(r => { activeHighMap[r.date] = parseFloat(r.kr_kwh); });
-                    (lowData.records  || []).forEach(r => { activeLowMap[r.date]  = parseFloat(r.kr_kwh); });
-                    activeHighKwh = highData.components?.high_kwh_per_month ?? (4000 / 12);
-                    if (!lastData) return;
-                    // Re-render stats with cost now available. For daily/monthly
-                    // also refresh the stacked chart (in-place update adds kr to
-                    // the tooltip). Skip the chart for compare/ytd — cost only
-                    // affects the stats table there, and re-rendering would
-                    // destroy/recreate the line chart (visible blink).
-                    renderStats(lastData);
-                    if (currentMode === 'daily' || currentMode === 'monthly') {
-                        renderChart(lastData);
-                    }
-                })
-                .catch(err => console.error('husApp fetchElCosts:', err));
-        }
-
-        // Elvarme-blended cost for one row (day or month). Returns component
-        // costs via appUtils.elvarmeCost. For daily rows the monthly high-rate
-        // allowance is prorated to that day so the threshold isn't applied 30×.
-        function _rowCost(d) {
-            let highRate, lowRate, highKwh;
-            if (currentMode === 'daily') {
-                highRate = activeHighMap[d.day] || 0;
-                lowRate  = activeLowMap[d.day]  || 0;
-                const dim = new Date(d.day.slice(0, 4), parseInt(d.day.slice(5, 7), 10), 0).getDate();
-                highKwh  = activeHighKwh / (dim || 30);
-            } else {
-                highRate = _avgRateForMonth(activeHighMap, d.month);
-                lowRate  = _avgRateForMonth(activeLowMap,  d.month);
-                highKwh  = activeHighKwh;
-            }
-            return appUtils.elvarmeCost({
-                vpKwh: d.hp ?? 0,
-                restKwh: d.rest ?? 0,
-                evKwh: d.ev ?? 0,
-                highRate, lowRate, highKwhPerMonth: highKwh,
-            });
-        }
-
-        // Average kr/kWh across the days of a given YYYY-MM prefix, for a given
-        // rate map (0 if none).
-        function _avgRateForMonth(map, monthPrefix) {
-            const rates = Object.entries(map)
-                .filter(([d]) => d.startsWith(monthPrefix))
-                .map(([, r]) => r);
-            return rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
         }
 
         // ── Sync status ──────────────────────────────────────────────────────
@@ -280,10 +171,10 @@ const husApp = (() => {
             if (husChart && husChart.config.type !== 'bar') { husChart.destroy(); husChart = null; }
 
             const rows = resp.days || resp.months || [];
-            const costsReady = elSettingsReady() && Object.keys(activeHighMap).length > 0;
-            // Per-period estimated cost (kr) for the total bar, or null if no rates yet.
-            // Elvarme model: VP+Rest first 333 kWh/month high, rest low; EV low.
-            const costVals = costsReady ? rows.map(d => _rowCost(d).total) : null;
+            // Per-period estimated cost (kr) for the total bar, or null without prices.
+            const costVals = resp.cost
+                ? rows.map(d => resp.cost.rows[d.day || d.month]?.total ?? 0)
+                : null;
 
             if (currentMode === 'daily') {
                 _renderStacked(
@@ -576,24 +467,16 @@ const husApp = (() => {
 
                 const pct = (val, tot) => tot > 0 ? ` (${Math.round(val / tot * 100)} %)` : '';
 
-                // ── Estimated cost per component (elvarme model) ────────────
-                // First 333 kWh/month of VP+Rest at HIGH rate, rest + EV at LOW.
-                const costsReady = elSettingsReady() && Object.keys(activeHighMap).length > 0;
-                let costHus = 0, costEv = 0, costHp = 0, costRest = 0;
-                if (costsReady) {
-                    rows.forEach(d => {
-                        const c = _rowCost(d);
-                        costHp   += c.vpCost;
-                        costRest += c.restCost;
-                        costEv   += c.evCost;
-                        costHus  += c.total;
-                    });
-                }
+                // ── Estimated cost per component (elvarme model, from the server) ──
+                const costsReady = !!resp.cost;
+                const costHus  = costsReady ? resp.cost.totals.total : 0;
+                const costEv   = costsReady ? resp.cost.totals.ev    : 0;
+                const costHp   = costsReady ? resp.cost.totals.vp    : 0;
+                const costRest = costsReady ? resp.cost.totals.rest  : 0;
                 const kr = v => appUtils.formatCurrency(v);
-                // kr cell appended to a component <dd>; blank until costs load
+                // kr cell appended to a component <dd>; blank without prices
                 const krCell = (val) => {
-                    if (!elSettingsReady()) return '';
-                    if (!costsReady)        return ` <span class="text-muted">· …</span>`;
+                    if (!costsReady) return '';
                     return ` <span class="text-muted">· ca. ${kr(val)}</span>`;
                 };
 
@@ -620,9 +503,9 @@ const husApp = (() => {
                 html += '</dl>';
 
                 // Estimated total cost + component breakdown (mirrors jordvarme)
-                if (elSettingsReady()) {
+                {
                     if (costsReady && costHus > 0) {
-                        const c = activeComponents;
+                        const c = resp.cost.components;
                         let breakdown = '';
                         if (c) {
                             const netLabel = (c.nettarif_records === 0)
@@ -637,9 +520,6 @@ const husApp = (() => {
                             `<div class="text-muted" style="font-size:10px">Estimeret ud fra spotpris, nettarif, systemtarif, elafgift og moms. Elvarme: første ≈333 kWh/md af VP+Rest til fuld elafgift, resten til reduceret elvarmesats.</div>` +
                             breakdown +
                             `</div>`;
-                    } else if (!costsReady) {
-                        html += `<div class="text-muted small" style="margin-top:8px">` +
-                            `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Beregner elomkostning…</div>`;
                     }
                 }
                 statsContent.innerHTML = html;
@@ -656,21 +536,8 @@ const husApp = (() => {
                 // Estimated cost per year (kr). compare rows are whole-house
                 // monthly totals (no VP/EV split), so we can only approximate
                 // with the elvarme threshold applied to the whole-house kWh.
-                const costsReady = mode === 'compare'
-                    && elSettingsReady() && Object.keys(activeHighMap).length > 0;
-                const yearCosts = {};
-                if (costsReady) {
-                    data.forEach(d => {
-                        const monthPrefix = d.year + '-' + String(d.month || '').padStart(2, '0');
-                        const highRate = _avgRateForMonth(activeHighMap, monthPrefix);
-                        const lowRate  = _avgRateForMonth(activeLowMap,  monthPrefix);
-                        const kwh = parseFloat(d.kwh);
-                        const c = appUtils.elvarmeCost({
-                            restKwh: kwh, highRate, lowRate, highKwhPerMonth: activeHighKwh,
-                        });
-                        yearCosts[d.year] = (yearCosts[d.year] || 0) + c.total;
-                    });
-                }
+                const costsReady = mode === 'compare' && !!resp.cost;
+                const yearCosts = costsReady ? resp.cost.years : {};
 
                 let html = '<dl class="stat-list">';
                 years.forEach(y => {
