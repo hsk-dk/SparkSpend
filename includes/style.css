@@ -1776,20 +1776,6 @@ header {
   opacity: 1;
 }
 
-/* ===== ICON-ONLY TABS ON SMALL MOBILE ===== */
-
-@media (max-width: 600px) {
-  .tab-label {
-    display: none;
-  }
-
-  .header-tab-button {
-    padding: 10px 10px;
-    gap: 0;
-    justify-content: center;
-  }
-}
-
 /* ===== SMALL MOBILE (<400px) ===== */
 
 @media (max-width: 400px) {
@@ -2235,4 +2221,85 @@ header {
 
 @media (prefers-color-scheme: dark) {
   .dash-refresh-indicator { color: #94a3b8; }
+}
+
+/* ===== MOBILE HEADER & NAVIGATION (<= 768px) =====
+   Two compact rows instead of a tall stack: brand + actions on top, the five main tabs
+   below (icon over label, evenly spread). Sub-tabs become one scrollable row.
+   Lives at the end of the file on purpose: it overrides the generic mobile rules above
+   (header column layout, full-width buttons). */
+@media (max-width: 768px) {
+  header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;   /* minmax(0,..): the title may be cut, never overlap the buttons */
+    grid-template-areas: "brand actions" "nav nav";
+    align-items: center;
+    gap: 4px 8px;
+    padding: 8px 12px 0;
+  }
+  .header-left   { grid-area: brand; gap: 8px; min-width: 0; }
+  .header-right  { grid-area: actions; gap: 6px; }
+  .header-nav {
+    grid-area: nav;
+    margin: 0 -12px;            /* edge to edge */
+    gap: 0;
+    border-bottom: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    justify-content: space-between;
+  }
+
+  .header-left > .d-flex { gap: 8px !important; min-width: 0; }
+  .header-left > .d-flex > div { width: 30px !important; height: 30px !important; flex: 0 0 30px; }
+  .header-left img { width: 30px; height: 30px; }
+  .header-left h1  { font-size: 18px; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* the generic "button { width: 100%; padding: 14px }" must not apply in the header */
+  header button { width: auto; padding: 6px 10px; border-radius: 8px; font-size: 14px; }
+  #filterToggleBtn { min-width: 36px; padding: 6px 10px; }
+  .button-create-charge { gap: 0; padding: 6px 11px; }
+  .button-create-charge span { display: none; }
+
+  .header-tab-button {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 7px 2px 6px;
+    font-size: 11px;
+    line-height: 1.1;
+    border-bottom-width: 3px;
+  }
+  .header-tab-button i  { font-size: 16px; }
+  .tab-label { display: inline; }
+  .anomaly-tab-badge { top: 3px; right: 18%; }
+
+  /* The page is a flex column: without this a section never shrinks below its widest
+     content (a nowrap sub-tab row, a table), and the whole page scrolls sideways. */
+  .tab-section { min-width: 0; max-width: 100%; }
+
+  /* sub-tabs: one horizontally scrollable row, never full-width stacked buttons */
+  .sub-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding: 8px 0 10px;
+    margin-bottom: 14px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sub-nav::-webkit-scrollbar { display: none; }
+  .sub-nav-btn {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+    padding: 7px 14px;
+    font-size: 0.85rem;
+  }
+  .sub-nav-btn.ms-auto { margin-left: auto !important; }
+}
+
+@media (max-width: 360px) {
+  .header-left h1 { font-size: 16px; }
+  .header-tab-button { font-size: 10px; }
 }

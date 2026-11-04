@@ -67,7 +67,7 @@ require 'includes/QueryBuilder.php';
     <!-- Main Navigation Tabs -->
     <nav class="header-nav">
       <button class="header-tab-button" data-target="oversigt-section">
-        <i class="fas fa-home"></i> <span class="tab-label">Oversigt</span>
+        <i class="fas fa-gauge-high"></i> <span class="tab-label">Oversigt</span>
       </button>
       <button class="header-tab-button" data-target="elbil-section">
         <i class="fas fa-charging-station"></i> <span class="tab-label">Elbil</span>
