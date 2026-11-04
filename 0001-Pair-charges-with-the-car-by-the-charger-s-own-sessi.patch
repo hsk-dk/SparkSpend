@@ -1,0 +1,798 @@
+From 5c9a4abb6ed54d66b29e809e0562829bdb62213d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 4 Nov 2026 16:59:33 +0100
+Subject: [PATCH] Pair charges with the car by the charger's own session data
+ (SoC rise, power signature)
+
+ChargerPairing decides from SoC change between charge_start and charge_end and
+per-car power/energy limits; ChargerReconciler matches Monta charges to HA
+sessions and applies it after every sync and when a session ends. New
+'charger' pairingSource ranks below api/manual. Migration 006 casts BLOB
+vehicleIds to INTEGER. Ignore *.patch.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01QYwqG6dXAkSHUErVSsbq3F
+---
+ .gitignore                                    |   3 +
+ CHANGELOG.md                                  |   6 +
+ cron/update_monta_data.php                    |  18 +-
+ dev/fixtures/charger_pairing_real.json        | 195 ++++++++++++++++++
+ dev/test_charger_pairing.php                  | 127 ++++++++++++
+ dev/test_vehicle_pairing.php                  |  10 +-
+ includes/ChargerPairing.php                   | 148 +++++++++++++
+ includes/ChargerReconciler.php                | 104 ++++++++++
+ includes/VehiclePairing.php                   |   6 +-
+ .../charges/006_fix_blob_vehicle_ids.php      |  12 ++
+ routes/receive_charger_event.php              |  11 +
+ 11 files changed, 634 insertions(+), 6 deletions(-)
+ create mode 100644 dev/fixtures/charger_pairing_real.json
+ create mode 100644 dev/test_charger_pairing.php
+ create mode 100644 includes/ChargerPairing.php
+ create mode 100644 includes/ChargerReconciler.php
+ create mode 100644 migrations/charges/006_fix_blob_vehicle_ids.php
+
+diff --git a/.gitignore b/.gitignore
+index 017f5b0..5ceb0e9 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -25,3 +25,6 @@ Thumbs.db
+ tmpclaude-*-cwd
+ nul
+ BACKLOG.md
++
++# Patch files exported for review
++*.patch
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b25515c..c201a1b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,12 @@ All notable changes to SparkSpend are listed here in reverse chronological order
+ 
+ ## [Unreleased]
+ 
++### Added (which car charged - decided by the charger)
++- **The charger's own session data now decides which car charged** (`ChargerPairing`, `ChargerReconciler`). Real data showed the plug-in time-match picking the wrong car on both of the first two sessions recorded with the extra Home Assistant data: the cars' cloud data arrives hours late and the cable sensors are unreliable. What is reliable is the battery level of the car that charged (it rises between `charge_start` and `charge_end`) and the power signature (Enyaq ~10.5 kW; e-Up never above ~7.5 kW and ~27 kWh, learned from your own labelled charges). Rules: one car's SoC rose >= 5 points while the others did not -> that car (`pairingSource = charger` from +10 points, otherwise `uncertain`); power/energy rule out all but one car -> that car; if the evidence contradicts itself, the charge is left for a human. Runs after every Monta sync and when a session ends; a Monta charge is paired to a session by start/stop time (+-20 min) and energy (+-5 %). New rank order: `manual > api > charger > matched > uncertain > legacy > unknown` - a manual correction is never touched.
++
++### Fixed (data)
++- Two legacy charges (10 Feb 2025) had `vehicleId` stored as a BLOB, so per-car queries (`WHERE vehicleId = 2`) skipped 57.8 kWh. Migration `006_fix_blob_vehicle_ids` casts them to INTEGER.
++
+ ### Fixed (dashboard trends)
+ - **"vs. forrige mdr" showed a false rise on the last days of a month when the previous month is shorter.** "Same period last month" is the first N days of last month (N = today's day-of-month), cut at that month's last day. On the 31st vs a 30-day month, or the 29th-31st vs February, that window holds fewer days than the current period, so flat usage looked like a rise of about 3 % (31 vs 30 days) up to about 9 % (31 March vs February). The capped window is now scaled to the same number of days (`DashboardWindow::comparableScale`), for kWh and cost of EV, heat pump, house and Rest, and for the pace the projection uses. Nothing changes on days where the window is not capped (28 of 31 days in most months), and the previous month's full-month figure is untouched.
+ 
+diff --git a/cron/update_monta_data.php b/cron/update_monta_data.php
+index 476bb8d..f95fd11 100644
+--- a/cron/update_monta_data.php
++++ b/cron/update_monta_data.php
+@@ -3,6 +3,7 @@ require __DIR__ . '/../includes/configuration.php';
+ require __DIR__ . '/../includes/DatabaseManager.php';
+ require __DIR__ . '/../includes/QueryBuilder.php';
+ require __DIR__ . '/../includes/VehiclePairing.php';
++require __DIR__ . '/../includes/ChargerReconciler.php';
+ 
+ /**
+  * Append a timestamped line to cron/cron.log.
+@@ -410,7 +411,22 @@ $db->prepare("INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last
+ 
+ // Drop charge-dependent caches so newly synced charges show up immediately
+ // rather than waiting out the TTL (dashboard, analytics, annual, etc.).
+-if ($count > 0) {
++// The charger's own session data (Home Assistant) is the best evidence for which car
++// charged: let it settle the pairing now that the Monta charges are in.
++$chargerUpdates = 0;
++try {
++    foreach (ChargerReconciler::run($db) as $r) {
++        if ($r['action'] === 'updated') {
++            $chargerUpdates++;
++            logMsg(sprintf('Charger pairing: charge %s %s/%s -> %s/%s (%s)', $r['chargeId'],
++                $r['from']['vehicleId'], $r['from']['source'], $r['to']['vehicleId'], $r['to']['source'], $r['decision']['evidence']));
++        }
++    }
++} catch (\Throwable $e) {
++    logMsg('Charger pairing failed: ' . $e->getMessage());
++}
++
++if ($count > 0 || $chargerUpdates > 0) {
+     QueryBuilder::invalidateChargeCaches();
+ }
+ 
+diff --git a/dev/fixtures/charger_pairing_real.json b/dev/fixtures/charger_pairing_real.json
+new file mode 100644
+index 0000000..7076b88
+--- /dev/null
++++ b/dev/fixtures/charger_pairing_real.json
+@@ -0,0 +1,195 @@
++{
++    "_note": "Real data, 1-2 Nov 2026. Truth (verified by hand): 904760793841055643 = e-Up (car 3), 905028159648177382 = Enyaq (car 2).",
++    "events": [
++        {
++            "eventAt": "2026-11-01T15:05:20Z",
++            "event": "plugged",
++            "chargerStatus": "awaiting_authorization",
++            "sessionEnergy": 36.449401855469,
++            "lifetimeEnergy": 15307.807335278,
++            "power": 0,
++            "cars": {
++                "2": {
++                    "soc": 30,
++                    "odometer": 59023,
++                    "cable": "off",
++                    "carTs": "2026-11-01T14:06:43Z"
++                },
++                "3": {
++                    "soc": 52,
++                    "odometer": 49530,
++                    "cable": "disconnected",
++                    "carTs": "2026-10-31T19:58:15Z"
++                }
++            }
++        },
++        {
++            "eventAt": "2026-11-02T01:11:29Z",
++            "event": "charge_start",
++            "chargerStatus": "charging",
++            "sessionEnergy": 36.449401855469,
++            "lifetimeEnergy": 15307.807335278,
++            "power": 0.25400000810623,
++            "cars": {
++                "2": {
++                    "soc": 28,
++                    "odometer": 59028,
++                    "cable": "off",
++                    "carTs": "2026-11-01T18:27:17Z"
++                },
++                "3": {
++                    "soc": 40,
++                    "odometer": 49548,
++                    "cable": "connected",
++                    "carTs": "2026-11-01T14:06:06Z"
++                }
++            }
++        },
++        {
++            "eventAt": "2026-11-02T04:41:28Z",
++            "event": "charge_end",
++            "chargerStatus": "completed",
++            "sessionEnergy": 21.243656158447,
++            "lifetimeEnergy": 15327.829396111,
++            "power": 0,
++            "cars": {
++                "2": {
++                    "soc": 28,
++                    "odometer": 59028,
++                    "cable": "off",
++                    "carTs": "2026-11-01T18:27:17Z"
++                },
++                "3": {
++                    "soc": 100,
++                    "odometer": 49548,
++                    "cable": "connected",
++                    "carTs": "2026-11-01T17:28:49Z"
++                }
++            }
++        },
++        {
++            "eventAt": "2026-11-02T09:34:56Z",
++            "event": "unplugged",
++            "chargerStatus": "disconnected",
++            "sessionEnergy": 0,
++            "lifetimeEnergy": 15329.050990833,
++            "power": 0,
++            "cars": {
++                "2": {
++                    "soc": 28,
++                    "odometer": 59028,
++                    "cable": "off",
++                    "carTs": "2026-11-02T09:32:42Z"
++                },
++                "3": {
++                    "soc": 100,
++                    "odometer": 49548,
++                    "cable": "connected",
++                    "carTs": "2026-11-01T17:28:49Z"
++                }
++            }
++        },
++        {
++            "eventAt": "2026-11-02T09:34:59Z",
++            "event": "plugged",
++            "chargerStatus": "awaiting_authorization",
++            "sessionEnergy": 0,
++            "lifetimeEnergy": 15329.050990833,
++            "power": 0,
++            "cars": {
++                "2": {
++                    "soc": 28,
++                    "odometer": 59028,
++                    "cable": "off",
++                    "carTs": "2026-11-02T09:32:42Z"
++                },
++                "3": {
++                    "soc": 100,
++                    "odometer": 49548,
++                    "cable": "connected",
++                    "carTs": "2026-11-01T17:28:49Z"
++                }
++            }
++        },
++        {
++            "eventAt": "2026-11-02T10:02:20Z",
++            "event": "charge_start",
++            "chargerStatus": "charging",
++            "sessionEnergy": 0,
++            "lifetimeEnergy": 15329.050990833,
++            "power": 0.24799999594688,
++            "cars": {
++                "2": {
++                    "soc": 28,
++                    "odometer": 59028,
++                    "cable": "off",
++                    "carTs": "2026-11-02T09:32:42Z"
++                },
++                "3": {
++                    "soc": 100,
++                    "odometer": 49548,
++                    "cable": "connected",
++                    "carTs": "2026-11-01T17:28:49Z"
++                }
++            }
++        },
++        {
++            "eventAt": "2026-11-02T13:53:44Z",
++            "event": "charge_end",
++            "chargerStatus": "completed",
++            "sessionEnergy": 40.931232452393,
++            "lifetimeEnergy": 15360.482746389,
++            "power": 0,
++            "cars": {
++                "2": {
++                    "soc": 79,
++                    "odometer": 59028,
++                    "cable": "on",
++                    "carTs": "2026-11-02T10:02:42Z"
++                },
++                "3": {
++                    "soc": 89,
++                    "odometer": 49570,
++                    "cable": "disconnected",
++                    "carTs": "2026-11-02T09:20:08Z"
++                }
++            }
++        },
++        {
++            "eventAt": "2026-11-02T14:39:02Z",
++            "event": "unplugged",
++            "chargerStatus": "disconnected",
++            "sessionEnergy": 0,
++            "lifetimeEnergy": 15369.982221389,
++            "power": 0,
++            "cars": {
++                "2": {
++                    "soc": 80,
++                    "odometer": 59028,
++                    "cable": "on",
++                    "carTs": "2026-11-02T14:38:22Z"
++                },
++                "3": {
++                    "soc": 89,
++                    "odometer": 49570,
++                    "cable": "disconnected",
++                    "carTs": "2026-11-02T09:20:08Z"
++                }
++            }
++        }
++    ],
++    "charges": [
++        {
++            "id": "904760793841055643",
++            "startedAt": "2026-11-02T01:11:24Z",
++            "stoppedAt": "2026-11-02T04:38:22Z",
++            "consumedKwh": 21.24
++        },
++        {
++            "id": "905028159648177382",
++            "startedAt": "2026-11-02T10:01:49Z",
++            "stoppedAt": "2026-11-02T13:53:42Z",
++            "consumedKwh": 40.44
++        }
++    ]
++}
+\ No newline at end of file
+diff --git a/dev/test_charger_pairing.php b/dev/test_charger_pairing.php
+new file mode 100644
+index 0000000..13b46cb
+--- /dev/null
++++ b/dev/test_charger_pairing.php
+@@ -0,0 +1,127 @@
++<?php
++/**
++ * Tests for ChargerPairing (decision rules) and ChargerReconciler (database step).
++ * Run:  php dev/test_charger_pairing.php
++ *
++ * dev/fixtures/charger_pairing_real.json is real data (1-2 Nov 2026): two sessions
++ * where the plug-in time-match picked the wrong car both times.
++ */
++require __DIR__ . '/../includes/MigrationRunner.php';
++require __DIR__ . '/../includes/ChargerReconciler.php';
++
++$fails = 0; $n = 0;
++function check(string $name, $actual, $expected): void {
++    global $fails, $n; $n++;
++    if ($actual === $expected) { echo "  ok   $name\n"; return; }
++    $fails++;
++    echo "  FAIL $name\n       expected " . json_encode($expected) . "\n       got      " . json_encode($actual) . "\n";
++}
++
++$UP = 3; $ENYAQ = 2;
++// limits as learned from real labelled charges
++$profiles = [
++    $UP    => ['n' => 17, 'kw' => 7.2,  'kwh' => 26.5],
++    $ENYAQ => ['n' => 40, 'kw' => 10.7, 'kwh' => 55.0],
++];
++$sess = fn(array $start, array $end, ?float $kw = null, ?float $kwh = null) => [
++    'avgPowerKw' => $kw, 'energyKwh' => $kwh,
++    'cars' => ['plugged' => null, 'charge_start' => $start, 'charge_end' => $end, 'unplugged' => null],
++];
++$car = fn($soc, $cable = null) => ['soc' => $soc, 'cable' => $cable];
++$dec = fn($s, $p = null) => array_values(array_intersect_key(ChargerPairing::decide($s, $p ?? $profiles, [2, 3]), ['vehicleId' => 1, 'source' => 1]));
++
++echo "profiles()\n";
++$lab = []; foreach ([20, 22, 24, 25, 26, 27] as $k) $lab[] = ['vehicleId' => 3, 'kwh' => $k, 'kw' => 6.0];
++$lab[] = ['vehicleId' => 2, 'kwh' => 30, 'kw' => 10.5];
++$p = ChargerPairing::profiles($lab);
++check('car with < 5 charges gets no limits', array_keys($p), [3]);
++check('p95 of kWh is between the two largest', $p[3]['kwh'] > 26 && $p[3]['kwh'] <= 27, true);
++check('p95 of kW', $p[3]['kw'], 6.0);
++check('charges under 1 kWh ignored', count(ChargerPairing::profiles(array_fill(0, 9, ['vehicleId' => 3, 'kwh' => 0.4, 'kw' => 3]))), 0);
++
++echo "decide() — SoC rise\n";
++check('sole big riser -> charger', $dec($sess([2 => $car(28), 3 => $car(40)], [2 => $car(28), 3 => $car(100)], 6.1, 21.2)), [3, 'charger']);
++check('stale other car dropping does not matter', $dec($sess([2 => $car(28), 3 => $car(100)], [2 => $car(79), 3 => $car(89)], 10.6, 40.9)), [2, 'charger']);
++check('rise 5..9 alone -> uncertain', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(57), 3 => $car(50)], 10.5, 8.0)), [2, 'uncertain']);
++check('rise 5..9 + only that cable connected -> charger', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(57, 'on'), 3 => $car(50, 'disconnected')], 10.5, 8.0)), [2, 'charger']);
++check('both cars rise -> not decided by SoC', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(70), 3 => $car(70)])), [null, 'unknown']);
++check('other car rising 4 points is unclear', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(80), 3 => $car(54)])), [null, 'unknown']);
++check('missing SoC data -> unknown', $dec($sess([2 => $car(50)], [2 => $car(80)])), [2, 'charger']);   // car 3 absent: car 2 is the sole riser
++check('no snapshots at all -> unknown', ChargerPairing::decide(['cars' => []], $profiles)['source'], 'unknown');
++check('one car known -> unknown', ChargerPairing::decide($sess([2 => $car(10)], [2 => $car(90)]), $profiles, [2])['source'], 'unknown');
++
++echo "decide() — power / energy limits\n";
++check('SoC says e-Up but 10.6 kW is impossible -> unknown (conflict)', $dec($sess([2 => $car(28), 3 => $car(40)], [2 => $car(28), 3 => $car(80)], 10.6, 30.0)), [null, 'unknown']);
++check('no SoC change, 10.6 kW rules out e-Up -> Enyaq', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(50), 3 => $car(50)], 10.6, 20.0)), [2, 'charger']);
++check('no SoC change, 31 kWh rules out e-Up -> Enyaq', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(50), 3 => $car(50)], 6.0, 40.0)), [2, 'charger']);
++check('slow power rules nobody out', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(50), 3 => $car(50)], 3.0, 10.0)), [null, 'unknown']);
++check('without limits no veto', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(50), 3 => $car(50)], 10.6, 40.0), []), [null, 'unknown']);
++
++echo "decide() — cable\n";
++check('only one cable connected -> uncertain', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(50, 'off'), 3 => $car(50, 'connected')], 3.0, 10.0)), [3, 'uncertain']);
++check('both cables connected -> unknown', $dec($sess([2 => $car(50), 3 => $car(50)], [2 => $car(50, 'on'), 3 => $car(50, 'connected')], 3.0, 10.0)), [null, 'unknown']);
++
++echo "real sessions (1-2 Nov 2026)\n";
++$fx = json_decode(file_get_contents(__DIR__ . '/fixtures/charger_pairing_real.json'), true);
++$sessions = ChargerSessions::build($fx['events']);
++check('two sessions assembled', count($sessions), 2);
++$truth = [$UP, $ENYAQ];
++foreach ($sessions as $i => $s) {
++    $d = ChargerPairing::decide($s, $profiles, [2, 3]);
++    check("session " . ($i + 1) . " -> car {$truth[$i]}", [$d['vehicleId'], $d['source']], [$truth[$i], 'charger']);
++}
++
++echo "ChargerReconciler::run()\n";
++function freshDb(array $fx): PDO {
++    $db = new PDO('sqlite::memory:'); $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
++    MigrationRunner::run($db, __DIR__ . '/../migrations/charges');
++    $db->exec("INSERT INTO vehicles (id, vehicleName) VALUES (1,'Ukendt'),(2,'Enyaq'),(3,'e-Up')");
++    $ins = $db->prepare("INSERT INTO charges (id, startedAt, stoppedAt, consumedKwh, vehicleId, pairingSource) VALUES (?,?,?,?,?,?)");
++    $wrong = ['904760793841055643' => 2, '905028159648177382' => 3];     // what the plug-in match said
++    foreach ($fx['charges'] as $c) $ins->execute([$c['id'], $c['startedAt'], $c['stoppedAt'], $c['consumedKwh'], $wrong[$c['id']], 'matched']);
++    $ev = $db->prepare("INSERT INTO charger_events (eventAt, receivedAt, event, chargerStatus, sessionEnergy, lifetimeEnergy, power, cars) VALUES (?,?,?,?,?,?,?,?)");
++    foreach ($fx['events'] as $e) $ev->execute([$e['eventAt'], $e['eventAt'], $e['event'], $e['chargerStatus'], $e['sessionEnergy'], $e['lifetimeEnergy'], $e['power'], json_encode($e['cars'])]);
++    return $db;
++}
++$NOW = strtotime('2026-11-04T16:00:00Z');
++$state = fn(PDO $db) => array_map(fn($r) => [(string) $r[0], (int) $r[1], $r[2]],
++    $db->query("SELECT id, vehicleId, pairingSource FROM charges ORDER BY startedAt")->fetchAll(PDO::FETCH_NUM));
++
++$db = freshDb($fx);
++$rows = ChargerReconciler::run($db, true, $NOW);
++check('dry run reports 2 updates', array_column($rows, 'action'), ['updated', 'updated']);
++check('dry run changes nothing', array_column($state($db), 1), [2, 3]);
++
++$rows = ChargerReconciler::run($db, false, $NOW);
++check('wrong pairings corrected', $state($db), [['904760793841055643', 3, 'charger'], ['905028159648177382', 2, 'charger']]);
++check('second run is idempotent', array_column(ChargerReconciler::run($db, false, $NOW), 'action'), ['confirmed', 'confirmed']);
++
++$db = freshDb($fx);
++$db->exec("UPDATE charges SET vehicleId = 2, pairingSource = 'manual' WHERE id = '904760793841055643'");    // user disagrees with the charger
++$rows = ChargerReconciler::run($db, false, $NOW);
++check('manual correction is never overwritten', [$rows[0]['action'], $state($db)[0][1], $state($db)[0][2]], ['kept', 2, 'manual']);
++$db->exec("UPDATE charges SET vehicleId = 3, pairingSource = 'manual' WHERE id = '904760793841055643'");
++check('manual that agrees is confirmed', ChargerReconciler::run($db, false, $NOW)[0]['action'], 'confirmed');
++
++$db = freshDb($fx);
++$db->exec("UPDATE charges SET consumedKwh = 30 WHERE id = '904760793841055643'");
++check('energy mismatch -> no pairing', ChargerReconciler::run($db, false, $NOW)[0]['action'], 'no_charge');
++$db = freshDb($fx);
++$db->exec("UPDATE charges SET startedAt = '2026-11-02T03:00:00Z' WHERE id = '904760793841055643'");
++check('time mismatch -> no pairing', ChargerReconciler::run($db, false, $NOW)[0]['action'], 'no_charge');
++$db = freshDb($fx);
++check('events older than the window are ignored', ChargerReconciler::run($db, false, strtotime('2027-03-01T00:00:00Z')), []);
++$db = new PDO('sqlite::memory:');
++check('no charger_events table -> nothing to do', ChargerReconciler::run($db), []);
++
++echo "migration 006\n";
++$db = new PDO('sqlite::memory:'); $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
++$db->exec("CREATE TABLE charges (id TEXT PRIMARY KEY, vehicleId INTEGER)");
++$db->exec("INSERT INTO charges VALUES ('a', X'32'), ('b', 3)");
++check('setup: one BLOB', $db->query("SELECT COUNT(*) FROM charges WHERE typeof(vehicleId)='blob'")->fetchColumn(), 1);
++foreach ((require __DIR__ . '/../migrations/charges/006_fix_blob_vehicle_ids.php')['up'] as $sql) $db->exec($sql);
++check('BLOB became INTEGER 2', $db->query("SELECT vehicleId, typeof(vehicleId) FROM charges WHERE id='a'")->fetch(PDO::FETCH_NUM), [2, 'integer']);
++check('other rows untouched', $db->query("SELECT vehicleId FROM charges WHERE id='b'")->fetchColumn(), 3);
++
++echo "\n$n checks, $fails failed\n";
++exit($fails ? 1 : 0);
+diff --git a/dev/test_vehicle_pairing.php b/dev/test_vehicle_pairing.php
+index 50fbd7b..72acc53 100644
+--- a/dev/test_vehicle_pairing.php
++++ b/dev/test_vehicle_pairing.php
+@@ -50,9 +50,9 @@ $r = $m([['vehicleId' => ENYAQ, 'ts' => $T + 4000]]);
+ check('only a later reading -> unknown', [$r['vehicleId'], $r['source']], [null, 'unknown']);
+ 
+ echo "rank()\n";
+-check('order manual>api>matched>uncertain>default=legacy>unknown',
+-    array_map([VehiclePairing::class, 'rank'], ['manual', 'api', 'matched', 'uncertain', 'default', 'legacy', 'unknown', null]),
+-    [5, 4, 3, 2, 1, 1, 0, 0]);
++check('order manual>api>charger>matched>uncertain>default=legacy>unknown',
++    array_map([VehiclePairing::class, 'rank'], ['manual', 'api', 'charger', 'matched', 'uncertain', 'default', 'legacy', 'unknown', null]),
++    [6, 5, 4, 3, 2, 1, 1, 0, 0]);
+ 
+ echo "resolve() — re-sync of an existing charge\n";
+ $res = fn($ev, $es, $nv, $ns) => array_values(VehiclePairing::resolve($ev, $es, $nv, $ns));
+@@ -65,6 +65,10 @@ check('uncertain is upgraded by matched',            $res(3, 'uncertain', 2, 'ma
+ check('uncertain stays on equal rank',               $res(3, 'uncertain', 2, 'uncertain'), [3, 'uncertain']);
+ check('legacy is upgraded by matched',               $res(1, 'legacy', 2, 'matched'),   [2, 'matched']);
+ check('legacy is not wiped by unknown',              $res(1, 'legacy', null, 'unknown'), [1, 'legacy']);
++check('charger beats matched',                       $res(3, 'matched', 2, 'charger'),  [2, 'charger']);
++check('charger never overwrites manual',             $res(3, 'manual', 2, 'charger'),   [3, 'manual']);
++check('charger never overwrites api',                $res(3, 'api', 2, 'charger'),      [3, 'api']);
++check('matched does not overwrite charger',          $res(3, 'charger', 2, 'matched'),  [3, 'charger']);
+ check('api beats matched',                           $res(3, 'matched', 2, 'api'),      [2, 'api']);
+ check('no vehicle yet -> take new match',            $res(null, 'unknown', 2, 'matched'), [2, 'matched']);
+ check('vehicleId 0 counts as "no vehicle"',          $res(0, 'default', 3, 'uncertain'), [3, 'uncertain']);
+diff --git a/includes/ChargerPairing.php b/includes/ChargerPairing.php
+new file mode 100644
+index 0000000..b5c6e90
+--- /dev/null
++++ b/includes/ChargerPairing.php
+@@ -0,0 +1,148 @@
++<?php
++/**
++ * Which car charged? Decided from what the CHARGER and the cars reported during one
++ * charging session (pure functions, unit-tested: php dev/test_charger_pairing.php).
++ *
++ * Why this exists: the plug-in time-match (VehiclePairing::match) only knows which
++ * car was plugged in LAST. Real data showed that is often wrong - the cars' cloud
++ * data arrives hours late and the cable sensors are unreliable. What is reliable:
++ *
++ *   - the battery level of the car that charged RISES between charge_start and
++ *     charge_end (other cars stay put or drop)
++ *   - each car has a power signature: the Enyaq pulls ~10.5 kW, the e-Up never more
++ *     than ~7.5 kW (AC) and never takes more than ~27 kWh
++ *
++ * Decision rules, in order (first that applies wins):
++ *   1. Exactly one car's SoC rose >= SOC_RISE_MIN while all others rose <= SOC_OTHER_MAX
++ *      -> that car. 'charger' when the rise is >= SOC_RISE_SURE (or only that car's cable
++ *      reads connected), otherwise 'uncertain'. If power/energy rule that car out, the
++ *      evidence contradicts itself -> unknown (a human decides).
++ *   2. Power/energy rule out all but one car -> that car ('charger', evidence 'veto').
++ *   3. Exactly one car's cable reads connected at the end -> that car ('uncertain').
++ *   4. Otherwise unknown.
++ */
++final class ChargerPairing {
++
++    public const SOC_RISE_SURE = 10;    // points
++    public const SOC_RISE_MIN  = 5;
++    public const SOC_OTHER_MAX = 3;
++    public const MIN_SAMPLES   = 5;     // charges needed before a car's power/energy limits are trusted
++    private const KW_MARGIN    = 1.15;
++    private const KWH_MARGIN   = 1.30;
++
++    /**
++     * Power/energy limits per car from charges whose car is known.
++     *
++     * @param array<int,array{vehicleId:int,kwh:float,kw:?float}> $labelled
++     * @return array<int,array{n:int,kw:?float,kwh:?float}>  limits (p95) per vehicleId; only cars with enough samples
++     */
++    public static function profiles(array $labelled): array {
++        $kw = $kwh = [];
++        foreach ($labelled as $c) {
++            $v = (int) $c['vehicleId'];
++            if ($v <= 0 || !isset($c['kwh']) || $c['kwh'] < 1.0) continue;
++            $kwh[$v][] = (float) $c['kwh'];
++            if (isset($c['kw']) && $c['kw'] > 0) $kw[$v][] = (float) $c['kw'];
++        }
++        $out = [];
++        foreach ($kwh as $v => $list) {
++            if (count($list) < self::MIN_SAMPLES) continue;
++            $out[$v] = [
++                'n'   => count($list),
++                'kw'  => isset($kw[$v]) && count($kw[$v]) >= self::MIN_SAMPLES ? self::p95($kw[$v]) : null,
++                'kwh' => self::p95($list),
++            ];
++        }
++        return $out;
++    }
++
++    /**
++     * @param array $session   one entry from ChargerSessions::build() (needs 'cars', 'energyKwh', 'avgPowerKw')
++     * @param array $profiles  result of profiles()
++     * @param int[] $candidates vehicleIds that can have charged (empty = every car seen in the session)
++     * @return array{vehicleId:?int,source:string,evidence:string}
++     */
++    public static function decide(array $session, array $profiles, array $candidates = []): array {
++        $cars  = $session['cars'] ?? [];
++        $start = $cars['charge_start'] ?? $cars['plugged'] ?? null;
++        $end   = $cars['charge_end'] ?? null;
++
++        if (!$candidates) {
++            foreach ($cars as $snap) {
++                if (is_array($snap)) foreach (array_keys($snap) as $k) $candidates[] = (int) $k;
++            }
++        }
++        $candidates = array_values(array_unique(array_filter(array_map('intval', $candidates), fn($v) => $v > 0)));
++        if (!$candidates) return self::unknown('no cars in the charger snapshots');
++        if (count($candidates) === 1) return self::unknown('only one car known - nothing to tell apart');
++
++        // Power / energy limits
++        $kw  = $session['avgPowerKw'] ?? null;
++        $kwh = $session['energyKwh']  ?? null;
++        $vetoed = [];
++        foreach ($candidates as $v) {
++            $p = $profiles[$v] ?? null;
++            if (!$p) continue;
++            if ($kw  !== null && $p['kw']  !== null && $kw  > $p['kw']  * self::KW_MARGIN)  $vetoed[$v] = sprintf('%.1f kW > %s max %.1f kW', $kw, "car $v", $p['kw']);
++            if ($kwh !== null && $p['kwh'] !== null && $kwh > $p['kwh'] * self::KWH_MARGIN) $vetoed[$v] = sprintf('%.1f kWh > car %d max %.1f kWh', $kwh, $v, $p['kwh']);
++        }
++
++        // 1. SoC rise
++        $risers = [];
++        $others = true;
++        $rises  = [];
++        foreach ($candidates as $v) {
++            $a = $start[$v]['soc'] ?? null;
++            $b = $end[$v]['soc']   ?? null;
++            $rise = (is_numeric($a) && is_numeric($b)) ? (float) $b - (float) $a : null;
++            $rises[$v] = $rise;
++            if ($rise !== null && $rise >= self::SOC_RISE_MIN) $risers[] = $v;
++            elseif ($rise !== null && $rise > self::SOC_OTHER_MAX) $others = false;   // 3 < rise < 5: neither clearly rising nor still
++        }
++        if (count($risers) === 1 && $others) {
++            $v = $risers[0];
++            $ev = sprintf('SoC +%d points (car %d)', $rises[$v], $v);
++            if (isset($vetoed[$v])) return self::unknown("$ev, but " . $vetoed[$v]);
++            $sure = $rises[$v] >= self::SOC_RISE_SURE || self::onlyCableConnected($end, $candidates) === $v;
++            return ['vehicleId' => $v, 'source' => $sure ? 'charger' : 'uncertain', 'evidence' => $ev];
++        }
++
++        // 2. Power / energy rule out all but one
++        if ($vetoed) {
++            $left = array_values(array_diff($candidates, array_keys($vetoed)));
++            if (count($left) === 1) {
++                return ['vehicleId' => $left[0], 'source' => 'charger',
++                        'evidence' => 'veto: ' . implode('; ', $vetoed)];
++            }
++        }
++
++        // 3. Cable
++        $only = self::onlyCableConnected($end, array_values(array_diff($candidates, array_keys($vetoed))));
++        if ($only !== null) {
++            return ['vehicleId' => $only, 'source' => 'uncertain', 'evidence' => "only car $only's cable reads connected"];
++        }
++        return self::unknown('no clear SoC rise, power or cable evidence');
++    }
++
++    /** vehicleId of the single car whose cable sensor reads "connected" in $snap, else null. */
++    private static function onlyCableConnected(?array $snap, array $among): ?int {
++        if (!$snap) return null;
++        $on = [];
++        foreach ($among as $v) {
++            $c = strtolower((string) ($snap[$v]['cable'] ?? ''));
++            if (in_array($c, ['connected', 'on', 'true', 'plugged', 'locked'], true)) $on[] = $v;
++        }
++        return count($on) === 1 ? $on[0] : null;
++    }
++
++    private static function unknown(string $why): array {
++        return ['vehicleId' => null, 'source' => 'unknown', 'evidence' => $why];
++    }
++
++    private static function p95(array $v): float {
++        sort($v);
++        $i = (count($v) - 1) * 0.95;
++        $lo = (int) floor($i); $hi = (int) ceil($i);
++        return $v[$lo] + ($v[$hi] - $v[$lo]) * ($i - $lo);
++    }
++}
+diff --git a/includes/ChargerReconciler.php b/includes/ChargerReconciler.php
+new file mode 100644
+index 0000000..4a7b1c1
+--- /dev/null
++++ b/includes/ChargerReconciler.php
+@@ -0,0 +1,104 @@
++<?php
++/**
++ * Connects Monta charges to charging sessions seen by the charger (Home Assistant)
++ * and lets ChargerPairing decide which car charged.
++ *
++ * Runs after every Monta sync (cron/update_monta_data.php) and when a session ends
++ * (routes/receive_charger_event.php) - whichever data arrives last completes the pair.
++ * Pairings only move UP in confidence (VehiclePairing::resolve): a manual correction
++ * is never touched, and a weaker verdict never overwrites a stronger one.
++ */
++require_once __DIR__ . '/VehiclePairing.php';
++require_once __DIR__ . '/ChargerSessions.php';
++require_once __DIR__ . '/ChargerPairing.php';
++
++final class ChargerReconciler {
++
++    private const MATCH_TOLERANCE_SEC = 1200;   // Monta vs charger clock/latency
++    private const MATCH_TOLERANCE_KWH = 0.05;   // 5 %
++    private const MIN_KWH             = 1.0;
++    private const LEARN_SOURCES       = ['manual', 'matched', 'charger', 'api'];
++
++    /**
++     * @return array<int,array> one row per charger session that was looked at:
++     *         chargeId, action (updated|confirmed|kept|no_charge|no_decision), from, to, decision, session
++     */
++    public static function run(PDO $db, bool $dryRun = false, ?int $now = null, int $days = 90): array {
++        $now ??= time();
++        $has = $db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='charger_events'")->fetchColumn();
++        if (!$has) return [];
++
++        $since = gmdate('Y-m-d\TH:i:s\Z', $now - $days * 86400);
++        $stmt  = $db->prepare("SELECT eventAt, event, sessionEnergy, lifetimeEnergy, power, chargerStatus, cars
++                               FROM charger_events WHERE eventAt >= ? ORDER BY eventAt");
++        $stmt->execute([$since]);
++        $events = [];
++        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
++            $r['cars'] = $r['cars'] ? json_decode($r['cars'], true) : null;
++            $events[] = $r;
++        }
++        $sessions = array_values(array_filter(
++            ChargerSessions::build($events),
++            fn($s) => $s['chargeStartAt'] && $s['chargeEndAt'] && ($s['energyKwh'] ?? 0) >= self::MIN_KWH
++        ));
++        if (!$sessions) return [];
++
++        $charges = $db->query("SELECT id, vehicleId, pairingSource, startedAt, stoppedAt, consumedKwh
++                               FROM charges WHERE consumedKwh >= " . self::MIN_KWH)->fetchAll(PDO::FETCH_ASSOC);
++
++        // 1. pair sessions with charges (one-to-one, closest start wins)
++        $pairs = []; $used = [];
++        foreach ($sessions as $si => $s) {
++            $best = null; $bestDiff = PHP_INT_MAX;
++            $cs = strtotime($s['chargeStartAt']); $ce = strtotime($s['chargeEndAt']);
++            foreach ($charges as $c) {
++                if (isset($used[$c['id']]) || !$c['startedAt'] || !$c['stoppedAt']) continue;
++                $d1 = abs(strtotime((string) $c['startedAt']) - $cs);
++                $d2 = abs(strtotime((string) $c['stoppedAt']) - $ce);
++                if ($d1 > self::MATCH_TOLERANCE_SEC || $d2 > self::MATCH_TOLERANCE_SEC) continue;
++                if (abs((float) $c['consumedKwh'] - $s['energyKwh']) > self::MATCH_TOLERANCE_KWH * max($s['energyKwh'], (float) $c['consumedKwh'])) continue;
++                if ($d1 < $bestDiff) { $best = $c; $bestDiff = $d1; }
++            }
++            if ($best) { $pairs[$si] = $best; $used[$best['id']] = true; }
++        }
++
++        // 2. power/energy profiles from charges with a known car - not the ones being decided now
++        $labelled = [];
++        foreach ($charges as $c) {
++            $v = (int) $c['vehicleId'];
++            if ($v <= 0 || isset($used[$c['id']]) || !in_array($c['pairingSource'], self::LEARN_SOURCES, true)) continue;
++            $h = (strtotime((string) $c['stoppedAt']) - strtotime((string) $c['startedAt'])) / 3600;
++            $labelled[] = ['vehicleId' => $v, 'kwh' => (float) $c['consumedKwh'], 'kw' => $h > 0 ? (float) $c['consumedKwh'] / $h : null];
++        }
++        $profiles = ChargerPairing::profiles($labelled);
++
++        // 3. decide
++        $known = array_map('intval', $db->query("SELECT id FROM vehicles WHERE id > 1")->fetchAll(PDO::FETCH_COLUMN));
++        $upd = $dryRun ? null : $db->prepare("UPDATE charges SET vehicleId = ?, pairingSource = ? WHERE id = ?");
++        $rows = [];
++        foreach ($sessions as $si => $s) {
++            $row = ['chargeId' => null, 'action' => 'no_charge', 'from' => null, 'to' => null, 'decision' => null,
++                    'session' => ['start' => $s['chargeStartAt'], 'end' => $s['chargeEndAt'], 'kWh' => $s['energyKwh'], 'kW' => $s['avgPowerKw']]];
++            if (!isset($pairs[$si])) { $rows[] = $row; continue; }
++            $c = $pairs[$si];
++            $row['chargeId'] = $c['id'];
++            $row['from'] = ['vehicleId' => (int) $c['vehicleId'], 'source' => $c['pairingSource']];
++
++            $d = ChargerPairing::decide($s, $profiles, $known);
++            $row['decision'] = $d;
++            if ($d['vehicleId'] === null) { $row['action'] = 'no_decision'; $row['to'] = $row['from']; $rows[] = $row; continue; }
++
++            $new = VehiclePairing::resolve((int) $c['vehicleId'], $c['pairingSource'], $d['vehicleId'], $d['source']);
++            $row['to'] = $new;
++            $changed = $new['vehicleId'] !== (int) $c['vehicleId'] || $new['source'] !== $c['pairingSource'];
++            if ($changed) {
++                $row['action'] = 'updated';
++                if ($upd) $upd->execute([$new['vehicleId'], $new['source'], $c['id']]);
++            } else {
++                $row['action'] = ((int) $c['vehicleId'] === $d['vehicleId']) ? 'confirmed' : 'kept';
++            }
++            $rows[] = $row;
++        }
++        return $rows;
++    }
++}
+diff --git a/includes/VehiclePairing.php b/includes/VehiclePairing.php
+index 719538b..6fa1e38 100644
+--- a/includes/VehiclePairing.php
++++ b/includes/VehiclePairing.php
+@@ -8,6 +8,7 @@
+  * pairingSource values, strongest first:
+  *   manual     user corrected it in the GUI
+  *   api        vehicleId supplied by Monta (Partner API)
++ *   charger    decided from the charger session: SoC rise / power signature (ChargerPairing)
+  *   matched    unambiguous Home Assistant plug-in reading
+  *   uncertain  best guess only: stale reading, or two cars plugged in close together
+  *   default    legacy fallback (kept for old rows)
+@@ -19,8 +20,9 @@ final class VehiclePairing {
+     /** Confidence of a pairingSource. Higher = more trustworthy. */
+     public static function rank(?string $source): int {
+         return match ($source) {
+-            'manual'            => 5,
+-            'api'               => 4,
++            'manual'            => 6,
++            'api'               => 5,
++            'charger'           => 4,
+             'matched'           => 3,
+             'uncertain'         => 2,
+             'default', 'legacy' => 1,
+diff --git a/migrations/charges/006_fix_blob_vehicle_ids.php b/migrations/charges/006_fix_blob_vehicle_ids.php
+new file mode 100644
+index 0000000..74eaa77
+--- /dev/null
++++ b/migrations/charges/006_fix_blob_vehicle_ids.php
+@@ -0,0 +1,12 @@
++<?php
++/**
++ * charges.vehicleId was stored as a BLOB ('2' as bytes) on two legacy rows, so
++ * "WHERE vehicleId = 2" never matched them and their 57.8 kWh went missing from
++ * every per-car figure. Cast them to INTEGER.
++ */
++return [
++    'description' => 'Cast BLOB charges.vehicleId values to INTEGER',
++    'up' => [
++        "UPDATE charges SET vehicleId = CAST(CAST(vehicleId AS TEXT) AS INTEGER) WHERE typeof(vehicleId) = 'blob'",
++    ],
++];
+diff --git a/routes/receive_charger_event.php b/routes/receive_charger_event.php
+index 161914a..5dfd63d 100644
+--- a/routes/receive_charger_event.php
++++ b/routes/receive_charger_event.php
+@@ -14,6 +14,7 @@
+  * Same API key as receive_vehicle_data.php (VEHICLE_API_KEY, fail closed).
+  */
+ require_once __DIR__ . '/../includes/ChargerEvents.php';
++require_once __DIR__ . '/../includes/ChargerReconciler.php';
+ 
+ $apiKey = Config::vehicleApiKey();
+ if ($apiKey === '') {
+@@ -62,6 +63,16 @@ $stmt->execute([
+ ]);
+ 
+ if ($stmt->rowCount() > 0) {
++    // A finished session may complete a pair with an already-synced Monta charge. Best effort:
++    // the event is stored either way, and the Monta sync runs the same reconciliation.
++    if (in_array($row['event'], ['charge_end', 'unplugged'], true)) {
++        try {
++            $changed = array_filter(ChargerReconciler::run($db), fn($r) => $r['action'] === 'updated');
++            if ($changed) QueryBuilder::invalidateChargeCaches();
++        } catch (\Throwable $e) {
++            error_log('Charger pairing failed: ' . $e->getMessage());
++        }
++    }
+     http_response_code(201);
+     echo json_encode(['success' => true, 'message' => 'Event stored']);
+ } else {
+-- 
+2.43.0
+

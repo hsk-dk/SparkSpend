@@ -1,15 +1,27 @@
 <?php
 /**
- * Get efficiency statistics for vehicles
+ * Consumption per km for each vehicle.
  *
- * Calculates efficiency metrics (km/kWh and kr/km) based on:
- * - Vehicle odometer readings
- * - Charging data (internal and external)
+ * The calculation lives in includes/EfficiencyCalc.php (pure, unit-tested):
+ * km from the odometer at plug-in, kWh from the charges that refilled it, summed over
+ * a period before dividing. Nothing is thrown away any more (no "< 20 km" or
+ * "must have a charge" filter) and every figure carries a confidence level.
  *
  * GET parameters:
- * - filter: Vehicle ID filter (or 'all' for all vehicles)
- * - dateRange: Date range in format "YYYY-MM-DD til YYYY-MM-DD"
+ * - filter:    vehicle id, or 'all'
+ * - dateRange: "YYYY-MM-DD til YYYY-MM-DD" — selects the drives that END in the range.
+ *              The rolling 30/90/365-day figures ignore it (they are always "until now").
+ *
+ * Response:
+ *   {
+ *     "vehicles": [{ vehicleId, overall, rolling: {"30","90","365"}, monthly: [{month, ...}], dropped }],
+ *     "series":   [{ vehicleId, timestamp, date, totalKm, totalKwh, totalKmPerKwh, totalKrPerKm }],  // cumulative, for the charts
+ *     "unassigned": { charges, kwh }     // charges without a vehicle: cannot be counted here
+ *   }
+ *   metrics: intervals, km, kwh, cost, kwh_per_100km, km_per_kwh, kr_per_km, kr_estimated,
+ *            confidence (lav|middel|høj), confidence_why
  */
+require_once __DIR__ . '/../includes/EfficiencyCalc.php';
 
 // ─── 5-minute file cache ─────────────────────────────────────────────────────────────
 $_effCacheKey = 'efficiency_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
@@ -19,13 +31,12 @@ if ($_cached !== null) { echo $_cached; exit; }
 
 $db = DatabaseManager::getChargesDb();
 
-// Parse request parameters
-$filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
-$dateRange = isset($_GET['dateRange']) ? $_GET['dateRange'] : '';
+$filter    = $_GET['filter'] ?? 'all';
+$dateRange = $_GET['dateRange'] ?? '';
+$vehicleFilter = ($filter !== 'all' && $filter !== '') ? intval($filter) : null;
 
-// Parse date range using QueryBuilder. A non-empty but unparseable range is a
-// clear filter intent, so reject it with 400 rather than silently returning
-// all data (which would look like a valid — but wrong — result).
+// A non-empty but unparseable range is a clear filter intent: reject it (400) rather
+// than silently returning everything, which would look like a valid but wrong result.
 $dateFilters = null;
 if ($dateRange !== '') {
     try {
@@ -34,205 +45,93 @@ if ($dateRange !== '') {
         jsonError('Ugyldigt dateRange-format. Forventet: "YYYY-MM-DD til YYYY-MM-DD".', 400);
     }
 }
+$fromTs = $dateFilters ? strtotime($dateFilters['start'] . ' 00:00:00') : null;
+$toTs   = $dateFilters ? strtotime($dateFilters['end']   . ' 23:59:59') : null;
 
-// Build WHERE clause for vehicle_charges
-$whereConditions = [];
+// ─── Data. ALL history is read (not just the selected range): a drive that ends
+// inside the range may start before it, and needs the reading before the range. ──────
+$vehicleSql = $vehicleFilter !== null ? ' AND vehicleId = ?' : '';
+$vehicleArg = $vehicleFilter !== null ? [$vehicleFilter] : [];
 
-if ($dateFilters) {
-    $whereConditions[] = "date(cablePluggedInAt) >= ?";
-    $whereConditions[] = "date(cablePluggedInAt) <= ?";
+$stmt = $db->prepare("
+    SELECT vehicleId, cablePluggedInAt, odometer FROM vehicle_charges
+    WHERE vehicleId IS NOT NULL AND odometer IS NOT NULL $vehicleSql
+    ORDER BY vehicleId, cablePluggedInAt
+");
+$stmt->execute($vehicleArg);
+$readingsByVehicle = [];
+foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $ts = strtotime((string) $r['cablePluggedInAt']);
+    if ($ts === false) continue;
+    $readingsByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'odometer' => (float) $r['odometer']];
 }
 
-if ($filter !== 'all') {
-    $whereConditions[] = "vehicleId = ?";
-}
-
-// Fetch vehicle_charges within the selected period
-$query = "SELECT vehicleId, cablePluggedInAt, odometer FROM vehicle_charges";
-if (!empty($whereConditions)) {
-    $query .= " WHERE " . implode(" AND ", $whereConditions);
-}
-$query .= " ORDER BY vehicleId, cablePluggedInAt";
-
-$stmt = $db->prepare($query);
-
-// Build parameters
-$params = [];
-if ($dateFilters) {
-    $params[] = $dateFilters['start'];
-    $params[] = $dateFilters['end'];
-}
-if ($filter !== 'all') {
-    $params[] = intval($filter);
-}
-
-$stmt->execute($params);
-$vehicleCharges = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
-
-// Convert datetime strings to timestamps
-foreach ($vehicleCharges as &$row) {
-    $row['cablePluggedInAt'] = strtotime($row['cablePluggedInAt']);
-}
-
-// Fetch internal charges (charges table)
-$whereConditions2 = [];
-if ($dateFilters) {
-    $whereConditions2[] = "date(stoppedAt) >= ?";
-    $whereConditions2[] = "date(stoppedAt) <= ?";
-}
-if ($filter !== 'all') {
-    $whereConditions2[] = "vehicleId = ?";
-}
-
-$query2 = "SELECT vehicleId, stoppedAt as datetime, consumedKwh as kwh, cost as pris FROM charges";
-if (!empty($whereConditions2)) {
-    $query2 .= " WHERE " . implode(" AND ", $whereConditions2);
-}
-
-$stmt2 = $db->prepare($query2);
-$params2 = [];
-if ($dateFilters) {
-    $params2[] = $dateFilters['start'];
-    $params2[] = $dateFilters['end'];
-}
-if ($filter !== 'all') {
-    $params2[] = intval($filter);
-}
-$stmt2->execute($params2);
-$charges = $stmt2->fetchAll(PDO::FETCH_ASSOC) ?? [];
-
-// Fetch external charges (ext_charges table)
-$extCharges = QueryBuilder::getExternalCharges(
-    $db,
-    $dateFilters ? $dateFilters['start'] : null,
-    $dateFilters ? $dateFilters['end'] : null,
-    $filter !== 'all' ? intval($filter) : null
-);
-
-// Combine all charges
-$allCharges = [];
-
-foreach ($charges as $row) {
-    if (empty($row['datetime'])) continue;
-    $row['datetime'] = strtotime($row['datetime']);
-    if ($row['datetime'] === false) continue;
-    $allCharges[] = $row;
-}
-
-foreach ($extCharges as $row) {
-    if (empty($row['datetime'])) continue;
-    $row['datetime'] = strtotime($row['datetime']);
-    if ($row['datetime'] === false) continue;
-    $allCharges[] = $row;
-}
-
-// Sort by timestamp
-usort($allCharges, function($a, $b) {
-    return $a['datetime'] - $b['datetime'];
-});
-
-// Build lookup map for faster charge access
+// Charges per vehicle, timed by when they ended. Ongoing sessions (no stoppedAt) are
+// not counted until they are finished: their energy is still partial.
+$stmt = $db->prepare("
+    SELECT vehicleId, stoppedAt AS datetime, consumedKwh AS kwh, cost AS pris FROM charges
+    WHERE vehicleId IS NOT NULL AND stoppedAt IS NOT NULL AND consumedKwh > 0 $vehicleSql
+");
+$stmt->execute($vehicleArg);
 $chargesByVehicle = [];
-foreach ($allCharges as $charge) {
-    if (!isset($chargesByVehicle[$charge['vehicleId']])) {
-        $chargesByVehicle[$charge['vehicleId']] = [];
-    }
-    $chargesByVehicle[$charge['vehicleId']][] = $charge;
+foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $ts = strtotime((string) $r['datetime']);
+    if ($ts === false) continue;
+    $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => $r['pris'] !== null ? (float) $r['pris'] : null];
+}
+foreach (QueryBuilder::getExternalCharges($db, null, null, $vehicleFilter, false) as $r) {
+    $ts = strtotime((string) ($r['datetime'] ?? ''));
+    if ($ts === false || empty($r['vehicleId']) || (float) $r['kwh'] <= 0) continue;
+    $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => isset($r['pris']) ? (float) $r['pris'] : null];
 }
 
-/**
- * Find and sum all charges between two timestamps for a vehicle
- */
-$sumChargesBetween = function($vehicleId, $timestampAfter, $timestampBefore, $chargesByVehicle) {
-    $total_kwh = 0;
-    $total_pris = 0;
+// ─── Per vehicle ──────────────────────────────────────────────────────────────────────
+$tz   = new DateTimeZone(date_default_timezone_get());
+$now  = time();
+$vehicles = [];
+$series   = [];
 
-    if (!isset($chargesByVehicle[$vehicleId])) {
-        return ['total_kwh' => 0, 'total_pris' => 0];
+ksort($readingsByVehicle);
+foreach ($readingsByVehicle as $vehicleId => $readings) {
+    $calc  = EfficiencyCalc::intervals($readings, $chargesByVehicle[$vehicleId] ?? []);
+    $all   = $calc['intervals'];
+    $range = $dateFilters ? EfficiencyCalc::endingBetween($all, $fromTs, $toTs) : $all;
+
+    $monthly = [];
+    foreach (EfficiencyCalc::byMonth($range, $tz) as $month => $metrics) {
+        $monthly[] = ['month' => $month] + $metrics;
     }
 
-    foreach ($chargesByVehicle[$vehicleId] as $charge) {
-        if ($charge['datetime'] > $timestampAfter && $charge['datetime'] <= $timestampBefore) {
-            $total_kwh += $charge['kwh'];
-            $total_pris += $charge['pris'];
-        }
-    }
+    $vehicles[] = [
+        'vehicleId' => $vehicleId,
+        'overall'   => EfficiencyCalc::metrics($range),
+        'rolling'   => [
+            '30'  => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 30)),
+            '90'  => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 90)),
+            '365' => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 365)),
+        ],
+        'monthly'   => $monthly,
+        'dropped'   => $calc['dropped'],     // intervals skipped because the odometer went backwards
+    ];
 
-    return ['total_kwh' => $total_kwh, 'total_pris' => $total_pris];
-};
-
-// Calculate efficiency statistics
-$results = [];
-$runningKm = [];
-$runningKwh = [];
-$runningPris = [];
-
-foreach ($vehicleCharges as $index => $charge) {
-    $vehicleId = $charge['vehicleId'] ?? null;
-    $timestamp = $charge['cablePluggedInAt'] ?? null;
-
-    if (!$vehicleId || !$timestamp) {
-        continue;
-    }
-
-    // Calculate km driven since last measurement for same vehicle
-    if ($index > 0 && $vehicleCharges[$index - 1]['vehicleId'] == $vehicleId) {
-        $prevOdometerTime = $vehicleCharges[$index - 1]['cablePluggedInAt'];
-        $currentOdometerTime = $timestamp;
-        $kmDriven = $charge['odometer'] - $vehicleCharges[$index - 1]['odometer'];
-
-        // Sum all charges that happened between the two odometer readings
-        $chargeData = $sumChargesBetween($vehicleId, $prevOdometerTime, $currentOdometerTime, $chargesByVehicle);
-        $kwh = $chargeData['total_kwh'];
-        $pris = $chargeData['total_pris'];
-
-        // Odometer went backwards - vehicle reset or data error
-        if ($kmDriven < 0) {
-            error_log("Warning: Negative km for vehicle $vehicleId: $kmDriven km (odometer went backwards)");
-            continue;
-        }
-
-        // Only calculate efficiency if we have valid data
-        if ($kwh > 0 && $kmDriven > 0) {
-            // Skip very short trips (< 20 km)
-            if ($kmDriven < 20) {
-                continue;
-            }
-
-            // Initialize running totals for this vehicle if needed
-            if (!isset($runningKm[$vehicleId])) {
-                $runningKm[$vehicleId] = 0;
-                $runningKwh[$vehicleId] = 0;
-                $runningPris[$vehicleId] = 0;
-            }
-
-            // Calculate efficiency for this trip
-            $kmPerKwh = round($kmDriven / $kwh, 2);
-            $krPerKm = round($pris / $kmDriven, 2);
-
-            // Update running totals for cumulative efficiency
-            $runningKm[$vehicleId] += $kmDriven;
-            $runningKwh[$vehicleId] += $kwh;
-            $runningPris[$vehicleId] += $pris;
-
-            // Calculate cumulative average efficiency
-            $totalKmPerKwh = $runningKwh[$vehicleId] > 0 ? round($runningKm[$vehicleId] / $runningKwh[$vehicleId], 2) : null;
-            $totalKrPerKm = $runningKm[$vehicleId] > 0 ? round($runningPris[$vehicleId] / $runningKm[$vehicleId], 2) : null;
-
-            // Store results with cumulative efficiency only
-            $results[] = [
-                'vehicleId' => $vehicleId,
-                'timestamp' => $timestamp,
-                'date' => date('Y-m-d H:i', $timestamp),
-                'totalKm' => $runningKm[$vehicleId],
-                'totalKwh' => $runningKwh[$vehicleId],
-                'totalKmPerKwh' => $totalKmPerKwh,
-                'totalKrPerKm' => $totalKrPerKm
-            ];
-        }
+    foreach (EfficiencyCalc::cumulative($range) as $p) {
+        $series[] = ['vehicleId' => $vehicleId, 'date' => date('Y-m-d H:i', $p['timestamp'])] + $p;
     }
 }
 
-$json = json_encode($results);
+// Charges with no vehicle cannot be attributed to a car; say so instead of hiding them.
+$unassigned = ['charges' => 0, 'kwh' => 0.0];
+if ($vehicleFilter === null) {
+    $sql = "SELECT COUNT(*) AS n, COALESCE(SUM(consumedKwh), 0) AS kwh FROM charges
+            WHERE vehicleId IS NULL AND stoppedAt IS NOT NULL AND consumedKwh > 0";
+    $args = [];
+    if ($dateFilters) { $sql .= " AND date(stoppedAt) >= ? AND date(stoppedAt) <= ?"; $args = [$dateFilters['start'], $dateFilters['end']]; }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($args);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $unassigned = ['charges' => (int) $row['n'], 'kwh' => round((float) $row['kwh'], 1)];
+}
+
+$json = json_encode(['vehicles' => $vehicles, 'series' => $series, 'unassigned' => $unassigned]);
 QueryBuilder::fileCacheWrite($_effCacheKey, $json);
 echo $json;

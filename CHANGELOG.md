@@ -6,6 +6,13 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (consumption per km)
+- **New calculation of consumption per km** (`includes/EfficiencyCalc.php`, `routes/get_efficiency_stats.php`). Km come from the odometer at plug-in and kWh from the charges that refilled it; both are summed over a period before dividing. The old per-interval filter (kWh > 0 and km >= 20) is gone: it discarded a short interval together with the energy in its window, but that energy belonged to the drive before it, whose km were already counted. With a daily plug-in after short trips the old method showed 15.3 kWh/100 km for a car that really uses 18.0 (new: 17.7).
+- **The card shows the last 30 / 90 days, the selected period and a month table per vehicle**, in kWh/100 km as well as km/kWh and kr/km, each with a confidence level (`lav` / `middel` / `høj`, with the reason as tooltip). The date range selects the drives that END in it, so a drive that started before the range is not lost. Charges without a vehicle are reported instead of silently left out, and unpriced charges are estimated at the average price of the priced ones (marked with `*`).
+- **A single bad odometer reading no longer ruins the following interval.** A reading that falls outside its neighbours (a sensor that briefly reports 0) is rejected and counted; a real reset (several low readings in a row) is kept.
+- Known limit of this step: the battery level at the start and end of a period is not accounted for, so a short period can be off by up to one battery's energy (hence the confidence level). The next step adds the SoC.
+- Tests: `dev/test_efficiency.php` (40 checks, including 3000 random runs identical to the old method where its conditions hold).
+
 ### Fixed (dashboard trends)
 - **"vs. forrige mdr" showed a false rise on the last days of a month when the previous month is shorter.** "Same period last month" is the first N days of last month (N = today's day-of-month), cut at that month's last day. On the 31st vs a 30-day month, or the 29th-31st vs February, that window holds fewer days than the current period, so flat usage looked like a rise of about 3 % (31 vs 30 days) up to about 9 % (31 March vs February). The capped window is now scaled to the same number of days (`DashboardWindow::comparableScale`), for kWh and cost of EV, heat pump, house and Rest, and for the pace the projection uses. Nothing changes on days where the window is not capped (28 of 31 days in most months), and the previous month's full-month figure is untouched.
 

@@ -516,10 +516,13 @@ require 'includes/QueryBuilder.php';
 
     <!-- Efficiency Charts Card -->
     <div class="card p-4">
-      <h3>Effektivitetsmålinger</h3>
-      <div class="mb-3">
-        <p class="text-muted small">Viser samlet gennemsnit (per tur beregninger er upålidelige)</p>
-      </div>
+      <h3>Forbrug pr. km</h3>
+      <p class="text-muted small mb-3">
+        Beregnet pr. periode ud fra kilometertælleren ved tilslutning og den energi, der er ladet (netenergi, inkl. ladetab).
+        Uden batteriets ladeniveau kan en periode afvige med op til ét batteris energi, så tallet er mere sikkert, jo flere kWh og km der er med.
+      </p>
+      <div id="efficiencySummary"></div>
+      <h5 class="mt-3">Kumuleret udvikling</h5>
       <div id="kmPerKwhChart"></div>
       <div id="krPerKmChart"></div>
     </div>
