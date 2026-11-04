@@ -78,6 +78,54 @@ final class HourlyConsumption {
     }
 
     /**
+     * Hourly heat pump and "rest" consumption for a date range, read from the databases.
+     * Shared by the hourly-consumption route and the server-side cost calculations.
+     *
+     * @return array{start:string,end:string,hours:string[],vp:float[],rest:float[]}
+     */
+    public static function series(PDO $chargesDb, PDO $powerlogDb, string $start, string $end): array {
+        require_once __DIR__ . '/PowerlogRepository.php';
+        $inRange = static fn(array $series) => array_filter(
+            $series,
+            static fn($key) => substr($key, 0, 10) >= $start && substr($key, 0, 10) <= $end,
+            ARRAY_FILTER_USE_KEY
+        );
+
+        $hp  = self::fromReadings(PowerlogRepository::getReadings($powerlogDb, 'powerlogjord', $start, $end));
+        $hus = self::fromReadings(PowerlogRepository::getReadings($powerlogDb, 'powerloghus',  $start, $end));
+
+        // Home EV charging (internal charges) spread over the hours it ran. Same end rule
+        // as the dashboard: an open session counts up to its last update.
+        $stmt = $chargesDb->prepare("
+            SELECT startedAt, COALESCE(stoppedAt, updatedAt, startedAt) AS endedAt, consumedKwh AS kwh
+            FROM charges
+            WHERE DATE(startedAt) <= ? AND DATE(COALESCE(stoppedAt, updatedAt, startedAt)) >= ?
+              AND consumedKwh > 0
+        ");
+        $stmt->execute([$end, $start]);
+        $ev = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            foreach (self::spreadCharge($row['startedAt'], $row['endedAt'], (float) $row['kwh'], date_default_timezone_get()) as $key => $kwh) {
+                $ev[$key] = ($ev[$key] ?? 0.0) + $kwh;
+            }
+        }
+
+        $hp   = $inRange($hp);
+        $hus  = $inRange($hus);
+        $rest = self::rest($hus, $hp, $ev);
+
+        $hours = array_keys($hus + $hp);
+        sort($hours);
+        return [
+            'start' => $start,
+            'end'   => $end,
+            'hours' => $hours,
+            'vp'    => array_map(static fn($h) => round($hp[$h]   ?? 0.0, 3), $hours),
+            'rest'  => array_map(static fn($h) => round($rest[$h] ?? 0.0, 3), $hours),
+        ];
+    }
+
+    /**
      * "Rest" = house - heat pump - home EV charging, per hour (never negative).
      * Same definition the dashboard uses for the monthly figures.
      *

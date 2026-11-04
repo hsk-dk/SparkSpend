@@ -415,7 +415,7 @@ if ($husCurrentKwh !== null) {
 $husPctChangeYear = ($husCurrentKwh !== null && $husLastYearKwh > 0)
                     ? round(($husCurrentKwh - $husLastYearKwh) / $husLastYearKwh * 100, 1) : null;
 
-$response = json_encode([
+$payload = [
     'ev' => [
         'month_charges'        => intval($intMonth['cnt']) + intval($extMonth['cnt']),
         'month_unpriced'       => intval($intMonth['unpriced_cnt']),   // charges without a price (cost = NULL)
@@ -467,6 +467,36 @@ $response = json_encode([
         'sparkline'       => $husSparkline,
     ] : null,
     'rest' => $restPayload,
-]);
+];
+
+// ─── Electricity cost estimate (elvarme model, server-side) ───────────────────
+// Priced from the figures exactly as the cards show them (rounded as in the payload).
+require_once __DIR__ . '/../includes/CostEstimates.php';
+try {
+    $_dim = (int) $todayDt->format('t');
+    $_dom = (int) $todayDt->format('j');
+    $_lin = static fn(float $mtd): float => $_dom > 0 ? $mtd / $_dom * $_dim : $mtd;
+    $_hp   = $payload['heatpump'];
+    $_rest = $payload['rest'];
+    $_ev   = $payload['ev'];
+    $payload['cost'] = CostEstimates::dashboard($chargesDb, $powerlogDb, [
+        'start'        => $currentStartDt->format('Y-m-d'),
+        'end'          => $today,
+        'hpMtdKwh'     => $_hp['month_kwh'],
+        'restMtdKwh'   => $_rest ? $_rest['month_kwh'] : 0.0,
+        'hpProjKwh'    => $_hp['projected_kwh'] ?? $_lin($_hp['month_kwh']),
+        'restProjKwh'  => $_rest ? ($_rest['projected_kwh'] ?? $_lin($_rest['month_kwh'])) : 0.0,
+        'evMtdCost'    => $_ev['month_cost'],
+        'evProjCost'   => $_ev['projected_cost'] ?? $_ev['month_cost'],
+        'dayOfMonth'   => $_dom,
+        'daysInMonth'  => $_dim,
+        'perDay'       => Config::subscriptionPerDay(),
+    ]);
+} catch (\Throwable $e) {
+    error_log('dashboard cost estimate: ' . $e->getMessage());
+    $payload['cost'] = null;
+}
+
+$response = json_encode($payload);
 QueryBuilder::fileCacheWrite($_dashCacheKey, $response);
 echo $response;

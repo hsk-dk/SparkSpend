@@ -10,13 +10,11 @@ let _evSparkChart  = null;
 let _hpSparkChart  = null;
 let _husSparkChart = null;
 let _hpWeatherAbort = null;
-let _costEnrichAbort = null;
 let _dashRefreshInterval = null;
 let _dashLoadSeq  = 0;      // guards against overlapping loads rendering out of order
 let _dashLastLoad = 0;      // ms timestamp of last successful load
 let _forecastLoadedAt = 0;  // elspot forecast is only re-fetched when stale
 let _forecastDay      = '';
-let _rateCache = null;      // { key, ts, highRate, lowRate, highKwhMonth }
 let _hddCache  = null;      // { key, hddThis, hddLast }
 
 /** Local calendar date as YYYY-MM-DD. (toISOString() is UTC and is wrong 00-02 Danish time.) */
@@ -90,7 +88,7 @@ async function loadDashboard(isRefresh = false) {
         // Anomaly detection runs after card data is available (async, best-effort)
         loadAnomalies();
         // Async cost enrichment for VP and Hus cards
-        _enrichCardsWithCost(data.heatpump, data.rest || null, data.ev || null);
+        _enrichCardsWithCost(data.heatpump, data.rest || null, data.ev || null, data.cost || null);
         // Elspot day-ahead forecast widget (self-throttled)
         loadElspotForecast();
         // Sync-status enrichment — async, non-blocking
@@ -518,163 +516,59 @@ async function loadElspotForecast(force = false) {
     }
 }
 
-async function _enrichCardsWithCost(hp, rest, ev) {
-    const area = window.sparkConfig?.elspotArea || '';
-    const gln  = window.sparkConfig?.elspotGln  || '';
-    if (!area || !gln) return;
+// Electricity cost estimates. The elvarme model (rates, weighting, high/low split,
+// projection) is computed on the server (includes/CostEstimates.php) and arrives as
+// `cost` in the dashboard payload; this only displays it.
+function _enrichCardsWithCost(hp, rest, ev, cost) {
+    if (!cost) return;
 
-    if (_costEnrichAbort) { _costEnrichAbort.abort(); }
-    const controller = new AbortController();
-    _costEnrichAbort = controller;
+    const basisNote = cost.basis === 'weighted'
+        ? 'vægtet efter hvornår strømmen blev brugt (timepriser)'
+        : 'gennemsnit af månedens priser';
 
-    const now   = new Date();
-    const mm    = String(now.getMonth() + 1).padStart(2, '0');
-    const start = `${now.getFullYear()}-${mm}-01`;
-    const end   = _ymd(now);
-
-    try {
-        // HIGH + LOW elafgift rates for the elvarme model: first 333 kWh/month
-        // of VP+Rest at HIGH, the rest (plus EV) at LOW.
-        // The month's average rates only move once a day, so cache them for an hour.
-        //
-        // highRate/lowRate are plain averages of the month's hourly prices. When
-        // hourly consumption is available the heat pump and the rest of the house
-        // are priced with consumption-WEIGHTED rates instead (pricing.js): the
-        // hours that used the electricity count in proportion to the kWh used.
-        const rateKey = `${start}|${end}|${area}|${gln}`;
-        let highRate, lowRate, highKwhMonth, weighted;
-        if (_rateCache && _rateCache.key === rateKey && Date.now() - _rateCache.ts < 3600_000) {
-            ({ highRate, lowRate, highKwhMonth, weighted } = _rateCache);
-        } else {
-            const baseUrl = `api.php?action=elspot-prices&start=${start}&end=${end}&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly`;
-            const [highRes, lowRes, consRes] = await Promise.all([
-                fetch(baseUrl + '&tariff=high', { signal: controller.signal }),
-                fetch(baseUrl + '&tariff=low',  { signal: controller.signal }),
-                // Optional: if this fails the plain averages are used.
-                fetch(`api.php?action=hourly-consumption&start=${start}&end=${end}`, { signal: controller.signal })
-                    .catch(err => { if (err.name === 'AbortError') throw err; return null; }),
-            ]);
-            if (!highRes.ok || !lowRes.ok) return;
-            const highData = await highRes.json();
-            const lowData  = await lowRes.json();
-            // Hours without a published price have no record, so nothing to filter out here.
-            const avgOf = d => {
-                const recs = d.records || [];
-                return recs.length ? recs.reduce((sum, r) => sum + r.kr_kwh, 0) / recs.length : 0;
-            };
-            highRate = avgOf(highData);
-            lowRate  = avgOf(lowData);
-            // Threshold: month-to-date portion of the monthly high-rate allowance.
-            highKwhMonth = highData.components?.high_kwh_per_month ?? (4000 / 12);
-
-            weighted = null;
-            if (consRes && consRes.ok && window.SparkPricing) {
-                try {
-                    weighted = window.SparkPricing.weightedRates(await consRes.json(), highData.records || [], lowData.records || []);
-                } catch (err) { console.warn('hourly-consumption:', err); }
-            }
-            if (highRate > 0 || lowRate > 0) {
-                _rateCache = { key: rateKey, ts: Date.now(), highRate, lowRate, highKwhMonth, weighted };
-            }
+    // Jordvarme card — VP share of the elvarme blend
+    if (hp && hp.month_kwh > 0) {
+        const el = document.getElementById('hp-cost-stat');
+        if (el) {
+            el.querySelector('.dash-est-cost').textContent = _fmt(cost.hp_mtd, 0);
+            el.title = `Estimeret elvarme-model, ${basisNote} (inkl. systemtarif, nettarif, elafgift og moms)`;
+            el.style.display = '';
         }
-        if (highRate <= 0 && lowRate <= 0) return;
-
-        const rateOpts  = weighted ? { vpRates: weighted.vp || undefined, restRates: weighted.rest || undefined } : {};
-        const basisNote = weighted ? 'vægtet efter hvornår strømmen blev brugt (timepriser)' : 'gennemsnit af månedens priser';
-
-        // Month-to-date component kWh for the elvarme blend. "Rest" comes from the server
-        // (house meter - heat pump - EV home charging), the same figure the Hus card shows.
-        const mtdRestKwh = rest ? rest.month_kwh : 0;
-        const mtdBlend = appUtils.elvarmeCost({
-            vpKwh: hp ? hp.month_kwh : 0,
-            restKwh: mtdRestKwh,
-            highRate, lowRate, highKwhPerMonth: highKwhMonth,
-            ...rateOpts,
-        });
-
-        // Jordvarme card — VP share of the elvarme blend
-        if (hp && hp.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
-            const el = document.getElementById('hp-cost-stat');
-            if (el) {
-                el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.vpCost, 0);
-                el.title = `Estimeret elvarme-model, ${basisNote} (inkl. systemtarif, nettarif, elafgift og moms)`;
-                el.style.display = '';
-            }
+    }
+    // Hus card — the "Rest" share of the elvarme blend (EV is priced by Monta, VP in its own card)
+    if (rest && rest.month_kwh > 0) {
+        const el = document.getElementById('hus-cost-stat');
+        if (el) {
+            el.querySelector('.dash-est-cost').textContent = _fmt(cost.rest_mtd, 0);
+            el.title = `Estimeret pris for det øvrige forbrug, ${basisNote}: første ≈${Math.round(cost.high_kwh_month)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
+            el.style.display = '';
         }
-        // Hus card — the "Rest" share of the elvarme blend (EV is priced by Monta, VP in its own card)
-        if (rest && rest.month_kwh > 0 && (highRate > 0 || lowRate > 0)) {
-            const el = document.getElementById('hus-cost-stat');
-            if (el) {
-                el.querySelector('.dash-est-cost').textContent = _fmt(mtdBlend.restCost, 0);
-                el.title = `Estimeret pris for det øvrige forbrug, ${basisNote}: første ≈${Math.round(highKwhMonth)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
-                el.style.display = '';
-            }
+    }
+
+    // Total electricity cost estimate (projected for the full month). EV is Monta's actual
+    // price (all tariffs and taxes included); VP and Rest are the elvarme model; the fixed
+    // subscription (SUBSCRIPTION_PER_DAY) is its own item.
+    if (cost.total_proj > 0) {
+        const el = document.getElementById('total-cost-estimate');
+        if (el) {
+            const perDay = cost.per_day || 0;
+            el.innerHTML = `<span class="total-cost-icon">\u26a1</span>` +
+                `<span class="total-cost-amount">Forventet elregning: ~${cost.total_proj} kr</span>` +
+                `<span class="total-cost-breakdown">EV: ~${Math.round(cost.ev_proj)} \u00b7 VP: ~${cost.hp_proj} \u00b7 Rest: ~${cost.rest_proj}` +
+                (perDay > 0 ? ` \u00b7 Abonnement: ~${_fmt(cost.subscription_proj, 0)} kr` : ' kr \u00b7 ekskl. abonnement') + `</span>`;
+            el.title = `Estimat for hele måneden. Hidtil: ~${_fmt(cost.total_mtd, 0)} kr. ` +
+                       `EV: faktisk pris fra Monta (inkl. tariffer og afgifter, hjemme og ude). ` +
+                       `VP og Rest: elvarme-model, ${basisNote}, inkl. tariffer, elafgift og moms. ` +
+                       (perDay > 0 ? `Abonnement: ${_fmt(perDay, 2)} kr/dag.` : 'Uden abonnement.');
+            el.style.display = '';
         }
+    }
 
-        // #1 — Total electricity cost estimate (projected for full month)
-        // Projections come from the server (get_dashboard_summary.php), which
-        // uses a pace-aware model that stays sensible even early in the month.
-        const evCard      = document.getElementById('ev-dashboard-card');
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        const dayOfMonth  = now.getDate();
-        const _linProj    = mtd => (dayOfMonth > 0 ? mtd / dayOfMonth * daysInMonth : mtd);
-
-        // Full-month projected kWh for VP and Rest (server value, linear fallback)
-        const hpProjectedKwh   = hp   ? (hp.projected_kwh   ?? _linProj(hp.month_kwh))   : 0;
-        const restProjectedKwh = rest ? (rest.projected_kwh ?? _linProj(rest.month_kwh)) : 0;
-
-        // Projected elvarme blend (full month → full monthly allowance).
-        // EV is deliberately NOT part of it: its cost is Monta's (which includes all
-        // tariffs and taxes, home and away), and Rest already excludes EV home
-        // charging, so nothing is priced twice.
-        // The projected kWh are priced at the month-to-date (weighted) rates: the
-        // remaining days are assumed to follow the same usage pattern and price level.
-        const projBlend = appUtils.elvarmeCost({
-            vpKwh: hpProjectedKwh,
-            restKwh: restProjectedKwh,
-            highRate, lowRate, highKwhPerMonth: highKwhMonth,
-            ...rateOpts,
-        });
-        const hpCostProj   = Math.round(projBlend.vpCost);
-        const restCostProj = Math.round(projBlend.restCost);
-
-        // EV projected cost comes from Monta (not spot-based) — read straight
-        // from the JSON payload (server projection), no DOM scraping. This
-        // already includes home charging, so it is the sole source of EV cost.
-        const evProjectedCost = ev
-            ? (ev.projected_cost != null ? ev.projected_cost : ev.month_cost)
-            : 0;
-        // Fixed subscription (kr/day from .env SUBSCRIPTION_PER_DAY). Everything else
-        // is already inclusive: Monta prices EV with all tariffs and taxes, and the
-        // elvarme model adds tariffs, afgift and moms to the spot price.
-        const perDay          = Number(window.sparkConfig?.subscriptionPerDay) || 0;
-        const subscriptionMtd  = perDay * dayOfMonth;
-        const subscriptionProj = perDay * daysInMonth;
-        const totalCostProj = Math.round(evProjectedCost + hpCostProj + restCostProj + subscriptionProj);
-        const totalCostMtd  = Math.round((ev ? ev.month_cost : 0) + mtdBlend.vpCost + mtdBlend.restCost + subscriptionMtd);
-
-        if (totalCostProj > 0) {
-            const el = document.getElementById('total-cost-estimate');
-            if (el) {
-                el.innerHTML = `<span class="total-cost-icon">\u26a1</span>` +
-                    `<span class="total-cost-amount">Forventet elregning: ~${totalCostProj} kr</span>` +
-                    `<span class="total-cost-breakdown">EV: ~${Math.round(evProjectedCost)} \u00b7 VP: ~${hpCostProj} \u00b7 Rest: ~${restCostProj}` +
-                    (perDay > 0 ? ` \u00b7 Abonnement: ~${_fmt(subscriptionProj, 0)} kr` : ' kr \u00b7 ekskl. abonnement') + `</span>`;
-                el.title = `Estimat for hele måneden. Hidtil: ~${_fmt(totalCostMtd, 0)} kr. ` +
-                           `EV: faktisk pris fra Monta (inkl. tariffer og afgifter, hjemme og ude). ` +
-                           `VP og Rest: elvarme-model, ${basisNote}, inkl. tariffer, elafgift og moms. ` +
-                           (perDay > 0 ? `Abonnement: ${_fmt(perDay, 2)} kr/dag.` : 'Uden abonnement.');
-                el.style.display = '';
-            }
-        }
-
-        // #6 — Spotpris kontekst on EV card (EV always uses the low elvarme rate)
-        if (evCard && lowRate > 0) {
-            const cpkwhEl = evCard.querySelector('.dash-stat-cpkwh');
-            if (cpkwhEl) cpkwhEl.title = `Spotpris gns. denne mdr: ${lowRate.toFixed(2)} kr/kWh (inkl. afgifter)`;
-        }
-    } catch (e) {
-        if (e.name !== 'AbortError') console.warn('_enrichCardsWithCost:', e);
+    // Spot price context on the EV card (EV always uses the low elvarme rate)
+    const evCard = document.getElementById('ev-dashboard-card');
+    if (evCard && cost.low_rate > 0) {
+        const cpkwhEl = evCard.querySelector('.dash-stat-cpkwh');
+        if (cpkwhEl) cpkwhEl.title = `Spotpris gns. denne mdr: ${cost.low_rate.toFixed(2)} kr/kWh (inkl. afgifter)`;
     }
 }
 
