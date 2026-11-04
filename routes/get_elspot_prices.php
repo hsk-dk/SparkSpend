@@ -54,9 +54,22 @@ if (!in_array($tariff, ['high', 'low'], true)) {
     exit;
 }
 
+// Only the configured price area / grid operator is served — arbitrary values
+// would each create their own cache file and upstream request.
+if (Config::elspotGln() !== '' && $gln !== Config::elspotGln()) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Ukendt gln.']);
+    exit;
+}
+
 if ($end < $start) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'end skal være >= start.']);
+    exit;
+}
+if ((strtotime($end) - strtotime($start)) / 86400 > 7300) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Perioden må højst være 20 år.']);
     exit;
 }
 

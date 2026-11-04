@@ -7,16 +7,6 @@
  * POST body (JSON): { "source": "monta" | "heatpump" | "hus" | "all" }
  */
 
-// Rate-limit: max 1 sync request per 30 seconds
-$_cacheDir    = Config::cacheDir();
-$_cooldownFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_cooldown.lock';
-if (file_exists($_cooldownFile) && (time() - filemtime($_cooldownFile)) < 30) {
-    http_response_code(429);
-    echo json_encode(['success' => false, 'error' => 'Vent venligst 30 sekunder mellem synkroniseringer']);
-    exit;
-}
-touch($_cooldownFile);
-
 $data   = json_decode(file_get_contents('php://input'), true);
 $source = isset($data['source']) ? (string) $data['source'] : '';
 
@@ -37,6 +27,16 @@ if ($source === 'all') {
     exit;
 }
 
+// Rate-limit: max 1 sync request per 30 seconds
+$_cacheDir    = Config::cacheDir();
+$_cooldownFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_cooldown.lock';
+if (file_exists($_cooldownFile) && (time() - filemtime($_cooldownFile)) < 30) {
+    http_response_code(429);
+    echo json_encode(['success' => false, 'error' => 'Vent venligst 30 sekunder mellem synkroniseringer']);
+    exit;
+}
+touch($_cooldownFile);
+
 // Resolve PHP CLI binary
 $php     = _resolvePhpCli();
 $logFile = __DIR__ . '/../cron/trigger.log';
@@ -49,8 +49,29 @@ foreach (glob($_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_*.json') ?: [] as $
     @unlink($_f);
 }
 
-// Truncate the log before each triggered sync
-file_put_contents($logFile, '');
+// Per-script lock: never start a script that is still running from an earlier
+// trigger (parallel writers would collide on SQLite and the shared log).
+$flockBin = is_executable('/usr/bin/flock') ? '/usr/bin/flock' : null;
+$lockDir  = Config::cacheDir();
+$isRunning = static function (string $lockFile): bool {
+    $h = @fopen($lockFile, 'c');
+    if ($h === false) return false;
+    $free = flock($h, LOCK_EX | LOCK_NB);
+    if ($free) flock($h, LOCK_UN);
+    fclose($h);
+    return !$free;
+};
+
+$anyRunning = false;
+foreach ($toRun as $script) {
+    if ($flockBin && $isRunning($lockDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_' . basename($script) . '.lock')) {
+        $anyRunning = true;
+    }
+}
+// Truncate the log before a triggered sync — but not while one is still writing to it
+if (!$anyRunning) {
+    file_put_contents($logFile, '');
+}
 
 foreach ($toRun as $script) {
     if (!file_exists($script)) {
@@ -58,6 +79,11 @@ foreach ($toRun as $script) {
     }
 
     $cmd = $php . ' ' . escapeshellarg($script) . ' >> ' . $logPath . ' 2>&1';
+    if ($flockBin) {
+        $lockFile = $lockDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_' . basename($script) . '.lock';
+        // -n: skip silently if the previous run still holds the lock
+        $cmd = $flockBin . ' -n ' . escapeshellarg($lockFile) . ' ' . $cmd;
+    }
 
     if (_runBackground($cmd)) {
         $started++;

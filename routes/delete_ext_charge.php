@@ -19,6 +19,11 @@ if (!$data || !isset($data['id'])) {
 }
 
 $db = DatabaseManager::getChargesDb();
+$chk = $db->prepare("SELECT 1 FROM ext_charges WHERE id = ?");
+$chk->execute([intval($data['id'])]);
+if (!$chk->fetchColumn()) {
+    jsonError('Ladning ikke fundet', 404);
+}
 $result = QueryBuilder::deleteExternalCharge($db, intval($data['id']));
 
 if ($result) {

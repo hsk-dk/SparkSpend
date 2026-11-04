@@ -10,5 +10,10 @@ if ($id <= 0 || $name === '') {
 }
 
 $db = DatabaseManager::getChargesDb();
+$chk = $db->prepare("SELECT 1 FROM vehicles WHERE id = ?");
+$chk->execute([$id]);
+if (!$chk->fetchColumn()) {
+    jsonError('Køretøj ikke fundet', 404);
+}
 QueryBuilder::updateVehicle($db, $id, $name);
 echo json_encode(['success' => true]);

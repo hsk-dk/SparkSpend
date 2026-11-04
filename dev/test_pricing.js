@@ -7,7 +7,8 @@ const P = require('../includes/pricing.js');
 // elvarmeCost lives in the browser script app.js: lift just that function out.
 const appSrc = fs.readFileSync(path.join(__dirname, '../includes/app.js'), 'utf8');
 const start = appSrc.indexOf('const elvarmeCost = (');
-const end = appSrc.indexOf('\n};\n', start) + 4;
+const endMatch = /\r?\n\};\r?\n/.exec(appSrc.slice(start));
+const end = endMatch ? start + endMatch.index + endMatch[0].length : -1;
 if (start < 0 || end < 4) { console.error('cannot extract elvarmeCost from app.js'); process.exit(2); }
 const elvarmeCost = new Function(appSrc.slice(start, end) + '\nreturn elvarmeCost;')();
 

@@ -49,6 +49,25 @@ try {
 }
 
 $db = DatabaseManager::getChargesDb();
+
+$chk = $db->prepare("SELECT 1 FROM vehicles WHERE id = ?");
+$chk->execute([$vehicleId]);
+if (!$chk->fetchColumn()) {
+    jsonError('Ukendt vehicleId', 422);
+}
+if ($providerId > 0) {
+    $chk = $db->prepare("SELECT 1 FROM providers WHERE id = ?");
+    $chk->execute([$providerId]);
+    if (!$chk->fetchColumn()) {
+        jsonError('Ukendt providerId', 422);
+    }
+}
+$chk = $db->prepare("SELECT 1 FROM ext_charges WHERE id = ?");
+$chk->execute([$id]);
+if (!$chk->fetchColumn()) {
+    jsonError('Ladning ikke fundet', 404);
+}
+
 $result = QueryBuilder::updateExternalCharge($db, [
     'id'         => $id,
     'vehicleId'  => $vehicleId,

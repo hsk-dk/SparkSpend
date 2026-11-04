@@ -38,6 +38,18 @@ if ($end < $start) {
     echo json_encode(['success' => false, 'error' => 'end skal være >= start.']);
     exit;
 }
+if ((strtotime($end) - strtotime($start)) / 86400 > 7300) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Perioden må højst være 20 år.']);
+    exit;
+}
+
+if (Config::weatherLat() !== '' && Config::weatherLon() !== '' &&
+    (abs((float)$lat - (float)Config::weatherLat()) > 0.0001 || abs((float)$lon - (float)Config::weatherLon()) > 0.0001)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Ukendte koordinater.']);
+    exit;
+}
 
 $lat = (float)$lat;
 $lon = (float)$lon;

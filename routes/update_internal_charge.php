@@ -24,6 +24,17 @@ if (!$data || $id <= 0 || $vehicleId <= 0) {
 
 $db = DatabaseManager::getChargesDb();
 
+$chk = $db->prepare("SELECT 1 FROM vehicles WHERE id = ?");
+$chk->execute([$vehicleId]);
+if (!$chk->fetchColumn()) {
+    jsonError('Ukendt vehicleId', 422);
+}
+$chk = $db->prepare("SELECT 1 FROM charges WHERE id = ?");
+$chk->execute([$id]);
+if (!$chk->fetchColumn()) {
+    jsonError('Ladning ikke fundet', 404);
+}
+
 // Update vehicleId and mark as manually paired
 $stmt = $db->prepare("UPDATE charges SET vehicleId = ?, pairingSource = 'manual' WHERE id = ?");
 $result = $stmt->execute([$vehicleId, $id]);

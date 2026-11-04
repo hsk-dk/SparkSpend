@@ -1097,7 +1097,7 @@ const elbilApp = (() => {
         }
         tbody.innerHTML = data.map(v => `
             <tr>
-                <td><strong>${v.vehicleName}</strong></td>
+                <td><strong>${_esc(v.vehicleName)}</strong></td>
                 <td>${v.charge_count}</td>
                 <td>${v.total_kwh.toFixed(2)} kWh</td>
                 <td>${v.total_cost.toFixed(2)} kr</td>
@@ -1151,7 +1151,7 @@ const elbilApp = (() => {
                 <tbody>
                   ${data.map(p => `
                   <tr>
-                    <td>${p.providerName}</td>
+                    <td>${_esc(p.providerName)}</td>
                     <td class="text-end">${p.charge_count}</td>
                     <td class="text-end">${p.total_kwh.toFixed(2)}</td>
                     <td class="text-end">${p.total_cost.toFixed(2)}</td>
