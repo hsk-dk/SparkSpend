@@ -10,7 +10,7 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 - **The elvarme cost model now exists once, in PHP** (`includes/ElvarmeCost.php`, assembled by `includes/CostEstimates.php`). It used to be duplicated in JavaScript (`elvarmeCost` in `app.js`, `includes/pricing.js`). The Dashboard, Årsrapport, Hus > Forbrug, Regning and Fordeling views now receive finished kr amounts (`cost` in their API responses) and only display them. 550 random cases were verified identical between the JS and PHP versions before the JS copies were removed, and every view was compared before/after on a seeded test instance.
 - **Fewer requests from the browser:** the views no longer fetch hourly/daily prices and hourly consumption themselves (the dashboard dropped three requests, the others two each).
 - `includes/ElspotPrices.php` is the price assembly extracted from `routes/get_elspot_prices.php` (output byte-identical); `HourlyConsumption::series()` is shared by the hourly-consumption route and the cost estimate.
-- Raw Energi Data Service answers are cached per dataset and a 429 pauses all upstream calls (see `routes/..` history); incomplete price answers are never cached.
+- Raw Energi Data Service answers are cached per dataset and a 429 pauses all upstream calls; incomplete price answers are never cached.
 - `MOCK_EDS=true` (dev only) serves deterministic synthetic prices, so the local test instance works offline.
 
 ### Fixed
