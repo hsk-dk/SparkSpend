@@ -50,7 +50,7 @@ ksort($intByYear);
 // EV — external charges
 // =========================================================================
 $extByYear = [];
-$extRows = QueryBuilder::getExternalCharges($chargesDb);
+$extRows = ChargeRepository::getExternal($chargesDb);
 foreach ($extRows as $r) {
     $year = substr($r['datetime'], 0, 4);
     if (!isset($extByYear[$year])) {
@@ -67,14 +67,14 @@ foreach ($extRows as $r) {
 $allDataStart = '2000-01-01';
 $allDataEnd   = date('Y-m-d');
 
-$hpByYear = QueryBuilder::lagDeltaByYear($powerlogDb, 'powerlogjord', $allDataStart, $allDataEnd);
+$hpByYear = PowerlogRepository::lagDeltaByYear($powerlogDb, 'powerlogjord', $allDataStart, $allDataEnd);
 
 // =========================================================================
 // House — same pattern, wrapped in try/catch (table may not exist yet)
 // =========================================================================
 $husByYear = null;
 try {
-    $husByYear = QueryBuilder::lagDeltaByYear($powerlogDb, 'powerloghus', $allDataStart, $allDataEnd);
+    $husByYear = PowerlogRepository::lagDeltaByYear($powerlogDb, 'powerloghus', $allDataStart, $allDataEnd);
 } catch (\Throwable $husEx) {
     $husByYear = null;
     error_log('getAnnualSummary: house query failed — ' . $husEx->getMessage());

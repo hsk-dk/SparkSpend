@@ -12,7 +12,6 @@
 require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
 require __DIR__ . '/../includes/MySQLManager.php';
-require_once __DIR__ . '/../includes/QueryBuilder.php';
 
 // Prevent concurrent syncs with lock file
 $lockFile = __DIR__ . '/sync_heatpump.lock';
@@ -68,7 +67,7 @@ try {
 
         // Drop meter/aggregate caches so freshly synced kWh shows up immediately
         // rather than waiting out the hourly TTL.
-        QueryBuilder::invalidateMeterCaches();
+        CacheHelper::invalidateMeterCaches();
     }
 
     logMessage("Heat pump data sync completed successfully", 'INFO');

@@ -19,7 +19,6 @@
 require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
 require __DIR__ . '/../includes/MySQLManager.php';
-require_once __DIR__ . '/../includes/QueryBuilder.php';
 
 // ── Lock file ──────────────────────────────────────────────────────────────
 $lockFile   = __DIR__ . '/sync_housepowerlog.lock';
@@ -66,7 +65,7 @@ try {
         logMsg("Inserted/updated {$inserted} records.");
 
         // Drop meter/aggregate caches so freshly synced kWh shows up immediately.
-        QueryBuilder::invalidateMeterCaches();
+        CacheHelper::invalidateMeterCaches();
     }
 
     // Always update sync_log so getSyncStatus.php reflects when the script last ran,

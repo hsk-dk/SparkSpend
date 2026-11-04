@@ -9,8 +9,8 @@ if ($id <= 0 || $name === '') {
 }
 
 $db = DatabaseManager::getChargesDb();
-if (!QueryBuilder::rowExists($db, 'vehicles', $id)) {
+if (!Db::rowExists($db, 'vehicles', $id)) {
     Http::fail('Køretøj ikke fundet', 404);
 }
-QueryBuilder::updateVehicle($db, $id, $name);
+VehicleRepository::update($db, $id, $name);
 Http::send(['success' => true]);

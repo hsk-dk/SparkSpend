@@ -16,17 +16,17 @@ if ($id <= 0 || $vehicleId <= 0 || !isset($data['datetime'])) {
 $v = ChargeInput::validate($data, 'datetime', 'Invalid date format');
 
 $db = DatabaseManager::getChargesDb();
-if (!QueryBuilder::rowExists($db, 'vehicles', $vehicleId)) {
+if (!Db::rowExists($db, 'vehicles', $vehicleId)) {
     Http::fail('Ukendt vehicleId', 422);
 }
-if ($providerId > 0 && !QueryBuilder::rowExists($db, 'providers', $providerId)) {
+if ($providerId > 0 && !Db::rowExists($db, 'providers', $providerId)) {
     Http::fail('Ukendt providerId', 422);
 }
-if (!QueryBuilder::rowExists($db, 'ext_charges', $id)) {
+if (!Db::rowExists($db, 'ext_charges', $id)) {
     Http::fail('Ladning ikke fundet', 404);
 }
 
-$ok = QueryBuilder::updateExternalCharge($db, [
+$ok = ChargeRepository::updateExternal($db, [
     'id'         => $id,
     'vehicleId'  => $vehicleId,
     'providerId' => $providerId,
@@ -37,5 +37,5 @@ $ok = QueryBuilder::updateExternalCharge($db, [
 if (!$ok) {
     Http::fail('Error updating charge', 500);
 }
-QueryBuilder::invalidateChargeCaches();
+CacheHelper::invalidateChargeCaches();
 Http::send(['success' => true, 'message' => 'External charge updated']);

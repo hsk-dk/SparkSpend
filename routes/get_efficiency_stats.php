@@ -39,7 +39,7 @@ $vehicleFilter = ($filter !== 'all' && $filter !== '') ? intval($filter) : null;
 $dateFilters = null;
 if ($dateRange !== '') {
     try {
-        $dateFilters = QueryBuilder::parseDateRange($dateRange);
+        $dateFilters = DateHelper::parseDateRange($dateRange);
     } catch (\Throwable $e) {
         Http::fail('Ugyldigt dateRange-format. Forventet: "YYYY-MM-DD til YYYY-MM-DD".');
     }
@@ -78,7 +78,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
     if ($ts === false) continue;
     $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => $r['pris'] !== null ? (float) $r['pris'] : null];
 }
-foreach (QueryBuilder::getExternalCharges($db, null, null, $vehicleFilter, false) as $r) {
+foreach (ChargeRepository::getExternal($db, null, null, $vehicleFilter, false) as $r) {
     $ts = strtotime((string) ($r['datetime'] ?? ''));
     if ($ts === false || empty($r['vehicleId']) || (float) $r['kwh'] <= 0) continue;
     $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => isset($r['pris']) ? (float) $r['pris'] : null];

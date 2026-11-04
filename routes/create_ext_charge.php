@@ -16,7 +16,7 @@ if ($vehicleId <= 0 || $providerId <= 0 || $when === '') {
 $v = ChargeInput::validate(['chargeDateTime' => $when] + $input, 'chargeDateTime', 'Invalid charge date format');
 
 $db = DatabaseManager::getChargesDb();
-$result = QueryBuilder::insertExternalCharge($db, [
+$result = ChargeRepository::insertExternal($db, [
     'vehicleId'  => $vehicleId,
     'providerId' => $providerId,
     'kwh'        => $v['kwh'],
@@ -29,5 +29,5 @@ $result = QueryBuilder::insertExternalCharge($db, [
 if (!$result['success']) {
     Http::fail($result['error'] ?? 'Error creating charge', 500);
 }
-QueryBuilder::invalidateChargeCaches();
+CacheHelper::invalidateChargeCaches();
 Http::send(['success' => true, 'id' => $result['id']], 201);

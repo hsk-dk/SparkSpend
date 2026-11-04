@@ -41,7 +41,7 @@ $stmtInt = $chargesDb->prepare("
 $stmtInt->execute([$rangeEnd, $rangeStart]);
 $internalByMonth = [];
 foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $splits = QueryBuilder::splitChargeByDays(
+    $splits = DateHelper::splitChargeByDays(
         $row['startedAt'], $row['stoppedAt'],
         floatval($row['kwh']), floatval($row['cost'])
     );
@@ -59,7 +59,7 @@ foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 // =========================================================================
 // EV — external charges
 // =========================================================================
-$extRows = QueryBuilder::getExternalCharges($chargesDb, $rangeStart);
+$extRows = ChargeRepository::getExternal($chargesDb, $rangeStart);
 
 $externalByMonth = [];
 foreach ($extRows as $row) {
@@ -75,7 +75,7 @@ foreach ($extRows as $row) {
 // =========================================================================
 // HP — monthly consumption from powerlogjord
 // =========================================================================
-$hpDeltaByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerlogjord', $rangeStart, $rangeEnd);
+$hpDeltaByMonth = PowerlogRepository::lagDeltaByMonth($powerlogDb, 'powerlogjord', $rangeStart, $rangeEnd);
 $hpByMonth = [];
 foreach ($hpDeltaByMonth as $month => $kwh) {
     $hpByMonth[$month] = ['kwh' => $kwh];
@@ -86,7 +86,7 @@ foreach ($hpDeltaByMonth as $month => $kwh) {
 // =========================================================================
 $husByMonth = [];
 try {
-    $husDeltaByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerloghus', $rangeStart, $rangeEnd);
+    $husDeltaByMonth = PowerlogRepository::lagDeltaByMonth($powerlogDb, 'powerloghus', $rangeStart, $rangeEnd);
     foreach ($husDeltaByMonth as $month => $kwh) {
         $husByMonth[$month] = ['kwh' => $kwh];
     }

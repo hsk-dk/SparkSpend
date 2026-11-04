@@ -9,6 +9,7 @@
 // Load environment variables from .env file
 require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/Config.php';
+require_once __DIR__ . '/autoload.php';   // classes in includes/ load on first use
 
 // Load all config values into the Config class
 Config::load();

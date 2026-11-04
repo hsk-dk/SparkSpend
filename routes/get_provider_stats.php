@@ -21,7 +21,7 @@ $dateRange = isset($_GET['dateRange']) ? trim($_GET['dateRange']) : '';
 $dateFilters = null;
 if (!empty($dateRange)) {
     try {
-        $dateFilters = QueryBuilder::parseDateRange($dateRange);
+        $dateFilters = DateHelper::parseDateRange($dateRange);
     } catch (Exception $parseEx) {
         // Invalid format — ignore filter, return all data
     }

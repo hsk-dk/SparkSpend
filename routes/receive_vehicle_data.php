@@ -59,15 +59,15 @@ $db          = DatabaseManager::getChargesDb();
 $vehicleName = isset($input['vehicleName']) ? trim((string) $input['vehicleName']) : '';
 
 // Verify vehicleId exists in vehicles table
-$existing = QueryBuilder::selectVehicleById($db, $vehicleId);
+$existing = VehicleRepository::getById($db, $vehicleId);
 if ($existing === null && $vehicleName === '') {
     Http::fail('Unknown vehicleId and no vehicleName provided to create it', 422);
 }
 
 // Upsert vehicles table
-QueryBuilder::upsertVehicle($db, $vehicleId, $vehicleName);
+VehicleRepository::upsert($db, $vehicleId, $vehicleName);
 
-$result = QueryBuilder::insertVehicleData($db, [
+$result = VehicleRepository::insertOdometerReading($db, [
     'vehicleId' => $vehicleId,
     'timestamp' => $cablePluggedInAt,
     'odometer'  => $input['odometer']

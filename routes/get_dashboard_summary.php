@@ -129,7 +129,7 @@ foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $_endTs = strtotime($row['endedAt']);
         if ($_endTs !== false && $_endTs >= time() - 1800) { $evChargingNow = true; }
     }
-    $splits = QueryBuilder::splitChargeByDays(
+    $splits = DateHelper::splitChargeByDays(
         $row['startedAt'], $row['endedAt'],
         floatval($row['kwh']), floatval($row['cost'])
     );
@@ -174,7 +174,7 @@ $intPrev  = ['kwh' => $intPrevKwh,  'cost' => $intPrevCost];
 $intLY    = ['kwh' => $intLYKwh,    'cost' => $intLYCost];
 
 // External charges
-$extRows = QueryBuilder::getExternalCharges($chargesDb, $lastYearMonthStart);
+$extRows = ChargeRepository::getExternal($chargesDb, $lastYearMonthStart);
 
 $extMonthCnt   = 0;
 $extMonthKwh   = 0.0;
@@ -238,21 +238,21 @@ for ($i = 29; $i >= 0; $i--) {
 // =========================================================================
 // Heatpump — current and previous month totals + sparkline
 // =========================================================================
-$hpDailyMap = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $meterWindowStart, $today);
+$hpDailyMap = PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $meterWindowStart, $today);
 $hpCurrent  = round(array_sum(array_filter($hpDailyMap, function($v, $k) use ($sparkStart) {
     return $k >= $sparkStart;
 }, ARRAY_FILTER_USE_BOTH)), 2);
 
-$hpPrevMap        = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevEnd);
+$hpPrevMap        = PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevEnd);
 $hpPrev           = round(sumWithPartialLastDay($hpPrevMap, $prevEnd, $prevLastFrac) * $prevScale, 2);
 
-$hpPrevFullMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevMonthEnd);
+$hpPrevFullMap    = PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $prevStart, $prevMonthEnd);
 $hpPrevFull       = round(array_sum($hpPrevFullMap), 2);
 
-$hpLastYearMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lastYearMonthStart, $lastYearMonthEnd);
+$hpLastYearMap    = PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $lastYearMonthStart, $lastYearMonthEnd);
 $hpLastYear       = round(array_sum($hpLastYearMap), 2);
 
-$hpLYPeriodMap    = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lastYearPeriodStart, $lastYearPeriodEnd);
+$hpLYPeriodMap    = PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $lastYearPeriodStart, $lastYearPeriodEnd);
 $hpLastYearPeriod = round(sumWithPartialLastDay($hpLYPeriodMap, $lastYearPeriodEnd, $lyLastFrac) * $lyScale, 2);
 
 $hpPctChange     = $hpPrev > 0
@@ -281,21 +281,21 @@ $husLastYearFullKwh = null;
 $husSparkline  = null;
 
 try {
-    $husDailyMap   = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $meterWindowStart, $today);
+    $husDailyMap   = PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $meterWindowStart, $today);
     $husCurrentKwh = round(array_sum(array_filter($husDailyMap, function($v, $k) use ($sparkStart) {
         return $k >= $sparkStart;
     }, ARRAY_FILTER_USE_BOTH)), 2);
 
-    $husPrevMap     = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevEnd);
+    $husPrevMap     = PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevEnd);
     $husPrevKwh     = round(sumWithPartialLastDay($husPrevMap, $prevEnd, $prevLastFrac) * $prevScale, 2);
 
-    $husPrevFullMap = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevMonthEnd);
+    $husPrevFullMap = PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $prevStart, $prevMonthEnd);
     $husPrevFullKwh = round(array_sum($husPrevFullMap), 2);
 
-    $husLYMap       = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearPeriodStart, $lastYearPeriodEnd);
+    $husLYMap       = PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $lastYearPeriodStart, $lastYearPeriodEnd);
     $husLastYearKwh = round(sumWithPartialLastDay($husLYMap, $lastYearPeriodEnd, $lyLastFrac) * $lyScale, 2);
 
-    $husLYFullMap   = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lastYearMonthStart, $lastYearMonthEnd);
+    $husLYFullMap   = PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $lastYearMonthStart, $lastYearMonthEnd);
     $husLastYearFullKwh = round(array_sum($husLYFullMap), 2);
 
     // Sparkline: rolling 30-day window

@@ -1,7 +1,6 @@
 <?php
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
-require 'includes/QueryBuilder.php';
 ?>
 <!DOCTYPE html>
 <html lang="da">

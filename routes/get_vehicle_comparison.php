@@ -28,7 +28,7 @@ if (!empty($dateRange)) {
 // ─── 5-minute file cache ──────────────────────────────────────────────────
 $_cacheKey = 'vehicle_compare_' . md5($dateRange . '|' . $sortBy);
 ApiCache::serve($_cacheKey, CacheHelper::TTL_MEDIUM);
-$vehicleComparison = QueryBuilder::getVehicleCostComparison($db, $filters);
+$vehicleComparison = ChargeRepository::getVehicleCostComparison($db, $filters);
 
 // Sort data based on sortBy parameter
 usort($vehicleComparison, function($a, $b) use ($sortBy) {

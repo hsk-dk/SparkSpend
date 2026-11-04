@@ -5,7 +5,7 @@
  */
 
 $db = DatabaseManager::getChargesDb();
-$vehicles = QueryBuilder::selectAllVehicles($db);
+$vehicles = VehicleRepository::getAll($db);
 
 http_response_code(200);
 echo json_encode($vehicles);

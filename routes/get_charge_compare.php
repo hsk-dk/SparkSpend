@@ -28,7 +28,7 @@ $rows = $db->query("
 ")->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($rows as $row) {
-    $splits = QueryBuilder::splitChargeByDays(
+    $splits = DateHelper::splitChargeByDays(
         $row['startedAt'], $row['stoppedAt'],
         floatval($row['kwh']), floatval($row['cost'])
     );
@@ -46,7 +46,7 @@ foreach ($rows as $row) {
 // =========================================================================
 // External charges
 // =========================================================================
-$extRows = QueryBuilder::getExternalCharges($db);
+$extRows = ChargeRepository::getExternal($db);
 
 foreach ($extRows as $r) {
     $t = strtotime($r['datetime']);

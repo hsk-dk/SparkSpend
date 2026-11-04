@@ -181,8 +181,8 @@ $makeAnomaly = function (
 // 1. HUS — whole-house meter
 // =========================================================================
 try {
-    $husCur = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $curMonthStart, $curMonthEnd));
-    $husLy  = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $lyMonthStart, $lyMonthEnd));
+    $husCur = array_sum(PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $curMonthStart, $curMonthEnd));
+    $husLy  = array_sum(PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $lyMonthStart, $lyMonthEnd));
     $a = $makeAnomaly('hus', 'Husforbrug', $husCur, $husLy, 'hus-section', 'hus-forbrug', true);
     if ($a) $anomalies[] = $a;
 } catch (\Throwable $husEx) {
@@ -192,8 +192,8 @@ try {
 // =========================================================================
 // 2. HP — heat pump (powerlogjord)
 // =========================================================================
-$hpCur = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $curMonthStart, $curMonthEnd));
-$hpLy  = array_sum(QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $lyMonthStart, $lyMonthEnd));
+$hpCur = array_sum(PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $curMonthStart, $curMonthEnd));
+$hpLy  = array_sum(PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $lyMonthStart, $lyMonthEnd));
 $a = $makeAnomaly('hp', 'Jordvarme', $hpCur, $hpLy, 'jordvarme-section', null, true);
 if ($a) $anomalies[] = $a;
 
@@ -210,7 +210,7 @@ $stmt = $chargesDb->prepare("
 ");
 $stmt->execute([$curMonthEnd, $lyMonthStart]);
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $splits = QueryBuilder::splitChargeByDays(
+    $splits = DateHelper::splitChargeByDays(
         $row['startedAt'], $row['stoppedAt'],
         floatval($row['kwh']), 0.0
     );
@@ -220,7 +220,7 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
     }
 }
 
-$extRows = QueryBuilder::getExternalCharges($chargesDb, $lyMonthStart);
+$extRows = ChargeRepository::getExternal($chargesDb, $lyMonthStart);
 foreach ($extRows as $row) {
     $day = substr($row['datetime'], 0, 10);
     if ($day >= $curMonthStart && $day <= $curMonthEnd) $evCurKwh += floatval($row['kwh']);

@@ -1,7 +1,6 @@
 <?php
 require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
-require __DIR__ . '/../includes/QueryBuilder.php';
 require __DIR__ . '/../includes/VehiclePairing.php';
 
 /**
@@ -268,7 +267,7 @@ function saveChargingData($db, $data) {
             ?? ''
         );
         if ($vehicleId !== null && $vehicleId > 0) {
-            QueryBuilder::upsertVehicle($db, $vehicleId, $vehicleName);
+            VehicleRepository::upsert($db, $vehicleId, $vehicleName);
         }
 
         // Extract soc percentage with error checking
@@ -411,7 +410,7 @@ $db->prepare("INSERT OR REPLACE INTO sync_log (source, last_sync_timestamp, last
 // Drop charge-dependent caches so newly synced charges show up immediately
 // rather than waiting out the TTL (dashboard, analytics, annual, etc.).
 if ($count > 0) {
-    QueryBuilder::invalidateChargeCaches();
+    CacheHelper::invalidateChargeCaches();
 }
 
 logMsg("Sync completed. {$count} charges synced.");

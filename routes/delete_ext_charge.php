@@ -8,11 +8,11 @@ if (!isset($data['id'])) {
 $id = Http::int($data, 'id');
 
 $db = DatabaseManager::getChargesDb();
-if (!QueryBuilder::rowExists($db, 'ext_charges', $id)) {
+if (!Db::rowExists($db, 'ext_charges', $id)) {
     Http::fail('Ladning ikke fundet', 404);
 }
-if (!QueryBuilder::deleteExternalCharge($db, $id)) {
+if (!ChargeRepository::deleteExternal($db, $id)) {
     Http::fail('Error deleting charge', 500);
 }
-QueryBuilder::invalidateChargeCaches();
+CacheHelper::invalidateChargeCaches();
 Http::send(['success' => true]);

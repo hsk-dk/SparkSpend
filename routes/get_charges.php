@@ -37,7 +37,7 @@ if (!$showZeroKwh) {
 $dateFilters = null;
 if ($dateRange) {
     try {
-        $dateFilters = QueryBuilder::parseDateRange($dateRange);
+        $dateFilters = DateHelper::parseDateRange($dateRange);
     } catch (\Throwable $e) {
         // Invalid date range, ignore filter
         error_log("Invalid date range: " . $e->getMessage());

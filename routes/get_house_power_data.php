@@ -13,7 +13,7 @@
 
 // Helper: accumulate EV external charges by date key.
 function _extEvByKey(PDO $chargesDb, string $from, string $to, string $keyFmt): array {
-    $rows = QueryBuilder::getExternalCharges($chargesDb, $from, $to);
+    $rows = ChargeRepository::getExternal($chargesDb, $from, $to);
     $result = [];
     foreach ($rows as $row) {
         $t = strtotime($row['datetime']);
@@ -64,13 +64,13 @@ if ($mode === 'daily') {
     // House meter
     $husByDay = [];
     try {
-        $husByDay = QueryBuilder::lagDelta($powerlogDb, 'powerloghus', $dayStart, $dayEnd);
+        $husByDay = PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $dayStart, $dayEnd);
     } catch (\Throwable $e) {
         error_log('getHousePowerData house daily: ' . $e->getMessage());
     }
 
     // HP meter
-    $hpByDay = QueryBuilder::lagDelta($powerlogDb, 'powerlogjord', $dayStart, $dayEnd);
+    $hpByDay = PowerlogRepository::lagDelta($powerlogDb, 'powerlogjord', $dayStart, $dayEnd);
 
     // EV internal — proportional midnight-split
     $evByDay = [];
@@ -81,7 +81,7 @@ if ($mode === 'daily') {
     ");
     $stmt->execute([$dayEnd, $dayStart]);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $splits = QueryBuilder::splitChargeByDays(
+        $splits = DateHelper::splitChargeByDays(
             $row['startedAt'], $row['stoppedAt'], floatval($row['kwh']), 0.0
         );
         foreach ($splits as $day => $slice) {
@@ -128,13 +128,13 @@ if ($mode === 'daily') {
     // House meter
     $husByMonth = [];
     try {
-        $husByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerloghus', $yearStart, $yearEnd);
+        $husByMonth = PowerlogRepository::lagDeltaByMonth($powerlogDb, 'powerloghus', $yearStart, $yearEnd);
     } catch (\Throwable $e) {
         error_log('getHousePowerData house monthly: ' . $e->getMessage());
     }
 
     // HP meter
-    $hpByMonth = QueryBuilder::lagDeltaByMonth($powerlogDb, 'powerlogjord', $yearStart, $yearEnd);
+    $hpByMonth = PowerlogRepository::lagDeltaByMonth($powerlogDb, 'powerlogjord', $yearStart, $yearEnd);
 
     // EV internal monthly — proportional midnight-split
     $evByMonth = [];
@@ -145,7 +145,7 @@ if ($mode === 'daily') {
     ");
     $stmt->execute([$yearEnd, $yearStart]);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $splits = QueryBuilder::splitChargeByDays(
+        $splits = DateHelper::splitChargeByDays(
             $row['startedAt'], $row['stoppedAt'], floatval($row['kwh']), 0.0
         );
         foreach ($splits as $day => $slice) {

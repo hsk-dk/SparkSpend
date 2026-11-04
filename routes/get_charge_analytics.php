@@ -30,7 +30,7 @@ $_analyticsCacheKey = 'analytics_' . md5($filter . '|' . $dateRange . '|' . $gro
 ApiCache::serve($_analyticsCacheKey, CacheHelper::TTL_MEDIUM);
 // ─────────────────────────────────────────────────────────────────────────
 
-// Build filter array for QueryBuilder methods
+// Build the filter array for the ChargeRepository methods
 $filters = [
     'groupBy' => $groupBy,
     'showZeroKwh' => $showZeroKwh
@@ -45,10 +45,10 @@ if (!empty($dateRange)) {
 }
 
 // Get cost trend data (internal + external breakdown)
-$costTrend = QueryBuilder::getCostTrend($db, $filters);
+$costTrend = ChargeRepository::getCostTrend($db, $filters);
 
 // Get cost statistics for the period
-$costStats = QueryBuilder::getCostStatistics($db, $filters);
+$costStats = ChargeRepository::getCostStatistics($db, $filters);
 
 // Group trend data by internal/external
 $trendBySource = [

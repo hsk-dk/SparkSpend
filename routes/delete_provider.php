@@ -7,10 +7,10 @@ if ($id <= 0) {
 }
 
 $db    = DatabaseManager::getChargesDb();
-$count = QueryBuilder::providerUsageCount($db, $id);
+$count = ProviderRepository::usageCount($db, $id);
 if ($count > 0) {
     Http::fail("Udbyderen er tilknyttet {$count} ladning(er) og kan ikke slettes", 409);
 }
-QueryBuilder::deleteProvider($db, $id);
-QueryBuilder::invalidateProviderCaches();
+ProviderRepository::delete($db, $id);
+CacheHelper::invalidateProviderCaches();
 Http::send(['success' => true]);

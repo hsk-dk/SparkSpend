@@ -12,10 +12,10 @@ if ($id <= 0 || $vehicleId <= 0) {
 }
 
 $db = DatabaseManager::getChargesDb();
-if (!QueryBuilder::rowExists($db, 'vehicles', $vehicleId)) {
+if (!Db::rowExists($db, 'vehicles', $vehicleId)) {
     Http::fail('Ukendt vehicleId', 422);
 }
-if (!QueryBuilder::rowExists($db, 'charges', $id)) {
+if (!Db::rowExists($db, 'charges', $id)) {
     Http::fail('Ladning ikke fundet', 404);
 }
 
@@ -23,5 +23,5 @@ $stmt = $db->prepare("UPDATE charges SET vehicleId = ?, pairingSource = 'manual'
 if (!$stmt->execute([$vehicleId, $id])) {
     Http::fail('Error updating charge', 500);
 }
-QueryBuilder::invalidateChargeCaches();
+CacheHelper::invalidateChargeCaches();
 Http::send(['success' => true, 'message' => 'Internal charge updated']);

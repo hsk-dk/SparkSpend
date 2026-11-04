@@ -5,7 +5,7 @@
  */
 
 $db = DatabaseManager::getChargesDb();
-$providers = QueryBuilder::selectAllProviders($db);
+$providers = ProviderRepository::getAll($db);
 
 http_response_code(200);
 echo json_encode($providers);

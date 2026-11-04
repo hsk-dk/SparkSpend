@@ -8,7 +8,6 @@
  */
 require __DIR__ . '/includes/configuration.php';
 require __DIR__ . '/includes/DatabaseManager.php';
-require __DIR__ . '/includes/QueryBuilder.php';
 require __DIR__ . '/includes/Router.php';
 
 header('Content-Type: application/json');

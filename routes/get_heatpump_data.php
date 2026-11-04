@@ -29,7 +29,7 @@ if ($mode === 'daily' && isset($_GET['month'])) {
     }
     $dayStart = $month . '-01';
     $dayEnd   = date('Y-m-t', strtotime($dayStart));
-    $daily    = QueryBuilder::lagDelta($db, 'powerlogjord', $dayStart, $dayEnd);
+    $daily    = PowerlogRepository::lagDelta($db, 'powerlogjord', $dayStart, $dayEnd);
     $response = [];
     foreach ($daily as $day => $kwh) {
         $response[] = ['day' => $day, 'total_kwh' => $kwh];
@@ -42,7 +42,7 @@ if ($mode === 'daily' && isset($_GET['month'])) {
     }
     $yearStart = $year . '-01-01';
     $yearEnd   = $year . '-12-31';
-    $monthly   = QueryBuilder::lagDeltaByMonth($db, 'powerlogjord', $yearStart, $yearEnd);
+    $monthly   = PowerlogRepository::lagDeltaByMonth($db, 'powerlogjord', $yearStart, $yearEnd);
     $response  = [];
     foreach ($monthly as $month => $kwh) {
         $response[] = ['month' => $month, 'total_kwh' => $kwh];
