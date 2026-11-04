@@ -96,7 +96,8 @@ final class CostEstimates
      * @param string[] $months  'YYYY-MM'
      * @param array<string,array{kwh:float}> $hp, $hus   kWh per month
      * @param array<string,array{kwh:float,cost:float}> $ev
-     * @return array{costs: array<string,array{vp:float,rest:float}>, complete: bool}|null
+     * @return array{costs: array<string,?array{vp:float,rest:float}>, complete: bool}|null
+     *         costs[month] is null for a month without prices.
      *         null when prices are not configured or not available at all
      */
     public static function monthly(array $months, array $hp, array $hus, array $ev, string $start, string $end): ?array
@@ -117,6 +118,8 @@ final class CostEstimates
             $hpKwh  = (float) ($hp[$m]['kwh']  ?? 0);
             $evKwh  = (float) ($ev[$m]['kwh']  ?? 0);
             $husKwh = (float) ($hus[$m]['kwh'] ?? 0);
+            // No price for the month (EDS unavailable / rate-limited): unknown, NOT 0 kr.
+            if (!isset($highAvg[$m]) && !isset($lowAvg[$m])) { $costs[$m] = null; continue; }
             $residualKwh = $husKwh > 0 ? $husKwh - $evKwh - $hpKwh : 0.0;
             $c = ElvarmeCost::cost([
                 'vpKwh' => $hpKwh, 'restKwh' => max(0.0, $residualKwh),

@@ -192,16 +192,24 @@ function tariff_avg_for_date(array $records, string $date): float {
     return 0.0;
 }
 
-// Helper: split a date range into max N-day chunks
-function _dateChunks(string $from, string $to, int $maxDays = 90): array {
+// Helper: the calendar years that overlap [from, to], optionally clipped to
+// [minDate, maxDate]. The chunks are FIXED, independent of the requested range, so every
+// view (dashboard, annual report, monthly bill, ...) resolves to the same few Energi Data
+// Service requests and shares one cache entry per year. Two years of history is 2-3
+// requests, which matters because EDS rate-limits hard (a 429 pauses all upstream calls).
+function _dateChunks(string $from, string $to, string $minDate = '0000-01-01', string $maxDate = '9999-12-31'): array {
     $chunks = [];
-    $cursor = $from;
-    while ($cursor <= $to) {
-        $chunkEnd = date('Y-m-d', min(strtotime($to), strtotime($cursor . " +{$maxDays} days -1 day")));
-        $chunks[] = [$cursor, $chunkEnd];
-        $cursor = date('Y-m-d', strtotime($chunkEnd . ' +1 day'));
+    for ($y = (int) substr($from, 0, 4); sprintf('%04d-01-01', $y) <= $to; $y++) {
+        $cs = max(sprintf('%04d-01-01', $y), $minDate);
+        $ce = min(sprintf('%04d-12-31', $y), $maxDate);
+        if ($ce >= $from && $cs <= $ce) $chunks[] = [$cs, $ce];
     }
     return $chunks;
+}
+
+// The end of the year of a date (stable cache key for requests that only need "up to").
+function _yearEnd(string $date): string {
+    return substr($date, 0, 4) . '-12-31';
 }
 
 final class ElspotPrices
@@ -223,7 +231,7 @@ final class ElspotPrices
     // 1a. Legacy: Elspotprices (before cutover date)
     if ($start <= $ELSPOT_CUTOFF) {
         $elspotEnd = min($end, $ELSPOT_CUTOFF);
-        foreach (_dateChunks($start, $elspotEnd) as [$chunkStart, $chunkEnd]) {
+        foreach (_dateChunks($start, $elspotEnd, '0000-01-01', $ELSPOT_CUTOFF) as [$chunkStart, $chunkEnd]) {
             $spotRecords = eds_fetch('Elspotprices', [
                 'start'   => $chunkStart,
                 'end'     => $chunkEnd . 'T23:59',
@@ -231,11 +239,11 @@ final class ElspotPrices
                 'columns' => 'HourDK,SpotPriceDKK',
                 'limit'   => 0,
             ], eds_spot_ttl($chunkEnd));
-            if ($spotRecords === null) break; // rate-limited — use what we have
+            if ($spotRecords === null) continue; // rate-limited and not cached — later years may still be cached
             foreach ($spotRecords as $rec) {
                 $hourDK = (string)($rec['HourDK'] ?? '');
                 $day    = substr($hourDK, 0, 10);
-                if ($day === '') continue;
+                if ($day === '' || $day < $start || $day > $end) continue;
                 $hour = (int)substr($hourDK, 11, 2);
                 $spot = floatval($rec['SpotPriceDKK'] ?? 0) / 1000.0;
                 $hoursByDay[$day][] = ['h' => $hour, 's' => $spot];
@@ -246,7 +254,7 @@ final class ElspotPrices
     // 1b. Current: DayAheadPrices (from 2025-10-01 onwards)
     $daStart = max($start, '2025-10-01');
     if ($daStart <= $end) {
-        foreach (_dateChunks($daStart, $end) as [$chunkStart, $chunkEnd]) {
+        foreach (_dateChunks($daStart, $end, '2025-10-01') as [$chunkStart, $chunkEnd]) {
             $dayAheadRecords = eds_fetch('DayAheadPrices', [
                 'start'   => $chunkStart,
                 'end'     => $chunkEnd . 'T23:59',
@@ -254,12 +262,12 @@ final class ElspotPrices
                 'columns' => 'TimeDK,DayAheadPriceDKK',
                 'limit'   => 0,
             ], eds_spot_ttl($chunkEnd));
-            if ($dayAheadRecords === null) break; // rate-limited — use what we have
+            if ($dayAheadRecords === null) continue; // rate-limited and not cached — later years may still be cached
             $hourAccum = [];
             foreach ($dayAheadRecords as $rec) {
                 $timeDK = (string)($rec['TimeDK'] ?? '');
                 $day    = substr($timeDK, 0, 10);
-                if ($day === '') continue;
+                if ($day === '' || $day < $start || $day > $end) continue;
                 $hour = (int)substr($timeDK, 11, 2);
                 $spot = floatval($rec['DayAheadPriceDKK'] ?? 0) / 1000.0;
                 $hourAccum[$day][$hour]['sum'] = ($hourAccum[$day][$hour]['sum'] ?? 0.0) + $spot;
@@ -288,7 +296,7 @@ final class ElspotPrices
     $nettarifAll = eds_fetch('DatahubPricelist', [
         'filter'  => json_encode(['GLN_Number' => $gln]),
         'columns' => 'Note,' . PRICE_COLUMNS,
-        'end'     => $end,
+        'end'     => _yearEnd($end),
         'limit'   => 500,
         'sort'    => 'ValidFrom desc',
     ], EDS_TTL_TARIFF) ?? [];

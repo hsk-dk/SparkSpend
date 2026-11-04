@@ -30,12 +30,17 @@ const regningApp = (() => {
                 // billData.cost (server-side elvarme model) is null without prices.
                 _renderTable(tableWrapper, billData);
                 _clearStatus(statusEl);
+                const configured = window.sparkConfig?.elspotArea && window.sparkConfig?.elspotGln;
                 if (!billData.cost) {
-                    const configured = window.sparkConfig?.elspotArea && window.sparkConfig?.elspotGln;
                     _setStatus(statusEl, configured
-                        ? 'Varmepumpe el-omkostninger vises ikke — elpriserne kunne ikke hentes lige nu.'
+                        ? 'Varmepumpe el-omkostninger vises ikke — elpriserne kunne ikke hentes lige nu. Prøv igen om lidt.'
                         : 'Varmepumpe el-omkostninger vises ikke — sæt ELSPOT_AREA og ELSPOT_GLN i .env-filen.',
                         'text-muted');
+                } else {
+                    const missing = billData.months.filter(m => !billData.cost[m] && ((billData.hp[m]?.kwh || 0) > 0 || (billData.hus[m]?.kwh || 0) > 0)).length;
+                    if (missing > 0) {
+                        _setStatus(statusEl, `Elpriser mangler endnu for ${missing} ${missing === 1 ? 'måned' : 'måneder'} (hentes fra Energi Data Service) — de vises som —. Prøv igen om lidt.`, 'text-muted');
+                    }
                 }
             })
             .catch(err => {
@@ -216,7 +221,12 @@ const fordelingApp = (() => {
                     return;
                 }
                 _render(billData, true);
-                _clearStatus(statusEl);
+                const missing = billData.months.filter(m => !billData.cost[m] && ((billData.hp[m]?.kwh || 0) > 0 || (billData.hus && billData.hus[m]?.kwh > 0))).length;
+                if (missing > 0) {
+                    _setStatus(statusEl, `Elpriser mangler endnu for ${missing} ${missing === 1 ? 'måned' : 'måneder'} — kr-tallene er ufuldstændige. Prøv igen om lidt.`, 'text-muted');
+                } else {
+                    _clearStatus(statusEl);
+                }
             })
             .catch(err => {
                 console.error('fordelingApp:', err);

@@ -80,7 +80,12 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 
 # Husforbrug-sync — hvert 5. minut
 */5  * * * * php /sti/til/sparkspend/cron/sync_housepowerlog_data.php >> /sti/til/logs/hus.log 2>&1
+
+# Elpris-cache (Energi Data Service rate-limiter hårdt) — hvert 30. minut, og kør den én gang manuelt efter deploy
+*/30 * * * * php /sti/til/sparkspend/cron/warm_prices.php >> /sti/til/logs/prices.log 2>&1
 ```
+
+`warm_prices.php` henter elpriserne for de seneste 3 kalenderår og venter igennem Energi Data Services 429-pauser, så siderne (Regning, Årsrapport, Hus, Oversigt) aldrig selv skal vente på dem. På en kold cache tager første kørsel nogle minutter. Indtil da viser Regning "—" for de måneder, der mangler priser.
 
 ---
 
