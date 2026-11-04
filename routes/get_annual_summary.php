@@ -112,8 +112,23 @@ foreach ($allYears as $year) {
     ];
 }
 
+// Estimated VP / whole-house cost per year (elvarme model, server-side).
+require_once __DIR__ . '/../includes/CostEstimates.php';
+$_costsComplete = true;
+try {
+    $_annual = CostEstimates::annual($years, date('Y-m-d'));
+    $_costsComplete = $_annual['complete'];
+    foreach ($years as &$_y) {
+        $_y['cost'] = $_annual['costs'][(string) $_y['year']] ?? null;
+    }
+    unset($_y);
+} catch (\Throwable $e) {
+    error_log('getAnnualSummary cost estimate: ' . $e->getMessage());
+    $_costsComplete = false;
+}
+
 $response = json_encode(['years' => $years]);
-if (!$_skipCache) {
+if (!$_skipCache && $_costsComplete) {
     QueryBuilder::fileCacheWrite($_annualCacheKey, $response);
 }
 echo $response;

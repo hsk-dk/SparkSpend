@@ -25,6 +25,69 @@ final class CostEstimates
     }
 
     /**
+     * Mean kr/kWh per calendar year over the daily records, ignoring days without a
+     * price (rate <= 0).
+     *
+     * @return array<string,float> 'YYYY' => mean
+     */
+    private static function meanByYear(array $dailyRecords): array
+    {
+        $sum = []; $cnt = [];
+        foreach ($dailyRecords as $r) {
+            $rate = (float) $r['kr_kwh'];
+            if (!($rate > 0)) continue;
+            $yr = substr($r['date'], 0, 4);
+            $sum[$yr] = ($sum[$yr] ?? 0.0) + $rate;
+            $cnt[$yr] = ($cnt[$yr] ?? 0) + 1;
+        }
+        $avg = [];
+        foreach ($sum as $yr => $total) $avg[$yr] = $cnt[$yr] > 0 ? $total / $cnt[$yr] : 0.0;
+        return $avg;
+    }
+
+    /**
+     * Annual report: estimated heat pump and whole-house cost per year, priced at that
+     * year's mean HIGH/LOW rates. The monthly allowance is scaled to a full year.
+     * Rest = house - heat pump - EV (never negative); EV is priced at the LOW rate.
+     *
+     * @param array $years [{year, ev:{kwh}, heatpump:{kwh}, hus:{kwh}|null}, ...]
+     * @return array{costs: array<string,array{vp:float,hus:?float}>, complete: bool}
+     *         costs[year] only for years that have prices; complete=false when prices were
+     *         unavailable (rate-limited) so the result must not be cached.
+     */
+    public static function annual(array $years, string $today): array
+    {
+        $area = Config::elspotArea();
+        $gln  = Config::elspotGln();
+        $nums = array_values(array_filter(array_map(fn($y) => (int) $y['year'], $years)));
+        if ($area === '' || $gln === '' || !$nums) return ['costs' => [], 'complete' => true];
+
+        $start = min($nums) . '-01-01';
+        $high = ElspotPrices::compute($start, $today, $area, $gln, 'high');
+        $low  = ElspotPrices::compute($start, $today, $area, $gln, 'low');
+        $highAvg = self::meanByYear($high['daily']);
+        $lowAvg  = self::meanByYear($low['daily']);
+        $highKwhPerYear = Config::elvarmeHighKwhPerMonth() * 12;
+
+        $costs = [];
+        foreach ($years as $y) {
+            $key = (string) $y['year'];
+            $hr = $highAvg[$key] ?? 0.0;
+            $lr = $lowAvg[$key]  ?? 0.0;
+            if ($hr <= 0 && $lr <= 0) continue;
+            $vpKwh = (float) ($y['heatpump']['kwh'] ?? 0);
+            $evKwh = (float) ($y['ev']['kwh'] ?? 0);
+            $restKwh = $y['hus'] !== null ? max(0.0, (float) ($y['hus']['kwh'] ?? 0) - $vpKwh - $evKwh) : 0.0;
+            $c = ElvarmeCost::cost([
+                'vpKwh' => $vpKwh, 'restKwh' => $restKwh, 'evKwh' => $evKwh,
+                'highRate' => $hr, 'lowRate' => $lr, 'highKwhPerMonth' => $highKwhPerYear,
+            ]);
+            $costs[$key] = ['vp' => $c['vpCost'], 'hus' => $y['hus'] !== null ? $c['total'] : null];
+        }
+        return ['costs' => $costs, 'complete' => $high['complete'] && $low['complete']];
+    }
+
+    /**
      * Dashboard cost block: month-to-date and projected cost of the heat pump and the
      * rest of the house, plus the total electricity bill estimate.
      *

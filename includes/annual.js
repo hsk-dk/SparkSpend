@@ -10,7 +10,7 @@ const annualApp = (() => {
     let _mode = 'kwh';
     let _data = null;
     // Estimated spot-price cost per year for VP and Hus: { [year]: kr }.
-    // Populated asynchronously by _fetchElCosts() once annual data has loaded.
+    // Filled from the server's years[].cost by _readCosts().
     let _vpCostByYear  = {};
     let _husCostByYear = {};
     let _costsReady    = false;
@@ -51,14 +51,12 @@ const annualApp = (() => {
                 if (raw !== null) throw new Error('Server returnerede ikke JSON: ' + raw.slice(0, 200));
                 if (!ok || data.error) throw new Error(data?.error || 'HTTP fejl');
                 _data = data;
+                _readCosts(data);
                 // Make content visible before chart init so Chart.js can measure canvas dimensions
                 loadingEl.style.display = 'none';
                 contentEl.style.display = '';
                 _renderChart(data);
                 _renderTable(data);
-                // Estimated VP/Hus cost enrichment (async, best-effort) — re-renders
-                // chart + table once per-year spot-price estimates arrive.
-                _fetchElCosts(data);
             })
             .catch(err => {
                 loadingEl.innerHTML = '';
@@ -79,78 +77,18 @@ const annualApp = (() => {
         return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(v) + '\u00a0kr';
     }
 
-    // ── Estimated VP/Hus cost via spot prices ──────────────────────────────────
-    // Fetches all-in kr/kWh (spot + tariffs + elafgift + moms) from
-    // getElspotPrices.php across the full year span, then estimates each year's
-    // VP and Hus cost as (year kWh × that year's average daily kr/kWh).
-    // Mirrors the mechanism used in jordvarme.js / regning.js. EV cost is left
-    // as-is (comes from Monta, already in the payload).
-    function _fetchElCosts(data) {
-        const area = window.sparkConfig?.elspotArea || '';
-        const gln  = window.sparkConfig?.elspotGln  || '';
-        if (!area || !gln) return;               // unconfigured — kr stays EV-only
-        if (!data.years || data.years.length === 0) return;
-
-        const years  = data.years.map(y => parseInt(y.year)).filter(y => !isNaN(y));
-        if (years.length === 0) return;
-        const minYear = Math.min(...years);
-        const start   = minYear + '-01-01';
-        const end     = new Date().toISOString().slice(0, 10);
-
-        // HIGH + LOW elafgift rates; the elvarme model bills the first 4000
-        // kWh/year of VP+Rest at HIGH, the rest (plus EV) at LOW.
-        const highParams = new URLSearchParams({ start, end, area, gln, tariff: 'high' });
-        const lowParams  = new URLSearchParams({ start, end, area, gln, tariff: 'low' });
-        Promise.all([
-            fetch('api.php?action=elspot-prices&' + highParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
-            fetch('api.php?action=elspot-prices&' + lowParams).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
-        ])
-            .then(([highEl, lowEl]) => {
-                // Average rate per year for each tariff.
-                const avgByYear = (records) => {
-                    const sum = {}, cnt = {};
-                    (records || []).forEach(r => {
-                        const yr = r.date.slice(0, 4);
-                        const rate = parseFloat(r.kr_kwh);
-                        if (!(rate > 0)) return;
-                        sum[yr] = (sum[yr] || 0) + rate;
-                        cnt[yr] = (cnt[yr] || 0) + 1;
-                    });
-                    const avg = {};
-                    Object.keys(sum).forEach(yr => { avg[yr] = cnt[yr] > 0 ? sum[yr] / cnt[yr] : 0; });
-                    return avg;
-                };
-                const highAvg = avgByYear(highEl.records);
-                const lowAvg  = avgByYear(lowEl.records);
-                // Full-year high-rate allowance (12 × monthly threshold).
-                const highKwhPerYear = (highEl.components?.high_kwh_per_month ?? (4000 / 12)) * 12;
-
-                _vpCostByYear = {}; _husCostByYear = {};
-                data.years.forEach(y => {
-                    const hr = highAvg[y.year] ?? 0, lr = lowAvg[y.year] ?? 0;
-                    if (hr <= 0 && lr <= 0) return;
-                    const vpKwh  = y.heatpump?.kwh ?? 0;
-                    const evKwh  = y.ev?.kwh ?? 0;
-                    // Rest = whole house minus VP minus EV (never negative).
-                    const restKwh = y.hus !== null ? Math.max(0, (y.hus?.kwh ?? 0) - vpKwh - evKwh) : 0;
-                    const c = appUtils.elvarmeCost({
-                        vpKwh, restKwh, evKwh,
-                        highRate: hr, lowRate: lr, highKwhPerMonth: highKwhPerYear,
-                    });
-                    _vpCostByYear[y.year] = c.vpCost;
-                    // Hus total = VP + Rest + EV (whole-house electricity cost).
-                    if (y.hus !== null) _husCostByYear[y.year] = c.total;
-                });
-                _costsReady = Object.keys(_vpCostByYear).length > 0
-                           || Object.keys(_husCostByYear).length > 0;
-
-                // Re-render with cost now available
-                if (_costsReady && _data) {
-                    _renderChart(_data);
-                    _renderTable(_data);
-                }
-            })
-            .catch(err => console.error('annualApp _fetchElCosts:', err));
+    // ── Estimated VP/Hus cost ───────────────────────────────────────────────────
+    // Computed on the server (CostEstimates::annual, elvarme model) and delivered as
+    // years[].cost = {vp, hus}; this only reads it.
+    function _readCosts(data) {
+        _vpCostByYear = {}; _husCostByYear = {};
+        (data.years || []).forEach(y => {
+            if (!y.cost) return;
+            _vpCostByYear[y.year] = y.cost.vp;
+            if (y.cost.hus !== null && y.cost.hus !== undefined) _husCostByYear[y.year] = y.cost.hus;
+        });
+        _costsReady = Object.keys(_vpCostByYear).length > 0
+                   || Object.keys(_husCostByYear).length > 0;
     }
 
     // ── Chart ─────────────────────────────────────────────────────────────────
