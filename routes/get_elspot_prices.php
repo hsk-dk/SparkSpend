@@ -119,6 +119,10 @@ function eds_backoff_remaining(): int {
 // $ttl: how long a cached response stays fresh. On rate-limit / outage an expired
 // copy is still used rather than returning nothing.
 function eds_fetch(string $dataset, array $params, int $ttl = EDS_TTL_LIVE): ?array {
+    // Local test instances (MOCK_EDS=true) use deterministic synthetic data: offline,
+    // no rate limit, reproducible numbers. Never enable in production.
+    if (env('MOCK_EDS', 'false') === 'true') return eds_mock($dataset, $params);
+
     $cacheFile = eds_cache_file(md5($dataset . '?' . http_build_query($params)));
 
     $fresh = eds_read_cache($cacheFile, $ttl);
@@ -167,6 +171,39 @@ function eds_fetch(string $dataset, array $params, int $ttl = EDS_TTL_LIVE): ?ar
         @file_put_contents($cacheFile, json_encode($records), LOCK_EX);
     }
     return $records;
+}
+
+// Deterministic synthetic Energi Data Service data (see MOCK_EDS above).
+function eds_mock(string $dataset, array $params): array {
+    if ($dataset === 'DatahubPricelist') {
+        $filter = json_decode((string) ($params['filter'] ?? '{}'), true) ?: [];
+        $isSystem = ($filter['Note'] ?? '') === 'Systemtarif';
+        $rec = ['ValidFrom' => '2020-01-01T00:00:00', 'ValidTo' => null];
+        for ($h = 1; $h <= 24; $h++) {
+            if ($isSystem) { $rec["Price$h"] = 0.072; continue; }
+            $hour = $h - 1;                                   // 0..23
+            $rec["Price$h"] = ($hour >= 17 && $hour <= 20) ? 0.85 : (($hour >= 6 && $hour <= 16) ? 0.32 : 0.16);
+        }
+        if ($isSystem) $rec['Note'] = 'Systemtarif'; else $rec['Note'] = 'Nettarif C';
+        return [$rec];
+    }
+    // Spot datasets: hourly records between start and end (inclusive), DKK/MWh.
+    $from = substr((string) ($params['start'] ?? ''), 0, 10);
+    $to   = substr((string) ($params['end']   ?? ''), 0, 10);
+    if ($from === '' || $to === '' || $to < $from) return [];
+    $out = [];
+    for ($d = strtotime($from); $d <= strtotime($to); $d = strtotime('+1 day', $d)) {
+        $day = date('Y-m-d', $d);
+        $doy = (int) date('z', $d);
+        for ($h = 0; $h < 24; $h++) {
+            $price = 600 + 350 * sin($doy * 0.37 + $h * M_PI / 12) + 120 * sin($doy / 58.0 * M_PI);   // DKK/MWh
+            $t = sprintf('%sT%02d:00:00', $day, $h);
+            $out[] = $dataset === 'Elspotprices'
+                ? ['HourDK' => $t, 'SpotPriceDKK' => round($price, 2)]
+                : ['TimeDK' => $t, 'DayAheadPriceDKK' => round($price, 2)];
+        }
+    }
+    return $out;
 }
 
 // Spot-price TTL: finished days are final; ranges reaching today/tomorrow are not.
