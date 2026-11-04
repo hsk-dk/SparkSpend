@@ -26,7 +26,8 @@ jobs:
 
       - name: JS syntax check
         run: |
-          for f in includes/*.js dev/*.js; do node --check "$f"; done
+          # find, not a glob: a directory without .js files must not fail the check
+          find includes dev -name '*.js' -print0 | xargs -0 -n1 node --check
 
       - name: Unit tests
         run: php dev/run_tests.php
