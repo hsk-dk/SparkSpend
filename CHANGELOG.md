@@ -12,6 +12,12 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 - `projectMonth` in the dashboard route no longer reads PHP globals (`global $daysElapsed ...`); it is a closure with explicit dependencies.
 - **New `dev/test_routes.php`** (in `run_tests.php` and CI): starts the app on a seeded temporary database and exercises every route over HTTP, including session/CSRF, error cases and the Bearer-key endpoints (59 checks). `--record`/`--compare` fingerprints every GET answer; all 25 were byte-identical before and after this refactoring (the dashboard, whose values depend on the time of day, was compared field by field).
 
+### Changed (route layer, part 2)
+- **The `QueryBuilder` facade is gone.** It only forwarded to the repositories; its 74 call sites now use `VehicleRepository`, `ProviderRepository`, `ChargeRepository`, `PowerlogRepository`, `DateHelper`, `CacheHelper` and `Db`. A small class autoloader (`includes/autoload.php`, registered from `configuration.php`) loads `includes/<Class>.php` on first use, so files no longer `require` what they use.
+- **The big routes are thin now; the logic lives in classes with no HTTP and no cache:** `DashboardSummary`, `AnnualSummary`, `MonthlyBill`, `HousePower` and `AnomalyDetector`. Each was verified identical to the previous version on the same seeded database (all modes and error cases for the house-power route).
+- `AnomalyDetector::detect()` takes the date and the clock as parameters and has 13 unit tests (`dev/test_anomalies.php`): high/low/dead/stale detection and the day-5 gate, which had no tests before.
+- The `Http` validators replace the local regex/closures; `elspot-prices` and `weather` now reject impossible dates such as 2026-02-30.
+
 ### Changed (electricity cost model moved to the server)
 - **The elvarme cost model now exists once, in PHP** (`includes/ElvarmeCost.php`, assembled by `includes/CostEstimates.php`). It used to be duplicated in JavaScript (`elvarmeCost` in `app.js`, `includes/pricing.js`). The Dashboard, Årsrapport, Hus > Forbrug, Regning and Fordeling views now receive finished kr amounts (`cost` in their API responses) and only display them. 550 random cases were verified identical between the JS and PHP versions before the JS copies were removed, and every view was compared before/after on a seeded test instance.
 - **Fewer requests from the browser:** the views no longer fetch hourly/daily prices and hourly consumption themselves (the dashboard dropped three requests, the others two each).
