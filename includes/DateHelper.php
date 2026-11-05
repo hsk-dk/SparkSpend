@@ -47,14 +47,24 @@ class DateHelper {
      * (e.g. "2026-04-13T22:00:00Z"). PHP uses the app timezone for local midnight
      * boundaries, ensuring charges are attributed to the correct local calendar day.
      *
-     * @return array ['Y-m-d' => ['kwh' => float, 'cost' => float, 'count' => int]]
+     * @param ?string $startedAt UTC ISO 8601, or null
+     * @param ?string $stoppedAt UTC ISO 8601, or null
+     * @return array ['Y-m-d' => ['kwh' => float, 'cost' => float, 'count' => int]] (empty without any timestamp)
      */
     public static function splitChargeByDays(
-        string $startedAt,
-        string $stoppedAt,
-        float  $totalKwh,
-        float  $totalCost
+        ?string $startedAt,
+        ?string $stoppedAt,
+        float   $totalKwh,
+        float   $totalCost
     ): array {
+        // A charge that never started (Monta state error/cancelled) has no startedAt, one that
+        // is still running has no stoppedAt: place it at the time it does have. With neither,
+        // it cannot be put in any period (returns nothing) instead of crashing the caller.
+        $startedAt = $startedAt !== null && $startedAt !== '' ? $startedAt : $stoppedAt;
+        $stoppedAt = $stoppedAt !== null && $stoppedAt !== '' ? $stoppedAt : $startedAt;
+        if ($startedAt === null || $startedAt === '') {
+            return [];
+        }
         $startTs = strtotime($startedAt);
         $stopTs  = strtotime($stoppedAt);
 

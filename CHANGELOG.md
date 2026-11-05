@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Fixed
+- `charge-analytics` with `showZeroKwh=true` returned HTTP 500 when a charge had no `startedAt` (cancelled/error sessions). `DateHelper::splitChargeByDays` now falls back to the timestamp the charge does have and skips charges with none. Covered by `dev/test_date_helper.php` and a route check.
+
 ### Changed (API route layer)
 - **One router, one route table.** `api.php` is now a few lines: `includes/routes.php` lists every action with its HTTP method, `includes/Router.php` dispatches (404 unknown action, **405 wrong method**, CSRF, central error handling). Mutation routes could previously be called with GET, which skipped the CSRF check (the verifier only looks at POST); they are now POST-only.
 - **Shared helpers instead of copies in 30 route files:** `Http` (one error envelope, request body, parameter validators), `ApiCache` (serve/respond for the file cache), `ChargeInput` (kWh/price/date validation for external charges), `QueryBuilder::rowExists`. The nine mutation routes are rewritten on them with unchanged status codes and messages.
