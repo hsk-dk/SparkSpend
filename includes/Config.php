@@ -83,38 +83,17 @@ class Config {
             'autoMigrate' => env('AUTO_MIGRATE', 'true') !== 'false',
 
             // ── Electricity tax / tariff constants ───────────────────────────
-            // VAT multiplier (moms). Overridable via env for future rate changes.
-            'vatFactor'    => (float) env('VAT_FACTOR', '1.25'),
+            // The date-versioned elafgift tables, the yearly allowance taxed at the full
+            // rate and VAT live in config/tax_rates.json (see TaxRates), read on first use.
+            // These env variables, when set, override the file's VAT and allowance:
+            'vatFactor'             => env('VAT_FACTOR') !== null ? (float) env('VAT_FACTOR') : null,
+            'elvarmeHighKwhPerYear' => env('ELVARME_HIGH_KWH_YEAR') !== null ? (float) env('ELVARME_HIGH_KWH_YEAR') : null,
+            // Optional: another tax rate file (a test or a staging instance).
+            'taxRatesFile'          => env('TAX_RATES_FILE'),
             // Energinet's GLN (systemtarif lookup) — stable, but centralised here.
             'energinetGln' => env('ENERGINET_GLN', '5790000432752'),
             // Legacy Elspotprices → DayAheadPrices dataset cutover date.
             'elspotCutoff' => env('ELSPOT_CUTOFF', '2025-09-30'),
-            // Electricity tax (elafgift), kr/kWh, versioned by effective-from
-            // date. The applicable rate is the newest whose date <= the queried
-            // date, so historical calculations use the correct rate. Source:
-            // skat.dk — edit these tables when a new annual rate is published.
-            //
-            // Danish electricity-heated homes: the meter can't tell purpose
-            // apart, so the FULL ("high") rate applies to the first 4000 kWh/yr
-            // and the reduced ELVARME ("low") rate applies to everything above.
-            //
-            // HIGH = almindelig elafgift (2025 ≈ 0.761 kr/kWh).
-            'elafgiftHighByDate' => [
-                '2024-01-01' => 0.761,
-                '2025-01-01' => 0.761,
-                '2026-01-01' => 0.008,
-                '2027-01-01' => 0.008,
-            ],
-            // LOW = elvarmeafgift (reduced rate, ≈ 0.8 øre/kWh since 2021).
-            'elafgiftLowByDate' => [
-                '2024-01-01' => 0.008,
-                '2025-01-01' => 0.008,
-                '2026-01-01' => 0.008,
-                '2027-01-01' => 0.008,
-            ],
-            // Annual kWh taxed at the HIGH rate before the elvarme (LOW) rate
-            // kicks in. Applied to VP + Rest (not EV); 4000/12 ≈ 333 kWh/month.
-            'elvarmeHighKwhPerYear' => (float) env('ELVARME_HIGH_KWH_YEAR', '4000'),
 
             // ── Vehicle↔charge pairing (Monta sync) ──────────────────────────
             // The cable is plugged into the car first (HA sends vehicleId +
@@ -214,7 +193,10 @@ class Config {
     // =========================================================================
 
     public static function vatFactor(): float {
-        return (float) self::get('vatFactor', 1.25);
+        self::ensureLoaded();
+        return self::$values['vatFactor'] !== null && self::$values['vatFactor'] !== ''
+            ? (float) self::$values['vatFactor']
+            : self::taxRates()['vatFactor'];
     }
 
     public static function energinetGln(): string {
@@ -243,13 +225,31 @@ class Config {
         return (float) $rate;
     }
 
+    /** The tax rate tables, loaded and validated once per request (throws if the file is bad). */
+    private static function taxRates(): array {
+        self::ensureLoaded();
+        static $cache = [];
+        $file = (string) (self::$values['taxRatesFile'] ?? '') ?: null;
+        $key = $file ?? 'default';
+        if (!isset($cache[$key])) {
+            require_once __DIR__ . '/TaxRates.php';
+            $cache[$key] = TaxRates::load($file);
+        }
+        return $cache[$key];
+    }
+
+    /** Short fingerprint of the tax rate file: part of cache keys, so a changed rate is picked up at once. */
+    public static function taxRatesVersion(): string {
+        return self::taxRates()['version'];
+    }
+
     /**
      * HIGH electricity tax (almindelig elafgift), kr/kWh, on the given date.
      * Applies to the first 4000 kWh/year of VP + Rest consumption.
      */
     public static function elafgiftHigh(string $date): float {
         self::ensureLoaded();
-        return self::rateForDate(self::$values['elafgiftHighByDate'] ?? [], $date, 0.761);
+        return self::rateForDate(self::$values['elafgiftHighByDate'] ?? self::taxRates()['high'], $date, 0.0);
     }
 
     /**
@@ -258,13 +258,14 @@ class Config {
      */
     public static function elafgiftLow(string $date): float {
         self::ensureLoaded();
-        return self::rateForDate(self::$values['elafgiftLowByDate'] ?? [], $date, 0.008);
+        return self::rateForDate(self::$values['elafgiftLowByDate'] ?? self::taxRates()['low'], $date, 0.0);
     }
 
     /** kWh/month taxed at the HIGH rate before the elvarme rate applies. */
     public static function elvarmeHighKwhPerMonth(): float {
         self::ensureLoaded();
-        return (float) self::get('elvarmeHighKwhPerYear', 4000.0) / 12.0;
+        $perYear = self::$values['elvarmeHighKwhPerYear'];
+        return ($perYear !== null && $perYear !== '' ? (float) $perYear : self::taxRates()['highKwhPerYear']) / 12.0;
     }
 
     // =========================================================================

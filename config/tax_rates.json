@@ -1,0 +1,18 @@
+{
+  "_readme": "Danish electricity tax used by the cost model (kr/kWh excl. VAT) and the elvarme allowance. Edit this file when a new rate is published (skat.dk); no code change or deploy of PHP is needed. A rate applies from its 'from' date until the next row, so history is priced at the rate of its time. Add next year's row before 1 January: dev/test_config_rates.php fails from then if it is missing.",
+  "source": "https://skat.dk/erhverv/afgifter/energiafgifter/elafgift",
+  "elafgift_high": [
+    { "from": "2024-01-01", "rate": 0.761, "note": "almindelig elafgift (full rate)" },
+    { "from": "2025-01-01", "rate": 0.761, "note": "almindelig elafgift (full rate)" },
+    { "from": "2026-01-01", "rate": 0.008, "note": "reduced to the EU minimum for 2026-2027" },
+    { "from": "2027-01-01", "rate": 0.008, "note": "reduced to the EU minimum for 2026-2027" }
+  ],
+  "elafgift_low": [
+    { "from": "2024-01-01", "rate": 0.008, "note": "elvarmeafgift (reduced rate, about 0.8 oere/kWh since 2021); also what EV charging pays" },
+    { "from": "2025-01-01", "rate": 0.008, "note": "elvarmeafgift" },
+    { "from": "2026-01-01", "rate": 0.008, "note": "elvarmeafgift" },
+    { "from": "2027-01-01", "rate": 0.008, "note": "elvarmeafgift" }
+  ],
+  "elvarme_high_kwh_per_year": 4000,
+  "vat_factor": 1.25
+}

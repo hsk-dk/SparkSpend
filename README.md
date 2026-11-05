@@ -66,6 +66,10 @@ Elbil-fanen er delt i dele i `includes/elbil/` (indlæses i den rækkefølge, `i
 
 Siden har ingen inline scripts og ingen inline event-handler-attributter (CSP `script-src` uden `'unsafe-inline'`). Klik i markup skrives som `data-action="navn"` med `data-*`-argumenter og håndteres i `includes/actions.js`; en ny handling tilføjes som ét opslag i `handlers`-tabellen dér. Serverkonfigurationen til JS ligger som en JSON-datablok i `index.php` og læses af `includes/config.js`. Data fra serveren (navne, fejlbeskeder) skal escapes med `appUtils.escapeHtml` (eller `textContent`), før de indsættes i `innerHTML`.
 
+## Årlig opdatering af afgiftssatser
+
+Elafgift (almindelig og elvarmesats), kWh-kvoten til den fulde sats og momsen ligger i `config/tax_rates.json`, ikke i koden. Hver række gælder fra sin `from`-dato til næste række, så historik prissættes med datidens sats. Når en ny sats er offentliggjort (skat.dk): tilføj en række i filen, kør `php dev/run_tests.php`, og deploy filen. Filen valideres (datoer, rækkefølge, rimelige tal, moms som 1,25 og ikke 25), og en ugyldig fil giver en tydelig fejl i stedet for stille forkerte beløb. `test_config_rates.php` fejler fra 1. januar, hvis der mangler en række for det nye år. Cachede priser opdateres med det samme, fordi filens fingeraftryk er en del af cache-nøglen.
+
 ## Tests
 
 ```bash
@@ -121,6 +125,9 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 | `WEATHER_LAT` | Breddegrad (decimal) | — |
 | `WEATHER_LON` | Længdegrad (decimal) | — |
 | `TIMEZONE` | PHP-tidszone | `Europe/Copenhagen` |
+| `VAT_FACTOR` | Overstyrer momsen fra `config/tax_rates.json` (sjældent nødvendigt) | fra filen |
+| `ELVARME_HIGH_KWH_YEAR` | Overstyrer kWh-kvoten til fuld elafgift | fra filen |
+| `TAX_RATES_FILE` | Anden satsfil (test eller staging) | `config/tax_rates.json` |
 | `EV_FLEX_HOURS` | Ladeoptimering: timer efter tilslutning, bilen regnes for tilgængelig | `12` |
 | `EV_MAX_KW` | Ladeoptimering: laderens effekt i kW | `7.4` |
 | `AUTO_MIGRATE` | Kør DB-migrationer automatisk ved web-requests (højst en gang i timen) | `true` |

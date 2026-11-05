@@ -52,7 +52,8 @@ if ((strtotime($end) - strtotime($start)) / 86400 > 7300) {
 
 // ─── File cache ──────────────────────────────────────────────────────────────
 
-$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|' . $format . '|' . $tariff . '|v' . CACHE_VERSION);
+// The tax rate file's fingerprint is part of the key: editing config/tax_rates.json takes effect at once.
+$cacheKey  = md5($start . '|' . $end . '|' . $area . '|' . $gln . '|' . $format . '|' . $tariff . '|v' . CACHE_VERSION . '|t' . Config::taxRatesVersion());
 $_cacheDir = Config::cacheDir();
 $cacheFile = $_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_' . $cacheKey . '.json';
 
