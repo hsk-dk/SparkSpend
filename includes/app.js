@@ -617,3 +617,8 @@ window.appUtils = {
   extractChargeData,
   initializeAppUtilities
 };
+
+// Phones: Chart.js' default shape (twice as wide as tall) leaves a 70 px high chart on a 300 px wide card.
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.Chart && window.innerWidth < 600) Chart.defaults.aspectRatio = 1.2;
+});

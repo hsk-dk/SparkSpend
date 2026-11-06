@@ -93,14 +93,14 @@ const regningApp = (() => {
             if (residualCost !== null) totResidualCost += residualCost;
 
             return `<tr>
-                <td class="text-nowrap">${_monthLabel(m)}</td>
-                ${hasHus ? `<td class="text-end">${husRow.kwh > 0 ? husRow.kwh.toFixed(1) : '—'}</td>` : ''}
-                <td class="text-end">${evRow.kwh > 0 ? evRow.kwh.toFixed(1) : '—'}</td>
-                <td class="text-end">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
-                <td class="text-end">${hpRow.kwh > 0 ? hpRow.kwh.toFixed(1) : '—'}</td>
-                ${hasCosts ? `<td class="text-end">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
-                ${hasHus ? `<td class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + residualKwh.toFixed(1) : '\u2014'}</td>` : ''}
-                ${hasResidual ? `<td class="text-end fw-semibold">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
+                <td class="text-nowrap" data-label="Måned">${_monthLabel(m)}</td>
+                ${hasHus ? `<td class="text-end" data-label="Hus kWh">${husRow.kwh > 0 ? husRow.kwh.toFixed(1) : '—'}</td>` : ''}
+                <td class="text-end" data-label="El-bil kWh">${evRow.kwh > 0 ? evRow.kwh.toFixed(1) : '—'}</td>
+                <td class="text-end" data-label="El-bil kr">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
+                <td class="text-end" data-label="VP kWh">${hpRow.kwh > 0 ? hpRow.kwh.toFixed(1) : '—'}</td>
+                ${hasCosts ? `<td class="text-end" data-label="VP kr*">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
+                ${hasHus ? `<td data-label="Restforbrug kWh" class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + residualKwh.toFixed(1) : '\u2014'}</td>` : ''}
+                ${hasResidual ? `<td class="text-end fw-semibold" data-label="Restforbrug kr*">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
             </tr>`;
         }).join('');
 
@@ -112,13 +112,13 @@ const regningApp = (() => {
         const residualKrTh   = hasResidual ? '<th class="text-end">Restforbrug kr*</th>' : '';
 
         const totHusTd       = hasHus
-            ? `<td class="text-end fw-bold">${totHusKwh > 0 ? totHusKwh.toFixed(1) : '—'}</td>` : '';
+            ? `<td class="text-end fw-bold" data-label="Hus kWh">${totHusKwh > 0 ? totHusKwh.toFixed(1) : '—'}</td>` : '';
         const totHpCostTd    = hasCosts
-            ? `<td class="text-end fw-bold">${totHpCost > 0 ? _kr(totHpCost) : '—'}</td>` : '';
+            ? `<td class="text-end fw-bold" data-label="VP kr*">${totHpCost > 0 ? _kr(totHpCost) : '—'}</td>` : '';
         const totResidualKwhTd = hasHus
-            ? `<td class="text-end fw-bold${totResidualKwh !== null && totResidualKwh < 0 ? ' text-danger' : ''}">${totResidualKwh !== null ? (totResidualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + totResidualKwh.toFixed(1) : '\u2014'}</td>` : '';
+            ? `<td data-label="Restforbrug kWh" class="text-end fw-bold${totResidualKwh !== null && totResidualKwh < 0 ? ' text-danger' : ''}">${totResidualKwh !== null ? (totResidualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + totResidualKwh.toFixed(1) : '\u2014'}</td>` : '';
         const totResidualCostTd = hasResidual
-            ? `<td class="text-end fw-bold">${totResidualCost > 0 ? _kr(totResidualCost) : '—'}</td>` : '';
+            ? `<td class="text-end fw-bold" data-label="Restforbrug kr*">${totResidualCost > 0 ? _kr(totResidualCost) : '—'}</td>` : '';
 
         const negNote = negMonths > 0
             ? `<div class="data-note" role="note"><i class="fas fa-triangle-exclamation"></i> ` +
@@ -145,11 +145,11 @@ const regningApp = (() => {
                     <tbody>${rows}</tbody>
                     <tfoot class="table-light fw-bold">
                         <tr>
-                            <td>Total</td>
+                            <td data-label="Måned">Total</td>
                             ${totHusTd}
-                            <td class="text-end">${totEvKwh.toFixed(1)}</td>
-                            <td class="text-end">${totEvCost > 0 ? _kr(totEvCost) : '—'}</td>
-                            <td class="text-end">${totHpKwh.toFixed(1)}</td>
+                            <td class="text-end" data-label="El-bil kWh">${totEvKwh.toFixed(1)}</td>
+                            <td class="text-end" data-label="El-bil kr">${totEvCost > 0 ? _kr(totEvCost) : '—'}</td>
+                            <td class="text-end" data-label="VP kWh">${totHpKwh.toFixed(1)}</td>
                             ${totHpCostTd}
                             ${totResidualKwhTd}
                             ${totResidualCostTd}

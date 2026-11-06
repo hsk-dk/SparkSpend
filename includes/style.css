@@ -2261,3 +2261,34 @@ th.sort-active { color: var(--accent-strong); }
   .year-chip-bar .year-chip { width: auto; }
   .hp-mode-nav { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
 }
+
+/* Phones: Regning as one card per month (eight columns do not fit), and a scroll hint on the other wide tables */
+@media (max-width: 600px) {
+  #regningTableWrapper .table-responsive { overflow-x: visible; }
+  #regningTableWrapper table, #regningTableWrapper thead, #regningTableWrapper tbody,
+  #regningTableWrapper tfoot, #regningTableWrapper tr, #regningTableWrapper td { display: block; }
+  #regningTableWrapper thead { position: absolute; left: -9999px; top: -9999px; }
+  #regningTableWrapper tbody tr, #regningTableWrapper tfoot tr {
+    margin-bottom: 10px; padding: 6px 12px; border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 10px; background: rgba(255, 255, 255, 0.6);
+  }
+  #regningTableWrapper td { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border: 0; text-align: right; }
+  #regningTableWrapper td::before { content: attr(data-label); color: #475569; font-weight: 400; text-align: left; }
+  #regningTableWrapper td:first-child { font-weight: 700; border-bottom: 1px solid rgba(148, 163, 184, 0.3); margin-bottom: 2px; }
+  #regningTableWrapper td:first-child::before { content: none; }
+  /* shadows at the edge that still has more to scroll to */
+  .table-responsive {
+    background:
+      linear-gradient(to right, #fff 30%, rgba(255, 255, 255, 0)) left center / 24px 100% no-repeat local,
+      linear-gradient(to left, #fff 30%, rgba(255, 255, 255, 0)) right center / 24px 100% no-repeat local,
+      linear-gradient(to right, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0)) left center / 10px 100% no-repeat scroll,
+      linear-gradient(to left, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0)) right center / 10px 100% no-repeat scroll;
+  }
+}
+
+@media (max-width: 480px) {
+  /* statistics: label on its own line, the value below it, instead of a squeezed two-column grid */
+  .stat-list { grid-template-columns: 1fr; gap: 0; }
+  .stat-list dt { margin-top: 8px; }
+  .stat-list dd { text-align: left; }
+}
