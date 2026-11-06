@@ -68,7 +68,7 @@
             xaxis: { categories: dates },
             yaxis: { title: { text: 'Omkostning (kr)' } },
             title: { text: 'Omkostningstendenser' },
-            stroke: { curve: 'smooth' },
+            stroke: { curve: 'straight' },
             tooltip: { y: { formatter: v => v.toFixed(2) + ' kr' } }
         };
 

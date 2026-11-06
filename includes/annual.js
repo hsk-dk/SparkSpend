@@ -99,7 +99,7 @@ const annualApp = (() => {
 
         if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
-        const labels = data.years.map(y => y.year);
+        const labels = data.years.map(y => _yearLabel(y));
 
         let datasets, yLabel, tooltipFmt;
 
@@ -241,7 +241,7 @@ const annualApp = (() => {
                 : '';
             html += `
               <tr>
-                <td class="fw-bold">${y.year}</td>
+                <td class="fw-bold">${y.year}${_partialNote(y) ? ` <span class="text-muted fw-normal small">${_partialNote(y)}</span>` : ''}</td>
                 <td class="text-end">${y.ev.charges}</td>
                 <td class="text-end">${_fmtKwh(y.ev.kwh)}</td>
                 <td class="text-end">${appUtils.formatCurrency(y.ev.cost)}</td>
@@ -265,6 +265,17 @@ const annualApp = (() => {
         }
 
         el.innerHTML = html;
+    }
+
+    // A year is partial when it is still running ("til dato") or has charges in fewer than 12 months.
+    function _partialNote(y) {
+        if (String(y.year) === String(new Date().getFullYear())) return 'til dato';
+        const m = y.ev && y.ev.months;
+        return (m > 0 && m < 12) ? `kun ${m} ${m === 1 ? 'md.' : 'mdr.'} data` : '';
+    }
+    function _yearLabel(y) {
+        const n = _partialNote(y);
+        return n ? `${y.year} (${n})` : String(y.year);
     }
 
     return { init };

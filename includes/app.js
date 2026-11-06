@@ -84,6 +84,29 @@ const formatCurrency = (value) => {
 const ymd = (d = new Date()) =>
   d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
+/**
+ * Index (0-11) of the month that is still running in `year`, else null. A running month holds only part
+ * of its days, so month-by-month charts must not present it as a full month.
+ */
+const runningMonthIndex = (year, now = new Date()) =>
+  String(year) === String(now.getFullYear()) ? now.getMonth() : null;
+
+/**
+ * Chart.js line styling for a month-by-month series of `year`: straight lines (a smoothed curve invents
+ * values between the months) and the running month drawn as a hollow point on a dashed segment.
+ */
+const monthLineStyle = (year, color) => {
+  const run = runningMonthIndex(year);
+  if (run === null) return { tension: 0 };
+  return {
+    tension: 0,
+    segment: { borderDash: (c) => (c.p1DataIndex === run ? [4, 4] : undefined) },
+    pointBackgroundColor: (c) => (c.dataIndex === run ? '#fff' : color),
+    pointBorderColor: color,
+    pointBorderWidth: 2,
+  };
+};
+
 const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString('da-DK', {
     day: '2-digit',
@@ -579,6 +602,8 @@ window.appUtils = {
   formatCurrency,
   formatDate,
   ymd,
+  runningMonthIndex,
+  monthLineStyle,
   escapeHtml,
   updateChartInstance,
   showFormMessage,

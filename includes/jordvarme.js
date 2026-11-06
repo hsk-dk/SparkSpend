@@ -595,7 +595,7 @@ const jordvarmeApp = (() => {
                     borderWidth: 2,
                     pointRadius: 4,
                     pointHoverRadius: 6,
-                    tension: 0.35,
+                    ...appUtils.monthLineStyle(year, color),
                     spanGaps: false
                 };
             });
@@ -603,7 +603,7 @@ const jordvarmeApp = (() => {
             // Monthly average across all years (dashed reference line)
             const avgData = Array.from({ length: 12 }, (_, m) => {
                 const vals = [...yearMap.values()]
-                    .map((arr, yi) => normalizing ? normalize(arr[m], years[yi], m) : arr[m])
+                    .map((arr, yi) => appUtils.runningMonthIndex(years[yi]) === m ? null : (normalizing ? normalize(arr[m], years[yi], m) : arr[m]))
                     .filter(v => v !== null);
                 return vals.length > 0
                     ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(normalizing ? 3 : 1))
@@ -617,7 +617,7 @@ const jordvarmeApp = (() => {
                 borderWidth: 2,
                 borderDash: [6, 4],
                 pointRadius: 0,
-                tension: 0.35,
+                tension: 0,
                 spanGaps: true
             });
 
@@ -1032,7 +1032,7 @@ const jordvarmeApp = (() => {
                     borderWidth: 2,
                     pointRadius: 0,
                     pointHoverRadius: 4,
-                    tension: 0.2,
+                    tension: 0,
                     fill: false
                 };
             });

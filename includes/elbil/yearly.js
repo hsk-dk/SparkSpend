@@ -75,14 +75,15 @@
                 borderWidth: 2,
                 pointRadius: 4,
                 pointHoverRadius: 6,
-                tension: 0.35,
+                ...appUtils.monthLineStyle(year, color),
                 spanGaps: false,
             };
         });
 
         // Monthly average across all years (dashed reference line)
         const avgData = Array.from({ length: 12 }, (_, m) => {
-            const vals = [...yearMap.values()].map(arr => arr[m]).filter(v => v !== null);
+            // the running month is not a full month: leave it out of the average
+            const vals = [...yearMap.entries()].map(([y, arr]) => appUtils.runningMonthIndex(y) === m ? null : arr[m]).filter(v => v !== null);
             return vals.length > 0
                 ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1))
                 : null;
@@ -95,7 +96,7 @@
             borderWidth: 2,
             borderDash: [6, 4],
             pointRadius: 0,
-            tension: 0.35,
+            tension: 0,
             spanGaps: true,
         });
 
@@ -111,6 +112,7 @@
                     datalabels: { display: false },
                     tooltip: {
                         callbacks: {
+                            afterLabel: c => appUtils.runningMonthIndex(c.dataset.label) === c.dataIndex ? 'Måneden er ikke slut' : '',
                             label: c => {
                                 if (c.parsed.y === null) return `${c.dataset.label}: ingen data`;
                                 const v = c.parsed.y;
@@ -205,7 +207,7 @@
             const months  = yearCnt.get(year);
             const cpkwh   = kwh > 0 ? cost / kwh : 0;
             return `<tr>
-                <td><span class="year-dot" style="background:${color}"></span>${year}</td>
+                <td><span class="year-dot" style="background:${color}"></span>${year}${appUtils.runningMonthIndex(year) !== null ? ' <span class="text-muted" style="font-size:11px">til dato</span>' : ''}</td>
                 <td class="text-end fw-bold">${kwh.toFixed(1)} kWh</td>
                 <td class="text-end">${cost.toFixed(0)} kr</td>
                 <td class="text-end text-muted" style="font-size:11px">${cpkwh.toFixed(2)} kr/kWh</td>

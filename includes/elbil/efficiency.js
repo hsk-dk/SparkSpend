@@ -137,7 +137,7 @@
             krSeries.push({ name: appUtils.escapeHtml(vName), data: entries.map(e => [e.timestamp * 1000, e.totalKrPerKm]) });
         });
 
-        const baseOpts = { chart: { type: 'line', height: 300 }, xaxis: { type: 'datetime', title: { text: 'Dato' } }, stroke: { curve: 'smooth' } };
+        const baseOpts = { chart: { type: 'line', height: 300 }, xaxis: { type: 'datetime', title: { text: 'Dato' } }, stroke: { curve: 'straight', width: 2 }, markers: { size: 4 } };
 
         if (kmPerKwhChartInstance) kmPerKwhChartInstance.destroy();
         kmPerKwhChartInstance = new ApexCharts(document.querySelector('#kmPerKwhChart'), { ...baseOpts, series: kmSeries, yaxis: { title: { text: 'KM per kWh' }, min: 0 }, title: { text: 'Kumuleret km pr. kWh pr. bil' } });

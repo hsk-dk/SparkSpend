@@ -21,6 +21,7 @@ final class AnnualSummary
         $stmt = $chargesDb->query("
             SELECT strftime('%Y', stoppedAt) AS year,
                    COUNT(*)                   AS cnt,
+                   COUNT(DISTINCT strftime('%Y-%m', stoppedAt)) AS months,
                    COALESCE(SUM(consumedKwh), 0) AS kwh,
                    COALESCE(SUM(cost), 0)        AS cost
             FROM charges
@@ -31,6 +32,7 @@ final class AnnualSummary
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $intByYear[$row['year']] = [
                 'cnt'  => intval($row['cnt']),
+                'months' => intval($row['months']),
                 'kwh'  => round(floatval($row['kwh']), 2),
                 'cost' => round(floatval($row['cost']), 2),
             ];
@@ -84,7 +86,7 @@ final class AnnualSummary
 
         $years = [];
         foreach ($allYears as $year) {
-            $int = $intByYear[$year] ?? ['cnt' => 0, 'kwh' => 0.0, 'cost' => 0.0];
+            $int = $intByYear[$year] ?? ['cnt' => 0, 'months' => 0, 'kwh' => 0.0, 'cost' => 0.0];
             $ext = $extByYear[$year] ?? ['cnt' => 0, 'kwh' => 0.0, 'cost' => 0.0];
             $hp  = $hpByYear[$year]  ?? 0.0;
 
@@ -96,6 +98,8 @@ final class AnnualSummary
                     'cost'    => round($int['cost'] + $ext['cost'], 2),
                     // Home charging only: what passes the house meter (used for the "rest" split)
                     'home_kwh' => round($int['kwh'], 2),
+                    // Months of the year that have at least one home charge (a year with fewer is a partial year)
+                    'months'   => $int['months'] ?? 0,
                 ],
                 'heatpump' => ['kwh' => $hp],
                 'hus'      => $husByYear !== null
