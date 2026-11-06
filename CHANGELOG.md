@@ -7,6 +7,7 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 ## [Unreleased]
 
 ### Changed (UX review)
+- **Hus: Fordeling is merged into Forbrug.** The 12-month cost split (tiles, monthly stacked chart, donut) is now a second card under Husforbrug; the Fordeling sub-tab is gone and old `#hus/fordeling` links open Forbrug. Regning stays its own tab (a different job: matching the electricity bill).
 - **Oversigt:** the expected electricity bill and any anomalies now come first, then the three cards, then tomorrow's price. Each card shows its comparisons as one compact line (`kWh  forrige mdr ↓5 % · sidste år ↓38 %`) instead of four, and consumption changes are no longer coloured green/red (less use is not automatically good); only price changes are.
 - **Elbil > Ladninger:** the three Intern/Ekstern pie charts are gone (they showed 100/0 for most users) so the charge table is on the first screen; the summary heading now names the period it covers.
 - **Hus split and Regning use home charging only.** External charges (public chargers) never pass the house meter and are not on the electricity bill, but were subtracted from the house meter and counted in the El-bil kWh/kr columns, so "rest" came out too small or negative. Hus > Forbrug, Hus > Regning and the cost model for the annual report now use internal charges only; the Elbil views and the annual EV totals still include external charges. Covered by a route test (an external charge must not change the house split or the bill).

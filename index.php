@@ -706,9 +706,6 @@ require 'includes/DatabaseManager.php';
     <button class="sub-nav-btn" data-sub="hus-regning">
       <i class="fas fa-file-invoice"></i> Regning
     </button>
-    <button class="sub-nav-btn" data-sub="hus-fordeling">
-      <i class="fas fa-chart-pie"></i> Fordeling
-    </button>
   </nav>
 
   <!-- Sub-section: Forbrug -->
@@ -745,27 +742,8 @@ require 'includes/DatabaseManager.php';
         </div>
       </div>
     </div>
-  </div><!-- /#hus-forbrug -->
-
-  <!-- Sub-section: Regning -->
-  <div id="hus-regning" class="sub-section">
-    <div class="card p-4">
-      <h3>Elforbrug til regning</h3>
-      <p class="text-muted mb-3">
-        Månedlig oversigt over forbrug til elbil og varmepumpe — brug kolonnerne til at fratrække
-        disse poster fra din samlede elregning og finde restforbruget.
-      </p>
-      <div id="regningTableWrapper">
-        <p class="text-muted">Indlæser…</p>
-      </div>
-      <div id="regningStatus" class="small mt-2 text-muted"></div>
-    </div>
-  </div><!-- /#hus-regning -->
-
-  <!-- Sub-section: Fordeling -->
-  <div id="hus-fordeling" class="sub-section">
-    <div class="card p-4">
-      <h3>Omkostningsfordeling</h3>
+    <div class="card p-4 mt-4" id="hus-fordeling-card">
+      <h3>Hvad koster det, og hvad bruger pengene?</h3>
       <p class="text-muted mb-3">
         Fordeling af el-forbrug og -omkostninger på tværs af elbil, varmepumpe og restforbrug —
         de seneste 12 måneder. Giver et hurtigt svar på, hvad vi bruger pengene på.
@@ -783,7 +761,22 @@ require 'includes/DatabaseManager.php';
         </div>
       </div>
     </div>
-  </div><!-- /#hus-fordeling -->
+  </div><!-- /#hus-forbrug -->
+
+  <!-- Sub-section: Regning -->
+  <div id="hus-regning" class="sub-section">
+    <div class="card p-4">
+      <h3>Elforbrug til regning</h3>
+      <p class="text-muted mb-3">
+        Månedlig oversigt over forbrug til elbil og varmepumpe — brug kolonnerne til at fratrække
+        disse poster fra din samlede elregning og finde restforbruget.
+      </p>
+      <div id="regningTableWrapper">
+        <p class="text-muted">Indlæser…</p>
+      </div>
+      <div id="regningStatus" class="small mt-2 text-muted"></div>
+    </div>
+  </div><!-- /#hus-regning -->
 
 </section><!-- /#hus-section -->
 

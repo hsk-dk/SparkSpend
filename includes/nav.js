@@ -156,6 +156,7 @@ const SparkNav = (() => {
     // Sub-tab switching (Hus)
     // -------------------------------------------------------------------------
     function switchHusSubTab(subId) {
+        if (subId === 'hus-fordeling') subId = 'hus-forbrug';   // old bookmarks / saved tab: merged into Forbrug
         const husSection = document.getElementById('hus-section');
         if (!husSection) return;
 
@@ -183,13 +184,14 @@ const SparkNav = (() => {
             husForbrugLoaded = true;
             afterLayout(() => window.husApp?.init());
         }
+        // The 12-month cost split (formerly its own "Fordeling" tab) lives on the Forbrug tab
+        if (activeSubId === 'hus-forbrug' && !husFordelingLoaded) {
+            husFordelingLoaded = true;
+            afterLayout(() => window.fordelingApp?.init());
+        }
         if (activeSubId === 'hus-regning' && !husRegningLoaded) {
             husRegningLoaded = true;
             afterLayout(() => window.regningApp?.init());
-        }
-        if (activeSubId === 'hus-fordeling' && !husFordelingLoaded) {
-            husFordelingLoaded = true;
-            afterLayout(() => window.fordelingApp?.init());
         }
     }
 
