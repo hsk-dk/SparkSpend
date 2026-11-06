@@ -149,6 +149,24 @@ require 'includes/DatabaseManager.php';
   <div id="filterBackdrop" class="filter-backdrop"></div>
 
 <section id="oversigt-section" class="tab-section">
+  <!-- Auto-refresh indicator (shown briefly while the dashboard reloads) -->
+  <div id="dashRefreshIndicator" class="dash-refresh-indicator" role="status" aria-live="polite" style="display:none">
+    <span class="dash-refresh-spinner" aria-hidden="true"></span>
+    <span>Opdaterer…</span>
+  </div>
+
+  <!-- Total Electricity Cost Estimate -->
+  <div id="total-cost-estimate" class="total-cost-card" style="display:none"></div>
+
+  <!-- Anomaly Detection Panel -->
+  <div id="anomaly-panel" class="anomaly-panel" style="display:none">
+    <div class="anomaly-panel-header">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>Afvigelser fra samme periode sidste år</span>
+    </div>
+    <div id="anomaly-list"></div>
+  </div>
+
   <div class="dashboard-grid">
 
     <!-- EV Dashboard Card -->
@@ -272,24 +290,6 @@ require 'includes/DatabaseManager.php';
 
   </div>
 
-  <!-- Auto-refresh indicator (shown briefly while the dashboard reloads) -->
-  <div id="dashRefreshIndicator" class="dash-refresh-indicator" role="status" aria-live="polite" style="display:none">
-    <span class="dash-refresh-spinner" aria-hidden="true"></span>
-    <span>Opdaterer…</span>
-  </div>
-
-  <!-- Total Electricity Cost Estimate -->
-  <div id="total-cost-estimate" class="total-cost-card" style="display:none"></div>
-
-  <!-- Anomaly Detection Panel -->
-  <div id="anomaly-panel" class="anomaly-panel" style="display:none">
-    <div class="anomaly-panel-header">
-      <i class="fas fa-exclamation-triangle"></i>
-      <span>Afvigelser fra samme periode sidste år</span>
-    </div>
-    <div id="anomaly-list"></div>
-  </div>
-
   <!-- Elspot Forecast Widget -->
   <div id="elspot-forecast-card" class="card p-4 mt-4" style="display:none">
     <div class="d-flex align-items-baseline justify-content-between gap-2 mb-1">
@@ -328,30 +328,6 @@ require 'includes/DatabaseManager.php';
   <!-- Opsummeringstabel -->
   <div id="summaryText" style="margin-bottom: 24px;">
     <!-- Her indsættes opsummeringstabellen -->
-  </div>
-
-  <!-- Tre diagrammer side om side med shared legend -->
-  <div class="pie-charts-wrapper">
-    <div class="pie-chart-compact">
-      <canvas id="pieChartCount"></canvas>
-    </div>
-    <div class="pie-chart-compact">
-      <canvas id="pieChartKwh"></canvas>
-    </div>
-    <div class="pie-chart-compact">
-      <canvas id="pieChartPrice"></canvas>
-    </div>
-  </div>
-  <!-- Shared legend for all pie charts -->
-  <div class="pie-charts-legend" id="pieChartsSharedLegend">
-    <div class="legend-item">
-      <span class="legend-color internal"></span>
-      <span class="legend-label">Interne</span>
-    </div>
-    <div class="legend-item">
-      <span class="legend-color external"></span>
-      <span class="legend-label">Eksterne</span>
-    </div>
   </div>
 </div>
 <!-- All analytics moved to analytics-section -->

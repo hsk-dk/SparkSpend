@@ -1,7 +1,7 @@
 /**
  * SparkSpend Elbil - charges
  *
- * The charge table (fetch, sort, paginate, render), the summary and pie charts, and the edit / create / delete charge modals.
+ * The charge table (fetch, sort, paginate, render), the summary, and the edit / create / delete charge modals.
  * Part of the Elbil module (includes/elbil/*.js, loaded in the order listed in index.php);
  * shared state is Elbil.state, other parts are reached through Elbil.modules.
  */
@@ -11,7 +11,6 @@
     const M = Elbil.modules;
     const _esc = Elbil.esc;
     // Charge table state
-    let pieChartCount, pieChartKwh, pieChartPrice;
     let _sortCol = 'datetime';
     let _sortDir = 'desc';
     const _PAGE_SIZE  = 50;
@@ -247,7 +246,8 @@
 
     function _updateSummary(totals, overallKwh, overallPris, internalCount, externalCount, internalKwh, externalKwh, internalPrice, externalPrice) {
         const summaryTextEl = document.getElementById('summaryText');
-        let html = `<h3>Opsummering</h3>
+        const period = (S.dateRangeEl && S.dateRangeEl.value) ? S.dateRangeEl.value : 'alle datoer';
+        let html = `<h3>Opsummering <small class="text-muted fw-normal">· ${appUtils.escapeHtml(period)}</small></h3>
         <table class="table table-sm">
             <tr><th>Bil</th><th>Samlet kWh</th><th>Hjemme (kr)</th><th>Ude (kr)</th><th>Samlet Pris</th><th>Gns. Pris/kWh</th></tr>`;
 
@@ -274,52 +274,6 @@
         </tr></table>`;
         if (summaryTextEl) summaryTextEl.innerHTML = html;
 
-        _updatePieCharts(internalCount, externalCount, internalKwh, externalKwh, internalPrice, externalPrice);
-    }
-
-    // -------------------------------------------------------------------------
-    // Pie charts
-    // -------------------------------------------------------------------------
-    function _updatePieCharts(internalCount, externalCount, internalKwh, externalKwh, internalPrice, externalPrice) {
-        const datalabelsPlugin = {
-            formatter: (value, ctx) => {
-                const sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                return sum ? ((value / sum) * 100).toFixed(0) + '%' : '0%';
-            },
-            color: '#fff',
-            font: { weight: 'bold', size: 11 }
-        };
-
-        const charts = [
-            { id: 'pieChartCount', data: [internalCount, externalCount], title: 'Antal',  ref: 'pieChartCount' },
-            { id: 'pieChartKwh',   data: [internalKwh,   externalKwh],   title: 'kWh',   ref: 'pieChartKwh'   },
-            { id: 'pieChartPrice', data: [internalPrice, externalPrice], title: 'Pris',  ref: 'pieChartPrice' },
-        ];
-
-        charts.forEach(cfg => {
-            if (cfg.ref === 'pieChartCount' && pieChartCount) { pieChartCount.destroy(); }
-            if (cfg.ref === 'pieChartKwh'   && pieChartKwh)   { pieChartKwh.destroy(); }
-            if (cfg.ref === 'pieChartPrice' && pieChartPrice) { pieChartPrice.destroy(); }
-
-            const canvas = document.getElementById(cfg.id);
-            if (!canvas) return;
-            const chart = new Chart(canvas.getContext('2d'), {
-                type: 'pie',
-                data: { labels: ['Interne', 'Eksterne'], datasets: [{ data: cfg.data, backgroundColor: ['#4e73df', '#e74a3b'] }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        title: { display: true, text: cfg.title, font: { size: 12, weight: 'bold' } },
-                        datalabels: datalabelsPlugin
-                    }
-                }
-            });
-
-            if (cfg.ref === 'pieChartCount') pieChartCount = chart;
-            if (cfg.ref === 'pieChartKwh')   pieChartKwh   = chart;
-            if (cfg.ref === 'pieChartPrice') pieChartPrice = chart;
-        });
     }
 
     // -------------------------------------------------------------------------
@@ -577,5 +531,5 @@
         _setupModalFlatpickrs();
     }
 
-    M.charges = { resetSort, fetchCharges, _sortCharges, _applySortAndRender, _updateSortHeaders, _renderCharges, _updateSummary, _updatePieCharts, editCharge, _submitInternalCharge, _submitExternalCharge, _submitCreateCharge, _prefillCreateCharge, _updateCreateCpkwh, _deleteExternalCharge, _setupModalFlatpickrs, bind };
+    M.charges = { resetSort, fetchCharges, _sortCharges, _applySortAndRender, _updateSortHeaders, _renderCharges, _updateSummary, editCharge, _submitInternalCharge, _submitExternalCharge, _submitCreateCharge, _prefillCreateCharge, _updateCreateCpkwh, _deleteExternalCharge, _setupModalFlatpickrs, bind };
 })();

@@ -29,6 +29,23 @@ function _fmt(n, decimals = 0) {
 }
 
 /** Non-destructive status line inside a card (keeps the stat elements and canvas intact). */
+/**
+ * One compact comparison line: "kWh  vs. forrige mdr ↓77 % · vs. sidste år ↓37 %".
+ * tone 'cost': a rise is red, a fall green. tone 'neutral' (consumption): the arrow only shows the
+ * direction - less use is not automatically good (fewer drives), more is not automatically bad.
+ */
+function _trendLine(label, pctMonth, pctYear, tone, extra = '') {
+    const part = (txt, pct) => {
+        if (pct === null || pct === undefined) return '';
+        const up = pct >= 0;
+        const cls = tone === 'cost' ? (up ? 'trend-up' : 'trend-down') : 'trend-neutral-dir';
+        return `<span class="${cls}">${txt} ${up ? '↑' : '↓'}${_fmt(Math.abs(pct), 0)} %</span>`;
+    };
+    const parts = [part('forrige mdr', pctMonth), part('sidste år', pctYear)].filter(Boolean);
+    if (!parts.length) return '';
+    return `<div class="trend-line"><span class="trend-label">${label}</span>${parts.join('<span class="trend-sep">·</span>')}${extra}</div>`;
+}
+
 function _setCardNote(cardId, text) {
     const body = document.getElementById(cardId)?.querySelector('.dash-body');
     if (!body) return;
@@ -149,27 +166,9 @@ function renderEvCard(ev) {
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
-        if (showTrends && ev.pct_change_kwh !== null) {
-            const up = ev.pct_change_kwh >= 0;
-            const prevKwh = Math.round(ev.month_kwh / (1 + ev.pct_change_kwh / 100)) || 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_kwh), 1)}% kWh vs. forrige mdr (${prevKwh}→${Math.round(ev.month_kwh)})</div>`;
-        }
-        if (showTrends && ev.pct_change_cost !== null) {
-            const up = ev.pct_change_cost >= 0;
-            const prevCost = Math.round(ev.month_cost / (1 + ev.pct_change_cost / 100)) || 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_cost), 1)}% pris vs. forrige mdr (${prevCost}→${Math.round(ev.month_cost)} kr)</div>`;
-        }
-        if (showTrends && ev.pct_change_year_kwh !== null) {
-            const up = ev.pct_change_year_kwh >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_year_kwh), 1)}% kWh vs. sidste år</div>`;
-        }
-        if (showTrends && ev.pct_change_year_cost !== null) {
-            const up = ev.pct_change_year_cost >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ${_fmt(Math.abs(ev.pct_change_year_cost), 1)}% pris vs. sidste år</div>`;
+        if (showTrends) {
+            html += _trendLine('kWh', ev.pct_change_kwh, ev.pct_change_year_kwh, 'neutral');
+            html += _trendLine('Pris', ev.pct_change_cost, ev.pct_change_year_cost, 'cost');
         }
         // Driver note: flag if external charging share shifted significantly vs. prev period
         if (showTrends && ev.prev_ext_kwh_pct !== null && ev.month_kwh > 0) {
@@ -208,18 +207,7 @@ function renderHeatpumpCard(hp) {
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
-        if (showTrends && hp.pct_change !== null) {
-            const up = hp.pct_change >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ` +
-                    `${_fmt(Math.abs(hp.pct_change), 1)}% vs. forrige mdr</div>`;
-        }
-        if (showTrends && hp.pct_change_year !== null) {
-            const up = hp.pct_change_year >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ` +
-                    `${_fmt(Math.abs(hp.pct_change_year), 1)}% vs. sidste år</div>`;
-        }
+        if (showTrends) html += _trendLine('kWh', hp.pct_change, hp.pct_change_year, 'neutral');
         trendEl.innerHTML = html;
         trendEl.className = 'dash-trend';
     }
@@ -256,18 +244,7 @@ function renderHusCard(rest) {
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
-        if (showTrends && rest.pct_change !== null) {
-            const up = rest.pct_change >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ` +
-                    `${_fmt(Math.abs(rest.pct_change), 1)}% vs. forrige mdr</div>`;
-        }
-        if (showTrends && rest.pct_change_year !== null) {
-            const up = rest.pct_change_year >= 0;
-            html += `<div class="${up ? 'trend-up' : 'trend-down'}">` +
-                    `${up ? '↑' : '↓'} ` +
-                    `${_fmt(Math.abs(rest.pct_change_year), 1)}% vs. sidste år</div>`;
-        }
+        if (showTrends) html += _trendLine('kWh', rest.pct_change, rest.pct_change_year, 'neutral');
         if (rest.negative_days > 0) {
             html += `<div class="trend-neutral" title="Husmåler minus jordvarme minus elbil er negativ på disse dage og vises som 0. Tjek om målerne er i synk.">` +
                     `⚠️ Målerne stemmer ikke på ${rest.negative_days} dag${rest.negative_days === 1 ? '' : 'e'} ` +

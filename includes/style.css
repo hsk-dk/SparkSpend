@@ -648,82 +648,6 @@ tr:last-child td {
   box-shadow: var(--shadow);
 }
 
-/* Pie Charts Wrapper - Side-by-side layout with shared legend */
-.pie-charts-wrapper {
-  display: flex !important;
-  flex-wrap: nowrap !important;
-  gap: 20px !important;
-  width: 100% !important;
-  margin-bottom: 24px !important;
-  justify-content: space-between !important;
-  align-items: flex-start !important;
-}
-
-.pie-chart-compact {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(36, 49, 64, 0.10);
-  border-radius: 14px;
-  padding: 20px;
-  position: relative;
-  height: 300px;
-  width: calc(33.333% - 14px);
-  flex: 0 0 calc(33.333% - 14px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.2s ease;
-}
-
-.pie-chart-compact:hover {
-  box-shadow: var(--shadow);
-}
-
-.pie-chart-compact canvas {
-  max-height: 220px;
-  max-width: 220px;
-}
-
-/* Shared Legend for Pie Charts */
-.pie-charts-legend {
-  display: flex;
-  gap: 50px;
-  justify-content: center;
-  align-items: center;
-  padding: 18px 24px;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 12px;
-  flex-wrap: wrap;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--brand-ink);
-}
-
-.legend-color {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.legend-color.internal {
-  background-color: #4e73df;
-}
-
-.legend-color.external {
-  background-color: #e74a3b;
-}
-
 #kmPerKwhChart,
 #krPerKmChart,
 #costTrendChart {
@@ -921,12 +845,6 @@ tr:last-child td {
   input[type="password"],
   select {
     width: 100%;
-  }
-
-  /* Stack pie charts vertically on mobile */
-  .col-4 {
-    flex: 0 0 calc(100% - 14px);
-    min-width: 100%;
   }
 }
 
@@ -1182,33 +1100,11 @@ header {
   #kmPerKwhChart, #krPerKmChart, #costTrendChart { min-height: 280px; }
 
   /* Pie charts 2-column on tablet */
-  .pie-charts-wrapper {
-    flex-wrap: wrap !important;
-  }
-
-  .pie-chart-compact {
-    width: calc(50% - 10px) !important;
-    min-height: 250px;
-  }
 }
 
 /* Small mobile adjustments */
 @media (max-width: 480px) {
   /* Pie charts full width on small mobile */
-  .pie-charts-wrapper {
-    flex-direction: column !important;
-    flex-wrap: wrap !important;
-  }
-
-  .pie-chart-compact {
-    width: 100% !important;
-    min-height: 220px;
-  }
-
-  .pie-charts-legend {
-    gap: 20px;
-  }
-
   #summaryBox {
     padding: 20px;
     margin-bottom: 30px;
@@ -2342,3 +2238,10 @@ th.sort-active { color: var(--accent-strong); }
 .data-note { font-size: .8rem; color: #475569; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
   padding: 6px 10px; margin: 8px 0; }
 .data-note i { color: #b45309; margin-right: 4px; }
+
+/* Compact comparison lines on the overview cards (see _trendLine) */
+.trend-line { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; font-size: .85rem; line-height: 1.5; }
+.trend-label { font-weight: 600; color: #475569; min-width: 2.6em; }
+.trend-sep { color: #94a3b8; }
+.trend-neutral-dir { color: #334155; }
+.trend-line > span { white-space: nowrap; }
