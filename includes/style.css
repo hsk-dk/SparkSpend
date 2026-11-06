@@ -1936,25 +1936,26 @@ header {
  * column name (from data-label) beside the value. Desktop layout is untouched.
  */
 @media (max-width: 600px) {
+  /* card layout for the CHARGE table only (not the summary table above it) */
   #elbil-ladninger .table-responsive { overflow-x: visible; }
 
-  #elbil-ladninger table,
-  #elbil-ladninger thead,
-  #elbil-ladninger tbody,
-  #elbil-ladninger th,
-  #elbil-ladninger td,
-  #elbil-ladninger tr {
+  #elbil-ladninger .table-responsive table,
+  #elbil-ladninger .table-responsive thead,
+  #elbil-ladninger .table-responsive tbody,
+  #elbil-ladninger .table-responsive th,
+  #elbil-ladninger .table-responsive td,
+  #elbil-ladninger .table-responsive tr {
     display: block;
   }
 
   /* Hide the header row visually but keep it for screen readers */
-  #elbil-ladninger thead tr {
+  #elbil-ladninger .table-responsive thead tr {
     position: absolute;
     top: -9999px;
     left: -9999px;
   }
 
-  #elbil-ladninger tbody tr {
+  #elbil-ladninger .table-responsive tbody tr {
     margin-bottom: 12px;
     border: 1px solid rgba(148, 163, 184, 0.3);
     border-radius: 10px;
@@ -1963,16 +1964,16 @@ header {
   }
 
   /* Skip card styling for the special full-width rows (empty / load-more / error) */
-  #elbil-ladninger tbody tr#charges-load-more-row,
-  #elbil-ladninger tbody tr:has(.spark-error),
-  #elbil-ladninger tbody tr:has([colspan]) {
+  #elbil-ladninger .table-responsive tbody tr#charges-load-more-row,
+  #elbil-ladninger .table-responsive tbody tr:has(.spark-error),
+  #elbil-ladninger .table-responsive tbody tr:has([colspan]) {
     border: none;
     background: none;
     padding: 0;
     text-align: center;
   }
 
-  #elbil-ladninger tbody td {
+  #elbil-ladninger .table-responsive tbody td {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
@@ -1983,12 +1984,12 @@ header {
     text-align: right;
   }
 
-  #elbil-ladninger tbody td:last-child {
+  #elbil-ladninger .table-responsive tbody td:last-child {
     border-bottom: none;
   }
 
   /* Column label from the data-label attribute */
-  #elbil-ladninger tbody td::before {
+  #elbil-ladninger .table-responsive tbody td::before {
     content: attr(data-label);
     font-weight: 600;
     color: #64748b;
@@ -1997,14 +1998,14 @@ header {
   }
 
   /* The action cell (button) spans full width and centers */
-  #elbil-ladninger tbody td[data-label="Handling"] {
+  #elbil-ladninger .table-responsive tbody td[data-label="Handling"] {
     justify-content: center;
     padding-top: 10px;
   }
-  #elbil-ladninger tbody td[data-label="Handling"]::before {
+  #elbil-ladninger .table-responsive tbody td[data-label="Handling"]::before {
     content: none;
   }
-  #elbil-ladninger tbody td[data-label="Handling"] .btn {
+  #elbil-ladninger .table-responsive tbody td[data-label="Handling"] .btn {
     width: 100%;
   }
 }
@@ -2217,7 +2218,7 @@ th.sort-active { color: var(--accent-strong); }
 .site-footer { color: #1f2937; }
 
 /* Explanation on a section for the dot in its tab (see _renderSectionAnomalies) and notes about inconsistent data */
-.section-anomalies { max-width: 900px; margin: 0 auto 12px; display: flex; flex-direction: column; gap: 8px; }
+.section-anomalies { margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
 .section-anomaly { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px;
   background: rgba(255,255,255,.92); border-left: 4px solid #f59e0b; font-size: .9rem; color: #1e293b; }
 .section-anomaly.critical { border-left-color: #ef4444; }
@@ -2239,3 +2240,24 @@ th.sort-active { color: var(--accent-strong); }
 .hp-mode-nav { display: inline-flex; align-self: flex-start; width: fit-content; gap: 0; padding: 3px; background: rgba(36, 49, 64, 0.08); border-radius: 10px; max-width: 100%; }
 .hp-mode-btn { border-radius: 8px; padding: 5px 14px; }
 .hp-mode-btn.active { background: #fff; color: var(--accent-strong); border-color: transparent; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18); }
+
+@media (max-width: 480px) {
+  .anomaly-item { flex-wrap: wrap; }
+  .anomaly-item-body { flex: 1 1 calc(100% - 60px); }
+  .anomaly-item-action { margin-left: 50px; }
+  /* sub-navigation: three pills must fit without cutting the last one */
+  .sub-nav { gap: 4px; flex-wrap: nowrap; }
+  .sub-nav-btn { flex: 1 1 auto; padding: 8px 6px; font-size: 12.5px; white-space: nowrap; text-align: center; }
+  .sub-nav-btn i { display: none; }
+  .sub-nav-btn.ms-auto { flex: 0 0 auto; padding: 8px 10px; }
+  .sub-nav-btn.ms-auto i { display: inline; }
+  .sub-nav-btn.ms-auto .sub-nav-label { display: none; }
+  .anomaly-item-action { width: auto; }
+}
+#summaryText { overflow-x: auto; }
+
+@media (max-width: 480px) {
+  /* the generic "button { width: 100% }" must not stretch the year chips; the period selector is a 2 x 2 grid */
+  .year-chip-bar .year-chip { width: auto; }
+  .hp-mode-nav { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+}

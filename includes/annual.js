@@ -179,7 +179,7 @@ const annualApp = (() => {
             data: { labels, datasets },
             options: {
                 responsive: true,
-                aspectRatio: 2.8,
+                aspectRatio: window.innerWidth < 600 ? 1.1 : 2.8,
                 plugins: {
                     legend: { position: 'top' },
                     datalabels: { display: false },

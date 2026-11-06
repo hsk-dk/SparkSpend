@@ -315,8 +315,8 @@ require 'includes/DatabaseManager.php';
     <button class="sub-nav-btn" data-sub="elbil-sammenligning">
       <i class="fas fa-car"></i> Sammenligning
     </button>
-    <button class="sub-nav-btn ms-auto" id="manageBtn" data-action="elbil-manage-open">
-      <i class="fas fa-sliders"></i> Administrér
+    <button class="sub-nav-btn ms-auto" id="manageBtn" data-action="elbil-manage-open" aria-label="Administrér" title="Administrér">
+      <i class="fas fa-sliders"></i><span class="sub-nav-label"> Administrér</span>
     </button>
   </nav>
 
@@ -674,7 +674,7 @@ require 'includes/DatabaseManager.php';
     <div id="yearToggleContainer" class="year-chip-bar" style="display:none"></div>
 
     <div class="row">
-      <div class="col-md-8">
+      <div class="col-md-7">
         <div class="d-flex align-items-center mb-2" id="heatpumpPeriodNav">
           <button class="btn btn-sm btn-secondary me-2" id="heatpumpPrev">&laquo; Forrige</button>
           <span id="heatpumpPeriodLabel" class="fw-bold"></span>
@@ -684,7 +684,7 @@ require 'includes/DatabaseManager.php';
         <div id="heatpumpNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
         <div id="heatpumpError" class="text-danger text-center py-4" style="display:none">Fejl ved hentning af data.</div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-5">
         <div class="card p-3" id="heatpumpStatsBox">
           <h5>Statistik</h5>
           <div id="heatpumpStatsContent"><p>Indlæser data...</p></div>
@@ -723,7 +723,7 @@ require 'includes/DatabaseManager.php';
       <div id="husYearToggleContainer" class="year-chip-bar" style="display:none"></div>
 
       <div class="row">
-        <div class="col-md-8">
+        <div class="col-md-7">
           <div class="d-flex align-items-center mb-2" id="husPeriodNav">
             <button class="btn btn-sm btn-secondary me-2" id="husPrev">&laquo; Forrige</button>
             <span id="husPeriodLabel" class="fw-bold"></span>
@@ -733,7 +733,7 @@ require 'includes/DatabaseManager.php';
           <div id="husNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
           <div id="husError" class="text-danger text-center py-4" style="display:none">Fejl ved hentning af data.</div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-5">
           <div class="card p-3" id="husStatsBox">
             <h5>Statistik</h5>
             <div id="husStatsContent"><p>Indlæser data...</p></div>
