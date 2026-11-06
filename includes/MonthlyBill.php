@@ -50,22 +50,6 @@ final class MonthlyBill
         }
 
         // =========================================================================
-        // EV — external charges
-        // =========================================================================
-        $extRows = ChargeRepository::getExternal($chargesDb, $rangeStart);
-
-        $externalByMonth = [];
-        foreach ($extRows as $row) {
-            $t     = strtotime($row['datetime']);
-            $month = date('Y-m', $t);
-            if (!isset($externalByMonth[$month])) {
-                $externalByMonth[$month] = ['kwh' => 0.0, 'cost' => 0.0];
-            }
-            $externalByMonth[$month]['kwh']  += floatval($row['kwh']);
-            $externalByMonth[$month]['cost'] += floatval($row['pris']);
-        }
-
-        // =========================================================================
         // HP — monthly consumption from powerlogjord
         // =========================================================================
         $hpDeltaByMonth = PowerlogRepository::lagDeltaByMonth($powerlogDb, 'powerlogjord', $rangeStart, $rangeEnd);
@@ -88,20 +72,12 @@ final class MonthlyBill
         }
 
         // =========================================================================
-        // Assemble combined EV per month
+        // EV per month = HOME charging only. External charges (away from home) never pass the
+        // house meter and are not on the electricity bill, so they are left out of this split.
         // =========================================================================
         $evByMonth = [];
-        $allMonths  = array_unique(array_merge(
-            array_keys($internalByMonth),
-            array_keys($externalByMonth)
-        ));
-        foreach ($allMonths as $m) {
-            $int = $internalByMonth[$m] ?? ['kwh' => 0.0, 'cost' => 0.0];
-            $ext = $externalByMonth[$m] ?? ['kwh' => 0.0, 'cost' => 0.0];
-            $evByMonth[$m] = [
-                'kwh'  => round($int['kwh'] + $ext['kwh'], 2),
-                'cost' => round($int['cost'] + $ext['cost'], 2),
-            ];
+        foreach ($internalByMonth as $m => $int) {
+            $evByMonth[$m] = ['kwh' => round($int['kwh'], 2), 'cost' => round($int['cost'], 2)];
         }
 
         // Heat pump / rest cost per month (elvarme model, server-side). null = no prices.

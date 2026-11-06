@@ -76,7 +76,7 @@ final class CostEstimates
             $lr = $lowAvg[$key]  ?? 0.0;
             if ($hr <= 0 && $lr <= 0) continue;
             $vpKwh = (float) ($y['heatpump']['kwh'] ?? 0);
-            $evKwh = (float) ($y['ev']['kwh'] ?? 0);
+            $evKwh = (float) ($y['ev']['home_kwh'] ?? $y['ev']['kwh'] ?? 0);   // home charging only: external never passes the house meter
             $restKwh = $y['hus'] !== null ? max(0.0, (float) ($y['hus']['kwh'] ?? 0) - $vpKwh - $evKwh) : 0.0;
             $c = ElvarmeCost::cost([
                 'vpKwh' => $vpKwh, 'restKwh' => $restKwh, 'evKwh' => $evKwh,

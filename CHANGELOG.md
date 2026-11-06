@@ -7,6 +7,7 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 ## [Unreleased]
 
 ### Changed (UX review)
+- **Hus split and Regning use home charging only.** External charges (public chargers) never pass the house meter and are not on the electricity bill, but were subtracted from the house meter and counted in the El-bil kWh/kr columns, so "rest" came out too small or negative. Hus > Forbrug, Hus > Regning and the cost model for the annual report now use internal charges only; the Elbil views and the annual EV totals still include external charges. Covered by a route test (an external charge must not change the house split or the bill).
 - **The reason behind a tab dot is shown on its own page.** The yellow/red dot on Elbil/Jordvarme/Hus now has a banner at the top of that section (and a tooltip on the dot) with the anomaly text, also after the overview panel has been dismissed.
 - **Hus: the parts now add up on screen.** When el-bil + jordvarme exceed the house meter (rest is clamped to 0) the percentages were >100 %; they are now shares of the three parts, with a note saying how many kWh the meters disagree by. Hus > Regning shows a visible explanation of the warning months instead of a hover-only tooltip.
 

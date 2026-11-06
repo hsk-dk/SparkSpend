@@ -192,12 +192,21 @@ check('update-provider rejects a bad id', $post('update-provider', ['id' => 0, '
 check('update-vehicle', $post('update-vehicle', ['id' => 1, 'name' => 'Testbil A'])['status'] === 200);
 check('update-vehicle unknown id -> 404', $post('update-vehicle', ['id' => 999, 'name' => 'x'])['status'] === 404);
 
+// External charges never pass the house meter: they must not change the house split (EV / rest) or the bill
+$homeEv = function () use ($api, $month, $year): array {
+    $hp = $api("action=house-power&mode=monthly&year=$year")['json']['months'] ?? [];
+    $cur = array_values(array_filter($hp, fn($m) => $m['month'] === $month))[0] ?? null;
+    $bill = $api('action=monthly-bill&months=2')['json']['ev'][$month] ?? null;
+    return [$cur['ev'] ?? null, $cur['rest'] ?? null, $bill['kwh'] ?? null, $bill['cost'] ?? null];
+};
+$evBefore = $homeEv();
 $r = $post('create-ext-charge', ['vehicleId' => 1, 'providerId' => $pid, 'chargeDateTime' => date('Y-m-d\TH:i'), 'kwh' => 12.5, 'pris' => 45.0]);
 $eid = $r['json']['id'] ?? 0;
 check('create-ext-charge', $r['status'] === 201 && $eid > 0, $r['body']);
 check('create-ext-charge validates kwh', $post('create-ext-charge', ['vehicleId' => 1, 'providerId' => $pid, 'chargeDateTime' => $today, 'kwh' => 0, 'pris' => 1])['status'] === 400);
 check('update-ext-charge', $post('update-ext-charge', ['id' => $eid, 'vehicleId' => 1, 'providerId' => $pid, 'datetime' => date('Y-m-d\TH:i'), 'kwh' => 20, 'pris' => 60])['status'] === 200);
 check('update-ext-charge unknown vehicle -> 422', $post('update-ext-charge', ['id' => $eid, 'vehicleId' => 999, 'providerId' => $pid, 'datetime' => $today, 'kwh' => 20, 'pris' => 60])['status'] === 422);
+check('an external charge does not change the house split or the bill (home charging only)', $evBefore[0] !== null && $evBefore === $homeEv(), json_encode([$evBefore, $homeEv()]));
 
 $charges = $api('action=charges&filter=all&showZeroKwh=true')['json'] ?? [];
 $internal = null; foreach ($charges as $c) if (($c['source'] ?? '') === 'internal') { $internal = $c; break; }

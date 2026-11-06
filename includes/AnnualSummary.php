@@ -94,6 +94,8 @@ final class AnnualSummary
                     'charges' => $int['cnt'] + $ext['cnt'],
                     'kwh'     => round($int['kwh'] + $ext['kwh'], 2),
                     'cost'    => round($int['cost'] + $ext['cost'], 2),
+                    // Home charging only: what passes the house meter (used for the "rest" split)
+                    'home_kwh' => round($int['kwh'], 2),
                 ],
                 'heatpump' => ['kwh' => $hp],
                 'hus'      => $husByYear !== null

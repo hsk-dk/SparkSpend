@@ -2,6 +2,7 @@
 /**
  * House power views (Hus > Forbrug): the house meter split into heat pump, EV and "rest",
  * per day (one month), per month (one year), compared across years, and year-to-date, with
+ * EV = home charging only (external charges never pass the house meter), with
  * the estimated cost per row (CostEstimates::house). No HTTP and no cache here (see
  * routes/get_house_power_data.php).
  *
@@ -49,10 +50,8 @@ final class HousePower
             }
         }
 
-        // EV external
-        foreach (self::extEvByKey($chargesDb, $dayStart, $dayEnd, 'Y-m-d') as $day => $kwh) {
-            $evByDay[$day] = ($evByDay[$day] ?? 0.0) + $kwh;
-        }
+        // External charges (away from home) are NOT included: they never pass the house meter,
+        // so subtracting them would make "rest" too small (even negative).
 
         // Merge into ordered day list
         $allDays = array_unique(array_merge(
@@ -113,10 +112,7 @@ final class HousePower
             }
         }
 
-        // EV external monthly
-        foreach (self::extEvByKey($chargesDb, $yearStart, $yearEnd, 'Y-m') as $month => $kwh) {
-            $evByMonth[$month] = ($evByMonth[$month] ?? 0.0) + $kwh;
-        }
+        // External charges are not included (they never pass the house meter), see daily().
 
         // Emit all 12 months (skip if no data at all)
         $months = [];
@@ -231,19 +227,6 @@ final class HousePower
         if ($cost !== null) { $complete = $cost['complete']; unset($cost['complete']); }
         $resp['cost'] = $cost;
         return ['payload' => $resp, 'complete' => $complete];
-    }
-
-    // Helper: accumulate EV external charges by date key.
-    private static function extEvByKey(PDO $chargesDb, string $from, string $to, string $keyFmt): array {
-        $rows = ChargeRepository::getExternal($chargesDb, $from, $to);
-        $result = [];
-        foreach ($rows as $row) {
-            $t = strtotime($row['datetime']);
-            if (!$t) continue;
-            $key = date($keyFmt, $t);
-            $result[$key] = ($result[$key] ?? 0.0) + floatval($row['kwh']);
-        }
-        return $result;
     }
 
 }
