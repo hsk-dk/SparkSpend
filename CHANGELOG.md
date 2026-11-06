@@ -6,6 +6,10 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (UX review)
+- **The reason behind a tab dot is shown on its own page.** The yellow/red dot on Elbil/Jordvarme/Hus now has a banner at the top of that section (and a tooltip on the dot) with the anomaly text, also after the overview panel has been dismissed.
+- **Hus: the parts now add up on screen.** When el-bil + jordvarme exceed the house meter (rest is clamped to 0) the percentages were >100 %; they are now shares of the three parts, with a note saying how many kWh the meters disagree by. Hus > Regning shows a visible explanation of the warning months instead of a hover-only tooltip.
+
 ### Fixed
 - `charge-analytics` with `showZeroKwh=true` returned HTTP 500 when a charge had no `startedAt` (cancelled/error sessions). `DateHelper::splitChargeByDays` now falls back to the timestamp the charge does have and skips charges with none. Covered by `dev/test_date_helper.php` and a route check.
 

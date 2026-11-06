@@ -65,7 +65,7 @@ const regningApp = (() => {
 
         // Accumulate totals
         let totEvKwh = 0, totEvCost = 0, totHpKwh = 0, totHpCost = 0,
-            totHusKwh = 0, totResidualCost = 0;
+            totHusKwh = 0, totResidualCost = 0, negMonths = 0;
 
         const rows = months.map(m => {
             const evRow  = ev[m]  || { kwh: 0, cost: 0 };
@@ -84,6 +84,7 @@ const regningApp = (() => {
                 residualCost = (hasResidual && residualKwh !== null) ? c.rest : null;
             }
 
+            if (residualKwh !== null && residualKwh < 0) negMonths++;
             totEvKwh  += evRow.kwh;
             totEvCost += evRow.cost;
             totHpKwh  += hpRow.kwh;
@@ -119,7 +120,14 @@ const regningApp = (() => {
         const totResidualCostTd = hasResidual
             ? `<td class="text-end fw-bold">${totResidualCost > 0 ? _kr(totResidualCost) : '—'}</td>` : '';
 
-        wrapper.innerHTML = `
+        const negNote = negMonths > 0
+            ? `<div class="data-note" role="note"><i class="fas fa-triangle-exclamation"></i> ` +
+              `${negMonths} ${negMonths === 1 ? 'måned' : 'måneder'} med ⚠️: el-bil + varmepumpe er målt til mere end hus-måleren. ` +
+              `Restforbruget kan ikke være negativt, så det regnes som 0 kr, og de tre dele summerer derfor til mere end regningen. ` +
+              `Typisk er målerne ikke synkroniseret på samme tidspunkt.</div>`
+            : '';
+
+        wrapper.innerHTML = negNote + `
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle mb-0">
                     <thead class="table-light">

@@ -661,6 +661,31 @@ async function loadAnomalies() {
     }
 }
 
+const _ANOMALY_SECTION = { ev: 'elbil-section', hp: 'jordvarme-section', hus: 'hus-section' };
+
+/** Put the anomaly text at the top of the section the tab dot belongs to. */
+function _renderSectionAnomalies(visible) {
+    Object.entries(_ANOMALY_SECTION).forEach(([cat, sectionId]) => {
+        const section = document.getElementById(sectionId);
+        if (!section) return;
+        section.querySelector(':scope > .section-anomalies')?.remove();
+        const items = visible.filter(a => a.category === cat);
+        const badge = document.getElementById('anomaly-badge-' + cat);
+        if (badge) badge.title = items.map(a => a.title + ' — ' + (a.headline || '')).join(', ');
+        if (!items.length) return;
+        const box = document.createElement('div');
+        box.className = 'section-anomalies';
+        box.setAttribute('role', 'status');
+        box.innerHTML = items.map(a => `
+            <div class="section-anomaly ${appUtils.escapeHtml(a.severity)}">
+              <i class="fas fa-exclamation-triangle"></i>
+              <div><strong>${appUtils.escapeHtml(a.title)} — ${appUtils.escapeHtml(a.headline || (a.pct_above + '% over baseline'))}</strong>
+              <div>${appUtils.escapeHtml(a.message)}</div></div>
+            </div>`).join('');
+        section.prepend(box);
+    });
+}
+
 function _renderAnomalies(anomalies) {
     const panel    = document.getElementById('anomaly-panel');
     const listEl   = document.getElementById('anomaly-list');
@@ -677,10 +702,15 @@ function _renderAnomalies(anomalies) {
 
     if (visible.length === 0) {
         panel.style.display = 'none';
+        _renderSectionAnomalies([]);
         return;
     }
 
-    // Update tab badge dots (always, even if panel is dismissed)
+    // The dots in the tab bar and the banner on the section itself are always shown (even if the
+    // overview panel is dismissed), so the reason is visible where the dot sends you.
+    _renderSectionAnomalies(visible);
+
+    // Update tab badge dots
     anomalies.forEach(a => {
         const el = document.getElementById('anomaly-badge-' + a.category);
         if (el && a.severity !== 'info') {

@@ -465,7 +465,14 @@ const husApp = (() => {
                 const totRest= rows.reduce((s, d) => s + (d.rest ?? 0), 0);
                 const hasHus = totHus > 0;
 
-                const pct = (val, tot) => tot > 0 ? ` (${Math.round(val / tot * 100)} %)` : '';
+                // The parts (jordvarme + el-bil + rest) normally add up to the house meter. When EV + VP
+                // exceed it the server clamps rest to 0, so the parts sum to MORE than the meter: share the
+                // percentages of what is shown (they then add up to 100 %) and say so, instead of 107 %.
+                const partsSum  = totHp + totEv + totRest;
+                const overshoot = hasHus ? partsSum - totHus : 0;
+                const mismatch  = overshoot > Math.max(0.5, totHus * 0.01);
+                const pctBase   = mismatch ? partsSum : totHus;
+                const pct = (val) => pctBase > 0 ? ` (${Math.round(val / pctBase * 100)} %)` : '';
 
                 // ── Estimated cost per component (elvarme model, from the server) ──
                 const costsReady = !!resp.cost;
@@ -485,11 +492,11 @@ const husApp = (() => {
                     html += `<dt>Hus total</dt><dd>${totHus.toFixed(1)} kWh${krCell(costHus)}</dd>`;
                     html += `
                         <dt><span class="stat-dot" style="background:${COLOR_HP}"></span> Jordvarme</dt>
-                        <dd>${totHp.toFixed(1)} kWh${pct(totHp, totHus)}${krCell(costHp)}</dd>
+                        <dd>${totHp.toFixed(1)} kWh${pct(totHp)}${krCell(costHp)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_EV}"></span> El-bil</dt>
-                        <dd>${totEv.toFixed(1)} kWh${pct(totEv, totHus)}${krCell(costEv)}</dd>
+                        <dd>${totEv.toFixed(1)} kWh${pct(totEv)}${krCell(costEv)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_REST}"></span> Restforbrug</dt>
-                        <dd>${totRest.toFixed(1)} kWh${pct(totRest, totHus)}${krCell(costRest)}</dd>
+                        <dd>${totRest.toFixed(1)} kWh${pct(totRest)}${krCell(costRest)}</dd>
                     `;
                 } else {
                     html += `
@@ -501,6 +508,11 @@ const husApp = (() => {
                     `;
                 }
                 html += '</dl>';
+                if (mismatch) {
+                    html += `<div class="data-note" role="note"><i class="fas fa-triangle-exclamation"></i> ` +
+                        `El-bil og jordvarme er målt til ${overshoot.toFixed(1).replace('.', ',')} kWh mere end hus-måleren har registreret ` +
+                        `(på enkelte dage). Procenterne er derfor andel af de tre dele. Typisk er målerne ikke synkroniseret på samme tidspunkt.</div>`;
+                }
 
                 // Estimated total cost + component breakdown (mirrors jordvarme)
                 {
