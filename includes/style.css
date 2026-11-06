@@ -236,6 +236,10 @@ section {
 .tab-section {
   display: none;
   padding: 30px;
+  /* One fixed width for every tab: without width:100% a section is as wide as its content, so the
+     sub-navigation and cards jump sideways when switching tabs */
+  width: 100%;
+  box-sizing: border-box;
   max-width: 1200px;
   margin: 0 auto;
   animation: fadeIn 0.3s ease-in;
@@ -889,24 +893,8 @@ tr:last-child td {
   gap: 10px;
 }
 
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.col-md-6 {
-  flex: 1;
-  min-width: 300px;
-}
-
-.col-4 {
-  flex: 0 0 calc(33.333% - 14px);
-}
-
-.col-md-3 {
-  flex: 0 0 calc(25% - 15px);
-}
+/* (The Bootstrap grid is used as is: a custom .row with gap: 20px made col-md-8 + col-md-4 add up to more
+   than 100 % so the statistics box wrapped under the chart.) */
 
 /* Loading Animation */
 @keyframes shimmer {
@@ -2245,3 +2233,9 @@ th.sort-active { color: var(--accent-strong); }
 .trend-sep { color: #94a3b8; }
 .trend-neutral-dir { color: #334155; }
 .trend-line > span { white-space: nowrap; }
+
+/* Two levels of navigation, two looks: the sub-nav pills choose WHAT (Forbrug / Regning, Ladninger / Analyse),
+   this segmented control inside a card chooses the PERIOD (Daglig / Månedlig / Sammenligning / År til dato). */
+.hp-mode-nav { display: inline-flex; align-self: flex-start; width: fit-content; gap: 0; padding: 3px; background: rgba(36, 49, 64, 0.08); border-radius: 10px; max-width: 100%; }
+.hp-mode-btn { border-radius: 8px; padding: 5px 14px; }
+.hp-mode-btn.active { background: #fff; color: var(--accent-strong); border-color: transparent; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18); }

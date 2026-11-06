@@ -793,7 +793,7 @@ require 'includes/DatabaseManager.php';
     <div id="annualLoading" class="text-muted py-3">Indlæser…</div>
     <div id="annualContent" style="display:none">
       <div class="row mb-2">
-        <div class="col-lg-9 col-md-12">
+        <div class="col-12">
           <canvas id="annualChart"></canvas>
           <p id="annualKrNote" class="text-muted small mt-1" style="display:none">Viser kun EV-pris — sæt ELSPOT_AREA og ELSPOT_GLN i .env for at estimere jordvarme- og husomkostninger.</p>
         </div>
