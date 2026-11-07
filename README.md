@@ -93,6 +93,8 @@ SPARKSPEND_ENV_FILE=.env.dev php -S localhost:8080
 
 Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 
+> **Erstat `/sti/til/sparkspend` med den rigtige sti** på serveren (og tjek logfilen bagefter). Med `EDS_WEB_FETCH=false` er `warm_prices.php` det eneste, der henter elpriser. Peger den på en sti, der ikke findes (`Could not open input file: /sti/til/...` i prices.log), bliver prisernes cache forældet, og Oversigtens "Elpris i morgen" og alle kr-estimater forsvinder uden anden fejl.
+
 ```cron
 # Monta EV-data — hvert 15. minut
 */15 * * * * php /sti/til/sparkspend/cron/update_monta_data.php >> /sti/til/logs/monta.log 2>&1
