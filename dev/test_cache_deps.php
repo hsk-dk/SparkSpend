@@ -140,13 +140,14 @@ array_map('unlink', glob("$dir/*"));
 $day = 86400;
 $old  = $touch('dashboard_2026-11-01.json', 3 * $day);
 $new  = $touch('dashboard_2026-11-07.json', 1 * $day);
-$oldRaw = $touch('eds_old.dat', 15 * $day);
-$newRaw = $touch('eds_new.dat', 10 * $day);
+$oldRaw = $touch('eds_old.dat', 50 * $day);
+$newRaw = $touch('eds_new.dat', 40 * $day);   // still inside TTL_PAST (30 d) + STALE_MAX (7 d): must survive
+$midRaw = $touch('eds_mid.dat', 20 * $day);       // a finished year's prices, fetched 20 days ago: valid, must survive
 $backoff = $touch('eds_backoff.dat', 30 * $day);
 $foreign = "$dir/not_ours.json"; file_put_contents($foreign, '{}'); touch($foreign, time() - 100 * $day);
 $removed = CacheHelper::purgeExpired();
 check('old JSON views and expired raw price files are removed', !file_exists($old) && !file_exists($oldRaw) && $removed === 2, "removed=$removed");
-check('recent files are kept, raw prices up to 14 days (the 7-day fallback needs them)', file_exists($new) && file_exists($newRaw));
+check('recent files are kept; raw prices are kept for 40 days (30-day TTL + 7-day offline fallback)', file_exists($new) && file_exists($newRaw) && file_exists($midRaw));
 check('the backoff marker and files that are not ours are never touched', file_exists($backoff) && file_exists($foreign));
 
 array_map('unlink', glob("$dir/*")); rmdir($dir);

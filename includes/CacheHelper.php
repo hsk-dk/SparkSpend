@@ -148,13 +148,16 @@ class CacheHelper {
 
     /**
      * Removes cache files nobody will read again. Keys carry the date (dashboard_2026-11-07) or the hour
-     * (chargeopt_..._2026-11-07-13_...), so without this every day leaves files behind for good. Raw
-     * Energi Data Service files are kept longer: they are the fallback when the upstream is unavailable
-     * (ElspotPrices serves them up to EDS_STALE_MAX = 7 days).
+     * (chargeopt_..._2026-11-07-13_...), so without this every day leaves files behind for good.
+     *
+     * Raw Energi Data Service files (.dat) live far longer than the views: a finished year's prices are
+     * valid for EDS_TTL_PAST = 30 days and are served up to EDS_STALE_MAX = 7 days beyond that when the
+     * upstream is unavailable (ElspotPrices). Removing them earlier forces a re-download from an API that
+     * rate-limits hard (a full warm-up takes 4 attempts and 7+ minutes), so the limit is 45 days.
      *
      * @return int files removed
      */
-    public static function purgeExpired(int $maxAgeJson = 2 * 86400, int $maxAgeRaw = 14 * 86400, ?int $now = null): int {
+    public static function purgeExpired(int $maxAgeJson = 2 * 86400, int $maxAgeRaw = 45 * 86400, ?int $now = null): int {
         $now ??= time();
         $dir = Config::cacheDir();
         $removed = 0;
