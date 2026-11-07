@@ -10,6 +10,9 @@ final class DeviceEnergy
     /** Devices the app knows by name. Any other key matching KEY_PATTERN is stored too (label = key). */
     public const LABELS = [
         'varme_skur' => 'Varme - Skur',
+        'fryser'     => 'Fryser',
+        'tv_stue'    => 'TV-stuen',
+        'kontor_it'  => 'Kontor IT',
     ];
 
     public const KEY_PATTERN = '/^[a-z][a-z0-9_]{0,39}$/';

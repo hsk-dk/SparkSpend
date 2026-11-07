@@ -19,12 +19,29 @@ rest_command:
     content_type: "application/json"
     timeout: 20
 
+# 1b. configuration.yaml - daily meters for the Zigbee plugs (they only have a running total, no
+#    "yesterday" counter like the Tasmota shed meter). A daily utility_meter keeps the finished day in the
+#    attribute last_period, which the automation reads just after midnight:
+#
+utility_meter:
+  daglig_fryser:
+    source: sensor.0xa4c138558a81b8de_energy
+    cycle: daily
+  daglig_tv_stue:
+    source: sensor.tv_stuen_energy
+    cycle: daily
+  daglig_kontor_it:
+    source: sensor.0x54ef4410011a1120_energy
+    cycle: daily
+#
+#    (They count from the restart that loads them, so the first full day is the day after.)
+#
 # 2. The automation (Settings > Automations > Create > Edit in YAML). It runs shortly after midnight, when
-#    the Tasmota "Yesterday" counter of the shed meter holds the finished day. Send is idempotent: a day that
-#    is sent twice replaces itself.
+#    the Tasmota "Yesterday" counter of the shed meter and the daily meters hold the finished day. Send is
+#    idempotent: a day that is sent twice replaces itself.
 #
 #    alias: SparkSpend - dagens energi pr. enhed
-#    description: Sender gårsdagens kWh for Varme - Skur til SparkSpend
+#    description: Sender gårsdagens kWh pr. enhed til SparkSpend
 #    mode: single
 #    triggers:
 #      - trigger: time
@@ -38,8 +55,12 @@ rest_command:
 #        response_variable: rest_result
 #        data:
 #          payload: >-
-#            {{ {'date': (now() - timedelta(days=1)).strftime('%Y-%m-%d'),
-#                'devices': {'varme_skur': states('sensor.sonoff_6_energy_yesterday') | float(0)}} | to_json }}
+#            {% set ns = namespace(d={'varme_skur': states('sensor.sonoff_6_energy_yesterday') | float(0)}) %}
+#            {% for key, ent in [('fryser','sensor.daglig_fryser'),('tv_stue','sensor.daglig_tv_stue'),('kontor_it','sensor.daglig_kontor_it')] %}
+#              {% set v = state_attr(ent, 'last_period') | float(none) %}
+#              {% if v is not none %}{% set ns.d = ns.d | combine({key: v}) %}{% endif %}
+#            {% endfor %}
+#            {{ {'date': (now() - timedelta(days=1)).strftime('%Y-%m-%d'), 'devices': ns.d} | to_json }}
 #      - if:
 #          - condition: template
 #            value_template: "{{ rest_result is not defined or rest_result.status != 201 }}"
@@ -59,5 +80,5 @@ rest_command:
 #
 #    Answer: {"success":true,"message":"Stored","rows":94}
 #
-# More devices later: add them to `devices` in the payload ({'fryser': ..., 'tv_stue': ...}). Keys are
+# More devices later: add a utility_meter and one entry in the for-loop list. Keys are
 # lower-case letters, digits and underscores; SparkSpend stores any of them.
