@@ -271,7 +271,8 @@ const annualApp = (() => {
     // A year is partial when it is still running ("til dato") or has charges in fewer than 12 months.
     function _partialNote(y) {
         if (String(y.year) === String(new Date().getFullYear())) return 'til dato';
-        const m = y.ev && y.ev.months;
+        // Months with METER readings (house / heat pump). EV charges starting later does not make the year partial.
+        const m = y.data_months;
         return (m > 0 && m < 12) ? `kun ${m} ${m === 1 ? 'md.' : 'mdr.'} data` : '';
     }
     function _yearLabel(y) {

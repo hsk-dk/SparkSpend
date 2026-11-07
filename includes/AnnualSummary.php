@@ -73,6 +73,19 @@ final class AnnualSummary
             error_log('getAnnualSummary: house query failed — ' . $husEx->getMessage());
         }
 
+        // Where the meters start. The totals per year come from counter differences, so a gap in the
+        // readings (the heat pump / house logs have one from Nov 2021 to Oct 2022) still gives the right
+        // yearly total; only the year the meters were installed is a partial year.
+        $meterStart = null;   // the LATEST first reading of the house / heat pump meters
+        foreach (['powerloghus', 'powerlogjord'] as $_tbl) {
+            try {
+                $_first = $powerlogDb->query("SELECT MIN(logdate) FROM $_tbl")->fetchColumn();
+                if ($_first && ($meterStart === null || $_first > $meterStart)) $meterStart = $_first;
+            } catch (\Throwable $e) { /* table may not exist yet */ }
+        }
+        $startYear  = $meterStart ? substr($meterStart, 0, 4) : null;
+        $startMonth = $meterStart ? (int) substr($meterStart, 5, 2) : 1;
+
         // =========================================================================
         // Merge all year keys and assemble response
         // =========================================================================
@@ -92,6 +105,7 @@ final class AnnualSummary
 
             $years[] = [
                 'year'     => $year,
+                'data_months' => ($startYear !== null && (string) $year === $startYear) ? 13 - $startMonth : 12,   // months the meters cover (12 = complete year)
                 'ev'       => [
                     'charges' => $int['cnt'] + $ext['cnt'],
                     'kwh'     => round($int['kwh'] + $ext['kwh'], 2),
