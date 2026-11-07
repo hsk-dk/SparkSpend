@@ -79,6 +79,14 @@ php dev/run_tests.php pricing  # kun tests med "pricing" i filnavnet
 
 Kører også i GitHub Actions (`.github/workflows/tests.yml`) ved push og pull requests. `test_config_rates.php` fejler fra 1. januar, hvis afgiftstabellerne i `includes/Config.php` ikke har en række for det nye år.
 
+### Statisk analyse (PHPStan)
+
+```bash
+docker run --rm -v "$PWD:/app" -w /app ghcr.io/phpstan/phpstan:2.3.5 analyse -c phpstan.neon
+```
+
+Niveau 4 med en baseline (`phpstan-baseline.neon`): de fund, der fandtes da den blev indført, står dér, så CI kun fejler på *nye* problemer. Ret en baseline-post og slet den fra filen; tilføj aldrig til den for at få CI grønt. De fleste poster er falske alarmer (PHPStan forstår ikke closures med reference). Hvilket ur hver kolonne bruger, står i `docs/TIME.md`.
+
 ## Lokal testinstans (syntetiske data, uden Authentik)
 
 ```bash

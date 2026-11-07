@@ -69,6 +69,7 @@ foreach ([
         $db = DatabaseManager::$getter();
         $add(['level' => 'ok', 'name' => "$label kan åbnes", 'detail' => $path]);
         $add(Doctor::checkMigrations($label, MigrationRunner::status($db, $dir)));
+        $add(...DataIntegrity::check($db, $label));   // numbers stored as text/blob, rows that point at nothing
     } catch (\Throwable $e) {
         $add(['level' => 'fail', 'name' => "$label kan ikke åbnes", 'detail' => $e->getMessage()]);
     }

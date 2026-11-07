@@ -272,6 +272,7 @@ final class DashboardSummary
         $husLastYearKwh= null;
         $husLastYearFullKwh = null;
         $husSparkline  = null;
+        $husDailyMap   = [];   // filled inside the try; the read below sits behind $husCurrentKwh !== null
 
         try {
             $husDailyMap   = PowerlogRepository::lagDelta($powerlogDb, 'powerloghus', $meterWindowStart, $today);

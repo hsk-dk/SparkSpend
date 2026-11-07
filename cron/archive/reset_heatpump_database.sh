@@ -6,7 +6,7 @@
 # Run this once: bash reset_heatpump_database.sh
 ###############################################################################
 
-APP_ROOT="/var/www/monta"
+APP_ROOT="/var/www/monta"   # destructive: backs up and DELETES the heat pump database - keep this file out of the web root
 POWERLOG_DB="$APP_ROOT/data/powerlog_data.db"
 DATA_DIR="$APP_ROOT/data"
 

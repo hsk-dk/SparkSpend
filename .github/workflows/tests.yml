@@ -37,3 +37,6 @@ jobs:
 
       - name: Unit tests
         run: php dev/run_tests.php
+
+      - name: Static analysis (PHPStan level 4, baseline in phpstan-baseline.neon)
+        run: docker run --rm -v "$PWD:/app" -w /app ghcr.io/phpstan/phpstan:2.3.5 analyse -c phpstan.neon --no-progress

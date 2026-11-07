@@ -32,7 +32,7 @@ final class ChargerSessions {
 
         $close = static function () use (&$sessions, &$cur, &$segStart): void {
             if ($cur === null) return;
-            $prev = $sessions ? end($sessions)['energyKwh'] : null;
+            $prev = self::lastEnergy($sessions);
             $sessions[] = self::finish($cur, $prev);
             $cur = null; $segStart = null;
         };
@@ -87,11 +87,16 @@ final class ChargerSessions {
             }
         }
         if ($cur !== null) {
-            $s = self::finish($cur, $sessions ? end($sessions)['energyKwh'] : null);
+            $s = self::finish($cur, self::lastEnergy($sessions));
             $s['open'] = true;
             $sessions[] = $s;
         }
         return $sessions;
+    }
+
+    /** Energy of the newest session so far, or null when there is none yet. */
+    private static function lastEnergy(array $sessions): ?float {
+        return $sessions === [] ? null : $sessions[array_key_last($sessions)]['energyKwh'];
     }
 
     private static function finish(array $c, ?float $previousEnergy): array {

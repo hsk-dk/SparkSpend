@@ -1,0 +1,91 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Variable \$argv might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: doctor.php
+
+		-
+			message: '#^Variable \$argv on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: doctor.php
+
+		-
+			message: '#^Offset ''months'' on array\{cnt\: int, months\: int, kwh\: float, cost\: float\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: includes/AnnualSummary.php
+
+		-
+			message: '#^Offset ''direction'' on array\{category\: ''hp''\|''hus'', severity\: ''warning'', direction\: ''stale'', title\: ''Husmåler''\|''Jordvarmemåler'', headline\: ''Ingen nye målinger'', message\: non\-falsy\-string, pct_above\: 0, current_avg\: 0\.0, \.\.\.\}\|array\{category\: string, severity\: ''critical'', direction\: ''none'', title\: string, headline\: ''Intet forbrug…'', message\: non\-falsy\-string, pct_above\: \-100, current_avg\: 0\.0, \.\.\.\}\|array\{category\: string, severity\: ''critical''\|''info''\|''warning'', direction\: ''high'', title\: string, headline\: non\-falsy\-string, message\: non\-falsy\-string, pct_above\: int\<10, max\>, current_avg\: float, \.\.\.\}\|array\{category\: string, severity\: ''info''\|''warning'', direction\: ''low'', title\: string, headline\: non\-falsy\-string, message\: non\-falsy\-string, pct_above\: int\<min, \-30\>, current_avg\: float, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: includes/AnomalyDetector.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between float and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: includes/AnomalyDetector.php
+
+		-
+			message: '#^Anonymous function has an unused use \$segStart\.$#'
+			identifier: closure.unusedUse
+			count: 1
+			path: includes/ChargerSessions.php
+
+		-
+			message: '#^Anonymous function has an unused use \$sessions\.$#'
+			identifier: closure.unusedUse
+			count: 1
+			path: includes/ChargerSessions.php
+
+		-
+			message: '#^Offset ''charge_start'' on array\{plugged\: mixed, charge_start\: null, charge_end\: mixed, unplugged\: mixed\} on left side of \?\?\= always exists and is always null\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: includes/ChargerSessions.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between null and null will always evaluate to true\.$#'
+			identifier: identical.alwaysTrue
+			count: 1
+			path: includes/ChargerSessions.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: includes/ChargerSessions.php
+
+		-
+			message: '#^Comparison operation "\>" between int\<1, max\> and 0 is always true\.$#'
+			identifier: greater.alwaysTrue
+			count: 1
+			path: includes/CostEstimates.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 3
+			path: includes/ElspotPrices.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: routes/get_charges.php
+
+		-
+			message: '#^Offset ''diag'' does not exist on array\{daily\: array, hourly\: array, components\: array, complete\: false\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 2
+			path: routes/get_elspot_prices.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 2
+			path: routes/get_heatpump_data.php

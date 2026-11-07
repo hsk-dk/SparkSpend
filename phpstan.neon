@@ -1,0 +1,32 @@
+# Static analysis (PHPStan). Level 4 + a baseline: the findings that existed when it was introduced are
+# recorded in phpstan-baseline.neon, so CI fails on NEW problems only. Fix a baseline entry and remove it
+# from the file; never add to it to make CI pass.
+#
+# Run (Docker; the same image CI uses):
+#   docker run --rm -v "$PWD:/app" -w /app ghcr.io/phpstan/phpstan:2.3.5 analyse -c phpstan.neon
+# Regenerate the baseline after fixing things (it only ever shrinks):
+#   ... analyse -c phpstan.neon --generate-baseline phpstan-baseline.neon
+
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 4
+    paths:
+        - includes
+        - routes
+        - cron
+        - index.php
+        - api.php
+        - doctor.php
+        - health.php
+        - migrate.php
+        - receive_charger_event.php
+        - receive_vehicle_data.php
+        - receive_device_energy.php
+    excludePaths:
+        - cron/archive          # one-off data fixes, kept for the record
+    scanDirectories:
+        - includes              # the classes are loaded by includes/autoload.php, not by composer
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: true    # a baseline entry that no longer matches must be removed
