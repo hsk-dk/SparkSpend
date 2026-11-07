@@ -109,6 +109,8 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 */30 * * * * php /sti/til/sparkspend/cron/warm_prices.php >> /sti/til/logs/prices.log 2>&1
 ```
 
+**Logfiler roteres automatisk.** `cron/cron.log` (skrives af de tre sync-jobs) roteres af appen selv, når den overstiger `LOG_MAX_BYTES` (standard 5 MB): `cron.log` → `cron.log.1` → … og de ældste slettes efter `LOG_KEEP` filer (standard 3). Det kræver ingen opsætning. Logfiler, som cron skriver med en shell-omdirigering (`prices.log`, PHP's fejllog), roteres ikke af appen; til dem ligger der en logrotate-fil i `cron/logrotate.sparkspend` (kopiér til `/etc/logrotate.d/`, instruktion i filen).
+
 `warm_prices.php` henter elpriserne for de seneste 3 kalenderår og venter igennem Energi Data Services 429-pauser, så siderne (Regning, Årsrapport, Hus, Oversigt) aldrig selv skal vente på dem. På en kold cache tager første kørsel nogle minutter. Indtil da viser Regning "—" for de måneder, der mangler priser.
 
 ---
@@ -133,6 +135,7 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 | `EV_FLEX_HOURS` | Ladeoptimering: timer efter tilslutning, bilen regnes for tilgængelig | `12` |
 | `EV_MAX_KW` | Ladeoptimering: laderens effekt i kW | `7.4` |
 | `AUTO_MIGRATE` | Kør DB-migrationer automatisk ved web-requests (højst en gang i timen) | `true` |
+| `LOG_MAX_BYTES` / `LOG_KEEP` | Rotér `cron/cron.log`, når den er større end så mange bytes; behold så mange roterede filer | `5242880` / `3` |
 | `EDS_WEB_FETCH` | `false` = kun `cron/warm_prices.php` kalder Energi Data Service | `true` |
 | `VEHICLE_API_KEY` | Bearer-nøgle til `receive_vehicle_data.php` og `receive_charger_event.php` (uden nøgle svarer de 503) | — |
 

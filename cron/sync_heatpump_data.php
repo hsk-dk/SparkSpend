@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/CronLog.php';
 /**
  * Heat Pump Data Sync Cron Job
  *
@@ -305,8 +306,8 @@ function logMessage(string $message, string $level = 'INFO'): void {
     $timestamp = date('Y-m-d H:i:s');
     $logLine = "[{$timestamp}] [{$level}] Heat Pump Sync: {$message}\n";
 
-    // Append to log file
-    file_put_contents($logFile, $logLine, FILE_APPEND);
+    // Append to log file (rotates by size, see includes/CronLog.php)
+    CronLog::append($logFile, $logLine);
 
     // Also log to PHP error log for visibility
     if ($level === 'ERROR') {

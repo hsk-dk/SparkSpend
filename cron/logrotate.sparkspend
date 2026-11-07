@@ -1,0 +1,21 @@
+# logrotate for the logs that cron writes with a shell redirect (">> file 2>&1").
+#
+# cron/cron.log and cron/trigger.log do NOT need this: the PHP jobs rotate cron.log themselves by size
+# (includes/CronLog.php, LOG_MAX_BYTES / LOG_KEEP in .env).
+#
+# Install (as root), adjusting the path if the app is not in /var/www/monta:
+#   cp /var/www/monta/cron/logrotate.sparkspend /etc/logrotate.d/sparkspend
+#   logrotate --debug /etc/logrotate.d/sparkspend      # dry run, shows what it would do
+#
+# copytruncate: cron keeps the file open through the redirect, so the file is copied and emptied
+# instead of being renamed.
+/var/www/monta/cron/prices.log /var/www/monta/cron/heatpump_sync.log /var/www/monta/cron/housepower_sync.log /var/log/php_errors.log {
+    weekly
+    rotate 8
+    size 1M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}

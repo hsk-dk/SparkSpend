@@ -38,9 +38,11 @@ $requested  = min($maxAllowed, max(1, (int) ($_GET['lines'] ?? 80)));
 // Merge both log files
 $all = [];
 
-if (file_exists($cronLog)) {
-    $lines = file($cronLog, FILE_IGNORE_NEW_LINES);
-    if ($lines !== false) $all = array_merge($all, $lines);
+// cron.log is rotated by size (includes/CronLog.php): read the rotated files too, so the view does not
+// go nearly empty right after a rotation
+foreach (CronLog::files($cronLog) as $_f) {
+    $lines = file($_f, FILE_IGNORE_NEW_LINES);
+    if ($lines !== false) $all = array_merge($all, array_slice($lines, -$maxAllowed));
 }
 
 if (file_exists($triggerLog)) {

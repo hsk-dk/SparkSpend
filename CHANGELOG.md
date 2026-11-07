@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Added
+- **Automatic log rotation.** `cron/cron.log` (56 MB in production) is now rotated by size by the sync jobs themselves (`includes/CronLog.php`, `LOG_MAX_BYTES` default 5 MB, `LOG_KEEP` default 3; safe when the jobs run at the same time) and the system-log view also reads the rotated files. `cron/logrotate.sparkspend` covers the logs that cron writes with a shell redirect (`prices.log`, the PHP error log). Covered by `dev/test_cron_log.php`.
+
 ### Fixed (found by running the code against a copy of the production data)
 - **Two charges (57.8 kWh, Feb 2025) belonged to no vehicle:** their `vehicleId` was stored as a BLOB, which SQLite does not match with `vehicleId = 2`, so they were missing from vehicle filters, per-vehicle totals and efficiency. Migration `006_fix_vehicleid_storage_type.php` stores them as integers (`php migrate.php`); covered by `dev/test_vehicleid_migration.php`.
 - **Årsrapport partial-year label** is now based on where the house / heat pump meters start (the meters' own gap Nov 2021 - Oct 2022 does not make 2022 partial, because yearly totals come from counter differences), not on how many months have EV charges (that wrongly marked 2024). New `data_months` field in the annual API.

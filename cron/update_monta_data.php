@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/CronLog.php';
 require __DIR__ . '/../includes/configuration.php';
 require __DIR__ . '/../includes/DatabaseManager.php';
 require __DIR__ . '/../includes/VehiclePairing.php';
@@ -9,7 +10,7 @@ require __DIR__ . '/../includes/VehiclePairing.php';
 function logMsg(string $message, string $level = 'INFO'): void {
     $logFile = __DIR__ . '/cron.log';
     $line    = '[' . date('Y-m-d H:i:s') . "] [{$level}] Monta Sync: {$message}\n";
-    file_put_contents($logFile, $line, FILE_APPEND);
+    CronLog::append($logFile, $line);
     if ($level === 'ERROR') {
         error_log("Monta Sync: {$message}");
     }

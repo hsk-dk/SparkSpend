@@ -27,3 +27,5 @@ Thumbs.db
 tmpclaude-*-cwd
 nul
 BACKLOG.md
+*.log.*
+cron/*.lock
