@@ -59,13 +59,17 @@ final class HousePower
         ));
         sort($allDays);
 
+        // The shed heater is measured by Home Assistant and is part of "rest" (see DeviceEnergy).
+        $skurByDay = DeviceEnergy::daily($powerlogDb, 'varme_skur', $dayStart, $dayEnd);
+
         $days = [];
         foreach ($allDays as $day) {
             $hus  = $husByDay[$day] ?? 0.0;
             $ev   = round($evByDay[$day] ?? 0.0, 2);
             $hp   = round($hpByDay[$day] ?? 0.0, 2);
             $rest = round(max(0, $hus - $ev - $hp), 2);
-            $days[] = ['day' => $day, 'hus' => round($hus, 2), 'ev' => $ev, 'hp' => $hp, 'rest' => $rest];
+            $days[] = ['day' => $day, 'hus' => round($hus, 2), 'ev' => $ev, 'hp' => $hp, 'rest' => $rest,
+                       'skur' => round($skurByDay[$day] ?? 0.0, 2)];
         }
 
         $_end = min($dayEnd, date('Y-m-d'));
@@ -114,6 +118,8 @@ final class HousePower
 
         // External charges are not included (they never pass the house meter), see daily().
 
+        $skurByMonth = DeviceEnergy::monthly($powerlogDb, 'varme_skur', $yearStart, $yearEnd);
+
         // Emit all 12 months (skip if no data at all)
         $months = [];
         for ($m = 1; $m <= 12; $m++) {
@@ -123,7 +129,8 @@ final class HousePower
             $hp   = round($hpByMonth[$key] ?? 0.0, 2);
             $rest = round(max(0, $hus - $ev - $hp), 2);
             if ($hus > 0 || $ev > 0 || $hp > 0) {
-                $months[] = ['month' => $key, 'hus' => round($hus, 2), 'ev' => $ev, 'hp' => $hp, 'rest' => $rest];
+                $months[] = ['month' => $key, 'hus' => round($hus, 2), 'ev' => $ev, 'hp' => $hp, 'rest' => $rest,
+                             'skur' => round($skurByMonth[$key] ?? 0.0, 2)];
             }
         }
 

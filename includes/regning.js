@@ -62,6 +62,8 @@ const regningApp = (() => {
         const hasCosts    = !!billData.cost;
         const hasHus      = hus && Object.keys(hus).length > 0;
         const hasResidual = hasHus && hasCosts;
+        const skur        = billData.skur || {};
+        const hasSkur     = Object.values(skur).some(v => v > 0);   // shed heater, part of Restforbrug
 
         // Accumulate totals
         let totEvKwh = 0, totEvCost = 0, totHpKwh = 0, totHpCost = 0,
@@ -101,6 +103,7 @@ const regningApp = (() => {
                 ${hasCosts ? `<td class="text-end" data-label="VP kr*">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
                 ${hasHus ? `<td data-label="Restforbrug kWh" class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + residualKwh.toFixed(1) : '\u2014'}</td>` : ''}
                 ${hasResidual ? `<td class="text-end fw-semibold" data-label="Restforbrug kr*">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
+                ${hasSkur ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${skur[m] > 0 ? skur[m].toFixed(1) : '—'}</td>` : ''}
             </tr>`;
         }).join('');
 
@@ -110,6 +113,8 @@ const regningApp = (() => {
         const vpKrTh         = hasCosts    ? '<th class="text-end">VP kr*</th>' : '';
         const residualKwhTh  = hasHus      ? '<th class="text-end">Restforbrug kWh</th>' : '';
         const residualKrTh   = hasResidual ? '<th class="text-end">Restforbrug kr*</th>' : '';
+        const skurTh         = hasSkur     ? '<th class="text-end text-muted" title="Skurets varmeapparat, målt af Home Assistant. Indgår i Restforbrug.">heraf Skur kWh</th>' : '';
+        const totSkurTd      = hasSkur     ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${Object.entries(skur).filter(([mm]) => months.includes(mm)).reduce((a, [, v]) => a + v, 0).toFixed(1)}</td>` : '';
 
         const totHusTd       = hasHus
             ? `<td class="text-end fw-bold" data-label="Hus kWh">${totHusKwh > 0 ? totHusKwh.toFixed(1) : '—'}</td>` : '';
@@ -140,6 +145,7 @@ const regningApp = (() => {
                             ${vpKrTh}
                             ${residualKwhTh}
                             ${residualKrTh}
+                            ${skurTh}
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -153,6 +159,7 @@ const regningApp = (() => {
                             ${totHpCostTd}
                             ${totResidualKwhTd}
                             ${totResidualCostTd}
+                            ${totSkurTd}
                         </tr>
                     </tfoot>
                 </table>

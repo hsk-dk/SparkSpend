@@ -2292,3 +2292,5 @@ th.sort-active { color: var(--accent-strong); }
   .stat-list dt { margin-top: 8px; }
   .stat-list dd { text-align: left; }
 }
+
+.baseload-now { font-size: 1.8rem; font-weight: 700; color: #92400e; }

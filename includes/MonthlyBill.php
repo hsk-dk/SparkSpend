@@ -80,6 +80,9 @@ final class MonthlyBill
             $evByMonth[$m] = ['kwh' => round($int['kwh'], 2), 'cost' => round($int['cost'], 2)];
         }
 
+        // Part of "rest" that Home Assistant measures separately (the shed heater), kWh per month.
+        $skurByMonth = DeviceEnergy::monthly($powerlogDb, 'varme_skur', $rangeStart, $rangeEnd);
+
         // Heat pump / rest cost per month (elvarme model, server-side). null = no prices.
         $_billCost = null; $_billComplete = true;
         try {
@@ -96,6 +99,7 @@ final class MonthlyBill
                 'ev'     => $evByMonth,
                 'hp'     => $hpByMonth,
                 'hus'    => $husByMonth,
+                'skur'   => $skurByMonth,   // 'YYYY-MM' => kWh of the shed heater (inside "rest"), empty without data
                 'cost'   => $_billCost,
                 'range'  => ['start' => $rangeStart, 'end' => $rangeEnd],
             ],

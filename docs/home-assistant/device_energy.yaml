@@ -1,0 +1,63 @@
+# Home Assistant -> SparkSpend: daily energy per device (first device: the shed heater, "Varme - Skur").
+#
+# SparkSpend shows it inside "Restforbrug" as "heraf Varme - Skur" (Hus > Forbrug and Hus > Regning).
+# The house meter cannot tell what is behind it; the sub-meter in the shed can.
+#
+# THREE parts to install:
+#
+# 1. configuration.yaml  (then Developer tools > YAML > Check, and reload / restart)
+#    The same Authorization header as the rest_commands you already use for SparkSpend.
+#
+rest_command:
+  sparkspend_device_energy:
+    url: "https://<your-sparkspend-host>/receive_device_energy.php"
+    method: POST
+    headers:
+      Authorization: !secret sparkspend_bearer     # "Bearer <VEHICLE_API_KEY>", as for the other two
+      Content-Type: application/json
+    payload: "{{ payload }}"
+    content_type: "application/json"
+    timeout: 20
+
+# 2. The automation (Settings > Automations > Create > Edit in YAML). It runs shortly after midnight, when
+#    the Tasmota "Yesterday" counter of the shed meter holds the finished day. Send is idempotent: a day that
+#    is sent twice replaces itself.
+#
+#    alias: SparkSpend - dagens energi pr. enhed
+#    description: Sender gårsdagens kWh for Varme - Skur til SparkSpend
+#    mode: single
+#    triggers:
+#      - trigger: time
+#        at: "00:10:00"
+#    conditions:
+#      - condition: template
+#        value_template: "{{ states('sensor.sonoff_6_energy_yesterday') | float(none) is not none }}"
+#    actions:
+#      - action: rest_command.sparkspend_device_energy
+#        continue_on_error: true
+#        response_variable: rest_result
+#        data:
+#          payload: >-
+#            {{ {'date': (now() - timedelta(days=1)).strftime('%Y-%m-%d'),
+#                'devices': {'varme_skur': states('sensor.sonoff_6_energy_yesterday') | float(0)}} | to_json }}
+#      - if:
+#          - condition: template
+#            value_template: "{{ rest_result is not defined or rest_result.status != 201 }}"
+#        then:
+#          - action: persistent_notification.create
+#            data:
+#              title: SparkSpend - enhedsenergi fejlede
+#              message: "Status: {{ rest_result.status if rest_result is defined else 'intet svar' }}"
+#
+# 3. On the SparkSpend server: run `php migrate.php` (creates the table device_energy), make sure
+#    /receive_device_energy.php is excluded from the Authentik proxy like receive_charger_event.php,
+#    and load the winter 2025/26 history once (see varme_skur_backfill.json in this folder):
+#
+#      curl -X POST https://<your-sparkspend-host>/receive_device_energy.php \
+#           -H "Authorization: Bearer $VEHICLE_API_KEY" -H "Content-Type: application/json" \
+#           --data @varme_skur_backfill.json
+#
+#    Answer: {"success":true,"message":"Stored","rows":94}
+#
+# More devices later: add them to `devices` in the payload ({'fryser': ..., 'tv_stue': ...}). Keys are
+# lower-case letters, digits and underscores; SparkSpend stores any of them.

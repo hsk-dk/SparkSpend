@@ -78,12 +78,12 @@ final class HourlyConsumption {
     }
 
     /**
-     * Hourly heat pump and "rest" consumption for a date range, read from the databases.
-     * Shared by the hourly-consumption route and the server-side cost calculations.
+     * Hourly house meter, heat pump and home EV charging for a date range, read from the databases:
+     * the three series "rest" is made of. Keys are local hours, 'Y-m-d H'.
      *
-     * @return array{start:string,end:string,hours:string[],vp:float[],rest:float[]}
+     * @return array{house: array<string,float>, heatPump: array<string,float>, ev: array<string,float>}
      */
-    public static function series(PDO $chargesDb, PDO $powerlogDb, string $start, string $end): array {
+    public static function parts(PDO $chargesDb, PDO $powerlogDb, string $start, string $end): array {
         require_once __DIR__ . '/PowerlogRepository.php';
         $inRange = static fn(array $series) => array_filter(
             $series,
@@ -110,9 +110,20 @@ final class HourlyConsumption {
             }
         }
 
-        $hp   = $inRange($hp);
-        $hus  = $inRange($hus);
-        $rest = self::rest($hus, $hp, $ev);
+        return ['house' => $inRange($hus), 'heatPump' => $inRange($hp), 'ev' => $ev];
+    }
+
+    /**
+     * Hourly heat pump and "rest" consumption for a date range, read from the databases.
+     * Shared by the hourly-consumption route and the server-side cost calculations.
+     *
+     * @return array{start:string,end:string,hours:string[],vp:float[],rest:float[]}
+     */
+    public static function series(PDO $chargesDb, PDO $powerlogDb, string $start, string $end): array {
+        $p    = self::parts($chargesDb, $powerlogDb, $start, $end);
+        $hp   = $p['heatPump'];
+        $hus  = $p['house'];
+        $rest = self::rest($hus, $hp, $p['ev']);
 
         $hours = array_keys($hus + $hp);
         sort($hours);

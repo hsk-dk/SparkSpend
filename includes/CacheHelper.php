@@ -77,7 +77,7 @@ class CacheHelper {
      * that combine meter data, so freshly synced kWh shows up immediately.
      */
     public const METER_CACHE_PREFIXES = [
-        'heatpump_', 'housepower_', 'dashboard_', 'annual_', 'anomaly_', 'bill_', 'hourlycons_',
+        'heatpump_', 'housepower_', 'dashboard_', 'annual_', 'anomaly_', 'bill_', 'hourlycons_', 'baseload_',
     ];
 
     /**

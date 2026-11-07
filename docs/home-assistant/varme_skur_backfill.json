@@ -1,0 +1,568 @@
+{
+"days": [
+{
+"date": "2025-11-15",
+"devices": {
+"varme_skur": 1.172
+}
+},
+{
+"date": "2025-11-16",
+"devices": {
+"varme_skur": 3.506
+}
+},
+{
+"date": "2025-11-17",
+"devices": {
+"varme_skur": 1.858
+}
+},
+{
+"date": "2025-11-18",
+"devices": {
+"varme_skur": 2.162
+}
+},
+{
+"date": "2025-11-19",
+"devices": {
+"varme_skur": 4.052
+}
+},
+{
+"date": "2025-11-20",
+"devices": {
+"varme_skur": 4.434
+}
+},
+{
+"date": "2025-11-21",
+"devices": {
+"varme_skur": 4.73
+}
+},
+{
+"date": "2025-11-22",
+"devices": {
+"varme_skur": 3.705
+}
+},
+{
+"date": "2025-11-23",
+"devices": {
+"varme_skur": 3.788
+}
+},
+{
+"date": "2025-11-24",
+"devices": {
+"varme_skur": 3.323
+}
+},
+{
+"date": "2025-11-25",
+"devices": {
+"varme_skur": 2.665
+}
+},
+{
+"date": "2025-11-26",
+"devices": {
+"varme_skur": 2.243
+}
+},
+{
+"date": "2025-11-27",
+"devices": {
+"varme_skur": 2.124
+}
+},
+{
+"date": "2025-12-01",
+"devices": {
+"varme_skur": 0.518
+}
+},
+{
+"date": "2025-12-02",
+"devices": {
+"varme_skur": 0.594
+}
+},
+{
+"date": "2025-12-03",
+"devices": {
+"varme_skur": 0.581
+}
+},
+{
+"date": "2025-12-04",
+"devices": {
+"varme_skur": 0.581
+}
+},
+{
+"date": "2025-12-05",
+"devices": {
+"varme_skur": 1.722
+}
+},
+{
+"date": "2025-12-06",
+"devices": {
+"varme_skur": 2.351
+}
+},
+{
+"date": "2025-12-21",
+"devices": {
+"varme_skur": 0.57
+}
+},
+{
+"date": "2025-12-22",
+"devices": {
+"varme_skur": 1.333
+}
+},
+{
+"date": "2025-12-23",
+"devices": {
+"varme_skur": 1.819
+}
+},
+{
+"date": "2025-12-24",
+"devices": {
+"varme_skur": 3.066
+}
+},
+{
+"date": "2025-12-25",
+"devices": {
+"varme_skur": 3.743
+}
+},
+{
+"date": "2025-12-26",
+"devices": {
+"varme_skur": 3.879
+}
+},
+{
+"date": "2025-12-27",
+"devices": {
+"varme_skur": 1.403
+}
+},
+{
+"date": "2025-12-28",
+"devices": {
+"varme_skur": 3.195
+}
+},
+{
+"date": "2025-12-29",
+"devices": {
+"varme_skur": 1.739
+}
+},
+{
+"date": "2025-12-30",
+"devices": {
+"varme_skur": 5.144
+}
+},
+{
+"date": "2025-12-31",
+"devices": {
+"varme_skur": 2.977
+}
+},
+{
+"date": "2026-01-01",
+"devices": {
+"varme_skur": 2.056
+}
+},
+{
+"date": "2026-01-02",
+"devices": {
+"varme_skur": 4.151
+}
+},
+{
+"date": "2026-01-03",
+"devices": {
+"varme_skur": 6.115
+}
+},
+{
+"date": "2026-01-04",
+"devices": {
+"varme_skur": 6.928
+}
+},
+{
+"date": "2026-01-05",
+"devices": {
+"varme_skur": 7.155
+}
+},
+{
+"date": "2026-01-06",
+"devices": {
+"varme_skur": 5.596
+}
+},
+{
+"date": "2026-01-07",
+"devices": {
+"varme_skur": 5.093
+}
+},
+{
+"date": "2026-01-08",
+"devices": {
+"varme_skur": 5.143
+}
+},
+{
+"date": "2026-01-09",
+"devices": {
+"varme_skur": 6.762
+}
+},
+{
+"date": "2026-01-10",
+"devices": {
+"varme_skur": 6.113
+}
+},
+{
+"date": "2026-01-11",
+"devices": {
+"varme_skur": 8.738
+}
+},
+{
+"date": "2026-01-12",
+"devices": {
+"varme_skur": 6.947
+}
+},
+{
+"date": "2026-01-13",
+"devices": {
+"varme_skur": 3.435
+}
+},
+{
+"date": "2026-01-14",
+"devices": {
+"varme_skur": 2.189
+}
+},
+{
+"date": "2026-01-15",
+"devices": {
+"varme_skur": 2.864
+}
+},
+{
+"date": "2026-01-16",
+"devices": {
+"varme_skur": 0.782
+}
+},
+{
+"date": "2026-01-17",
+"devices": {
+"varme_skur": 1.836
+}
+},
+{
+"date": "2026-01-18",
+"devices": {
+"varme_skur": 3.039
+}
+},
+{
+"date": "2026-01-19",
+"devices": {
+"varme_skur": 3.946
+}
+},
+{
+"date": "2026-01-20",
+"devices": {
+"varme_skur": 4.28
+}
+},
+{
+"date": "2026-01-21",
+"devices": {
+"varme_skur": 4.749
+}
+},
+{
+"date": "2026-01-22",
+"devices": {
+"varme_skur": 4.597
+}
+},
+{
+"date": "2026-01-23",
+"devices": {
+"varme_skur": 5.481
+}
+},
+{
+"date": "2026-01-24",
+"devices": {
+"varme_skur": 4.975
+}
+},
+{
+"date": "2026-01-25",
+"devices": {
+"varme_skur": 4.528
+}
+},
+{
+"date": "2026-01-26",
+"devices": {
+"varme_skur": 5.254
+}
+},
+{
+"date": "2026-01-27",
+"devices": {
+"varme_skur": 4.764
+}
+},
+{
+"date": "2026-01-28",
+"devices": {
+"varme_skur": 4.864
+}
+},
+{
+"date": "2026-01-29",
+"devices": {
+"varme_skur": 5.716
+}
+},
+{
+"date": "2026-01-30",
+"devices": {
+"varme_skur": 5.809
+}
+},
+{
+"date": "2026-01-31",
+"devices": {
+"varme_skur": 5.491
+}
+},
+{
+"date": "2026-02-01",
+"devices": {
+"varme_skur": 8.329
+}
+},
+{
+"date": "2026-02-02",
+"devices": {
+"varme_skur": 8.934
+}
+},
+{
+"date": "2026-02-03",
+"devices": {
+"varme_skur": 8.417
+}
+},
+{
+"date": "2026-02-04",
+"devices": {
+"varme_skur": 7.873
+}
+},
+{
+"date": "2026-02-05",
+"devices": {
+"varme_skur": 6.374
+}
+},
+{
+"date": "2026-02-06",
+"devices": {
+"varme_skur": 5.72
+}
+},
+{
+"date": "2026-02-07",
+"devices": {
+"varme_skur": 3.99
+}
+},
+{
+"date": "2026-02-08",
+"devices": {
+"varme_skur": 4.095
+}
+},
+{
+"date": "2026-02-09",
+"devices": {
+"varme_skur": 4.014
+}
+},
+{
+"date": "2026-02-10",
+"devices": {
+"varme_skur": 3.782
+}
+},
+{
+"date": "2026-02-11",
+"devices": {
+"varme_skur": 4.035
+}
+},
+{
+"date": "2026-02-12",
+"devices": {
+"varme_skur": 3.847
+}
+},
+{
+"date": "2026-02-13",
+"devices": {
+"varme_skur": 5.318
+}
+},
+{
+"date": "2026-02-14",
+"devices": {
+"varme_skur": 5.6
+}
+},
+{
+"date": "2026-02-15",
+"devices": {
+"varme_skur": 6.49
+}
+},
+{
+"date": "2026-02-16",
+"devices": {
+"varme_skur": 7.979
+}
+},
+{
+"date": "2026-02-17",
+"devices": {
+"varme_skur": 6.088
+}
+},
+{
+"date": "2026-02-18",
+"devices": {
+"varme_skur": 5.383
+}
+},
+{
+"date": "2026-02-19",
+"devices": {
+"varme_skur": 5.309
+}
+},
+{
+"date": "2026-02-20",
+"devices": {
+"varme_skur": 6.372
+}
+},
+{
+"date": "2026-02-21",
+"devices": {
+"varme_skur": 3.113
+}
+},
+{
+"date": "2026-02-22",
+"devices": {
+"varme_skur": 2.198
+}
+},
+{
+"date": "2026-02-23",
+"devices": {
+"varme_skur": 0.861
+}
+},
+{
+"date": "2026-02-24",
+"devices": {
+"varme_skur": 1.795
+}
+},
+{
+"date": "2026-02-25",
+"devices": {
+"varme_skur": 2.011
+}
+},
+{
+"date": "2026-03-01",
+"devices": {
+"varme_skur": 0.244
+}
+},
+{
+"date": "2026-03-05",
+"devices": {
+"varme_skur": 1.284
+}
+},
+{
+"date": "2026-03-06",
+"devices": {
+"varme_skur": 0.673
+}
+},
+{
+"date": "2026-03-15",
+"devices": {
+"varme_skur": 0.646
+}
+},
+{
+"date": "2026-03-17",
+"devices": {
+"varme_skur": 0.67
+}
+},
+{
+"date": "2026-03-27",
+"devices": {
+"varme_skur": 1.431
+}
+},
+{
+"date": "2026-03-30",
+"devices": {
+"varme_skur": 0.296
+}
+},
+{
+"date": "2026-04-11",
+"devices": {
+"varme_skur": 0.678
+}
+}
+]
+}

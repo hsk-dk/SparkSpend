@@ -21,6 +21,7 @@ return [
     'elspot-prices'        => ['handler' => 'routes/get_elspot_prices.php',       'method' => 'GET'],
     'heatpump'             => ['handler' => 'routes/get_heatpump_data.php',       'method' => 'GET'],
     'hourly-consumption'   => ['handler' => 'routes/get_hourly_consumption.php',  'method' => 'GET'],
+    'base-load'            => ['handler' => 'routes/get_base_load.php',            'method' => 'GET'],
     'charger-sessions'     => ['handler' => 'routes/get_charger_sessions.php',    'method' => 'GET'],
     'house-power'          => ['handler' => 'routes/get_house_power_data.php',    'method' => 'GET'],
     'monthly-bill'         => ['handler' => 'routes/get_monthly_bill_data.php',   'method' => 'GET'],

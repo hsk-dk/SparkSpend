@@ -138,6 +138,7 @@ $gets = [
     'heatpump daily'       => ["action=heatpump&mode=daily&month=$month", null],
     'heatpump monthly'     => ["action=heatpump&mode=monthly&year=$year", null],
     'heatpump compare'     => ['action=heatpump&mode=compare', null],
+    'base-load'            => ['action=base-load&months=12', ['months', 'latest', 'params']],
     'hourly-consumption'   => ["action=hourly-consumption&start=$from&end=$today", ['hours', 'vp', 'rest']],
     'charger-sessions'     => ['action=charger-sessions&days=30', ['sessions']],
     'house-power daily'    => ["action=house-power&mode=daily&month=$month", ['days', 'cost']],
@@ -230,6 +231,15 @@ $ev = ['event' => 'plugged', 'eventAt' => gmdate('Y-m-d\TH:i:s\Z', time() - 60),
 check('receive_charger_event without key -> 401', http('POST', '/receive_charger_event.php', json_encode($ev), [], false)['status'] === 401);
 check('receive_charger_event stores an event', $bearer('/receive_charger_event.php', $ev, 'test-key')['status'] === 201);
 check('receive_charger_event is idempotent', $bearer('/receive_charger_event.php', $ev, 'test-key')['status'] === 200);
+$de = ['date' => date('Y-m-d', strtotime('-1 day')), 'devices' => ['varme_skur' => 4.25]];
+check('receive_device_energy without key -> 401', http('POST', '/receive_device_energy.php', json_encode($de), [], false)['status'] === 401);
+check('receive_device_energy stores a day', $bearer('/receive_device_energy.php', $de, 'test-key')['status'] === 201);
+check('receive_device_energy again replaces it (still 201)', $bearer('/receive_device_energy.php', $de, 'test-key')['status'] === 201);
+check('receive_device_energy refuses a bad payload', $bearer('/receive_device_energy.php', ['date' => 'x', 'devices' => ['varme_skur' => 1]], 'test-key')['status'] === 400);
+$skurMonth = $api('action=monthly-bill&months=2')['json']['skur'][substr($de['date'], 0, 7)] ?? null;
+check('the shed heater shows up in the monthly bill (part of rest)', $skurMonth !== null && $skurMonth >= 4.25, json_encode($skurMonth));
+$hpMonth = array_values(array_filter($api('action=house-power&mode=monthly&year=' . substr($de['date'], 0, 4))['json']['months'] ?? [], fn($m) => $m['month'] === substr($de['date'], 0, 7)))[0] ?? null;
+check('...and in the house-power split', $hpMonth !== null && ($hpMonth['skur'] ?? 0) >= 4.25, json_encode($hpMonth));
 
 // ── Recording / comparison ───────────────────────────────────────────────────────────────────
 if ($recordFile) { file_put_contents($recordFile, json_encode($fingerprints, JSON_PRETTY_PRINT)); echo "recorded " . count($fingerprints) . " fingerprints in $recordFile\n"; }

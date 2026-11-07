@@ -188,6 +188,7 @@ const SparkNav = (() => {
         if (activeSubId === 'hus-forbrug' && !husFordelingLoaded) {
             husFordelingLoaded = true;
             afterLayout(() => window.fordelingApp?.init());
+            afterLayout(() => window.baseloadApp?.init());
         }
         if (activeSubId === 'hus-regning' && !husRegningLoaded) {
             husRegningLoaded = true;

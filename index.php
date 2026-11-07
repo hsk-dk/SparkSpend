@@ -742,6 +742,17 @@ require 'includes/DatabaseManager.php';
         </div>
       </div>
     </div>
+    <div class="card p-4 mt-4" id="hus-baseload-card">
+      <h3>Basislast</h3>
+      <p class="text-muted mb-3">
+        Det huset trækker, når intet stort kører: køleskab, fryser, router, standby og alt andet, der går hele døgnet.
+        Det er det meste af Restforbruget. Beregnet som gennemsnittet af døgnets tre laveste timer (uden bilopladning og
+        varmepumpe), og her vist som månedens median.
+      </p>
+      <div id="baseloadHeadline" class="mb-2">Indlæser…</div>
+      <canvas id="baseloadChart"></canvas>
+    </div>
+
     <div class="card p-4 mt-4" id="hus-fordeling-card">
       <h3>Hvad koster det, og hvad bruger pengene?</h3>
       <p class="text-muted mb-3">
@@ -879,6 +890,7 @@ require 'includes/DatabaseManager.php';
   <script defer src="<?= asset('includes/jordvarme.js') ?>"></script>
   <script defer src="<?= asset('includes/hus.js') ?>"></script>
   <script defer src="<?= asset('includes/regning.js') ?>"></script>
+  <script defer src="<?= asset('includes/baseload.js') ?>"></script>
   <script defer src="<?= asset('includes/annual.js') ?>"></script>
 
   <!-- Sync Status Modal -->

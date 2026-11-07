@@ -463,6 +463,7 @@ const husApp = (() => {
                 const totEv  = rows.reduce((s, d) => s + (d.ev   ?? 0), 0);
                 const totHp  = rows.reduce((s, d) => s + (d.hp   ?? 0), 0);
                 const totRest= rows.reduce((s, d) => s + (d.rest ?? 0), 0);
+                const totSkur= rows.reduce((s, d) => s + (d.skur ?? 0), 0);   // shed heater, measured by Home Assistant, inside "rest"
                 const hasHus = totHus > 0;
 
                 // The parts (jordvarme + el-bil + rest) normally add up to the house meter. When EV + VP
@@ -498,6 +499,9 @@ const husApp = (() => {
                         <dt><span class="stat-dot" style="background:${COLOR_REST}"></span> Restforbrug</dt>
                         <dd>${totRest.toFixed(1)} kWh${pct(totRest)}${krCell(costRest)}</dd>
                     `;
+                    if (totSkur > 0) {
+                        html += `<dt class="text-muted ps-3">heraf Varme - Skur</dt><dd class="text-muted">${totSkur.toFixed(1)} kWh</dd>`;
+                    }
                 } else {
                     html += `
                         <dt><span class="stat-dot" style="background:${COLOR_HP}"></span> Jordvarme</dt>
