@@ -38,12 +38,13 @@ $mk = function (): PDO {
     return $d;
 };
 $ch = $mk(); $pl = $mk();
-$pl->exec("CREATE TABLE powerloghus (logdate TEXT)");
+$pl->exec("CREATE TABLE powerloghus (logdate TEXT)"); $pl->exec("CREATE TABLE powerlogjord (logdate TEXT)");
 $now = time();
 $fmt = fn(int $ago) => date('Y-m-d H:i:s', $now - $ago);
 $ch->exec("INSERT INTO sync_log (source, updated_at) VALUES ('monta', '" . $fmt(300) . "')");
 $pl->exec("INSERT INTO sync_log (source, updated_at) VALUES ('heatpump', '" . $fmt(120) . "'), ('housepowerlog', '" . $fmt(120) . "')");
 $pl->exec("INSERT INTO powerloghus VALUES ('" . $fmt(1800) . "')");
+$pl->exec("INSERT INTO powerlogjord VALUES ('" . $fmt(1800) . "')");
 $dir = sys_get_temp_dir() . '/fresh_' . uniqid(); mkdir($dir);
 touch($dir . '/sparkspend_eds_abc.dat');
 $r = Freshness::collect($ch, $pl, $dir, $now);
@@ -60,6 +61,11 @@ check('a sync that runs but a meter that stopped is caught by meter_data', $st($
 file_put_contents($dir . '/sparkspend_eds_backoff.dat', '5');
 touch($dir . '/sparkspend_eds_abc.dat', $now - 5 * 3600);
 $r = Freshness::collect($ch, $pl, $dir, $now);
+$pl->exec("UPDATE powerlogjord SET logdate = '" . $fmt(6 * 3600) . "'");
+$r = Freshness::collect($ch, $pl, $dir, $now);
+check('a stopped heat pump meter is caught on its own', $st($r, 'heatpump_data') === 'stale' && $st($r, 'meter_data') === 'stale');
+$pl->exec("UPDATE powerlogjord SET logdate = '" . $fmt(1800) . "'; UPDATE powerloghus SET logdate = '" . $fmt(1800) . "'");
+
 check('the backoff marker is not mistaken for fresh prices', $st($r, 'prices') === 'stale');
 check('an empty cache directory gives unknown prices', Freshness::newestPriceFile($dir . '/nonexistent') === null);
 

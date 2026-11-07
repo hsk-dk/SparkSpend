@@ -6,6 +6,12 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed
+- **Cron jobs rebuilt on one runner, and tested.** `CronJob` (one run at a time via `flock`, one log format, exit codes 0/1/2, catches `Error` as well as `Exception`), `SyncLog` (watermark / run time / error), `MeterSync` (the heat pump and house copies of 300 lines each became one class with the MySQL side behind a fetch function), `MontaSync` + `ChargeImporter` + `MontaClient` (the 400-line Monta script: HTTP, import and orchestration separated). The scripts are 13-24 lines each. 84 new checks (`test_cron_job`, `test_meter_sync`, `test_monta_sync`), mutation-checked; the Monta import - which was untested - is now covered: UTC normalisation, pairing, manual corrections surviving a re-sync, all-or-nothing batches.
+- Fixed on the way: a failed heat pump run wiped its watermark (next run started over from the first record); a failure in Monta's token / HTTP steps left no trace in `sync_log` (only the log); a charge without id would have been inserted again on every run; the heat pump job did not record a run that found nothing new (it looked dead when idle); a lock older than 60 s was treated as dead even if the run was alive; an `Error` (not `Exception`) slipped past the heat pump / house catch. Quiet logs: a run that finds nothing writes nothing.
+- `trigger_sync` no longer wraps the scripts in its own `flock`; the jobs lock themselves. Cron scripts refuse to run from the web.
+- `/health.php` and the Oversigt warning also watch the heat pump meter's newest reading.
+
 ### Added
 - **Data freshness and monitoring.** `includes/Freshness.php` judges how old the newest data from each source is (Monta, heat pump, house, the meter's newest reading, electricity prices; device energy only when Home Assistant sends it). `health.php` (Bearer `HEALTH_KEY`) answers 200 or 503 for Uptime Kuma; Oversigt shows a warning when something is stale; the per-card "Data: ..." label turns red from the same verdict. `php doctor.php` is a read-only preflight for a deployment (env, folders, pending migrations, cron paths, freshness). Tests: `dev/test_freshness.php`, `dev/test_doctor.php`, health checks in `dev/test_routes.php`.
 - Device energy from Home Assistant also accepts `fryser`, `tv_stue` and `kontor_it` (daily utility_meter + same automation, see docs/home-assistant/device_energy.yaml). Stored only; not shown in the views yet.

@@ -22,6 +22,7 @@ final class Freshness
         'heatpump'   => 30 * 60,          // */5
         'hus'        => 30 * 60,          // */5
         'meter_data' => 3 * 3600,         // newest hourly meter reading (stops if the source stops)
+        'heatpump_data' => 3 * 3600,
         'prices'     => 3 * 3600,         // warm_prices every 30 min
         'device_energy' => 2 * 86400 + 3600,   // Home Assistant sends once per day
     ];
@@ -85,6 +86,8 @@ final class Freshness
         };
         $checks[] = ['id' => 'meter_data', 'label' => 'Husets måler - nyeste aflæsning',
                      'last' => $newest($powerlogDb, "SELECT MAX(logdate) FROM powerloghus"), 'max_age' => self::MAX_AGE['meter_data']];
+        $checks[] = ['id' => 'heatpump_data', 'label' => 'Jordvarmens måler - nyeste aflæsning',
+                     'last' => $newest($powerlogDb, "SELECT MAX(logdate) FROM powerlogjord"), 'max_age' => self::MAX_AGE['heatpump_data']];
 
         $checks[] = ['id' => 'prices', 'label' => 'Elpriser (Energi Data Service)',
                      'last' => self::newestPriceFile($cacheDir), 'max_age' => self::MAX_AGE['prices']];

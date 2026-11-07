@@ -18,6 +18,12 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require __DIR__ . '/../includes/configuration.php';
 require_once __DIR__ . '/../includes/ElspotPrices.php';
 
+// One run at a time: a run that waits out a rate limit can take 15 minutes, longer than the 30-minute
+// cron interval allows for a second one beside it.
+$lock = CronJob::acquire('prices');
+if ($lock === null) { echo date('c') . " already running - skipping.
+"; exit(0); }
+
 $area = Config::elspotArea();
 $gln  = Config::elspotGln();
 if ($area === '' || $gln === '') {

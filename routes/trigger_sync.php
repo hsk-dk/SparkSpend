@@ -36,7 +36,6 @@ touch($_cooldownFile);
 $php     = _resolvePhpCli();
 $logFile = __DIR__ . '/../cron/trigger.log';
 $logPath = escapeshellarg($logFile);
-$started = 0;
 
 // Invalidate all file caches
 $_cacheDir = Config::cacheDir();
@@ -44,41 +43,26 @@ foreach (glob($_cacheDir . DIRECTORY_SEPARATOR . 'sparkspend_*.json') ?: [] as $
     @unlink($_f);
 }
 
-// Per-script lock: never start a script that is still running from an earlier
-// trigger (parallel writers would collide on SQLite and the shared log).
-$flockBin = is_executable('/usr/bin/flock') ? '/usr/bin/flock' : null;
-$lockDir  = Config::cacheDir();
-$isRunning = static function (string $lockFile): bool {
-    $h = @fopen($lockFile, 'c');
-    if ($h === false) return false;
-    $free = flock($h, LOCK_EX | LOCK_NB);
-    if ($free) flock($h, LOCK_UN);
-    fclose($h);
-    return !$free;
-};
-
+// The jobs lock themselves (CronJob): a script that is started while its previous run is still going
+// logs "Already running" and exits, so no wrapper lock is needed here. We only look, to leave the log
+// alone while a run is still writing to it.
+$jobNames  = array_flip($scripts);          // script path => job name ('monta' | 'heatpump' | 'hus')
 $anyRunning = false;
 foreach ($toRun as $script) {
-    if ($flockBin && $isRunning($lockDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_' . basename($script) . '.lock')) {
-        $anyRunning = true;
-    }
+    if (CronJob::isRunning($jobNames[$script])) $anyRunning = true;
 }
-// Truncate the log before a triggered sync — but not while one is still writing to it
+// Truncate the log before a triggered sync - but not while one is still writing to it
 if (!$anyRunning) {
     file_put_contents($logFile, '');
 }
 
+$started = 0;
 foreach ($toRun as $script) {
-    if (!file_exists($script)) {
+    if (!file_exists($script) || CronJob::isRunning($jobNames[$script])) {
         continue;
     }
 
     $cmd = $php . ' ' . escapeshellarg($script) . ' >> ' . $logPath . ' 2>&1';
-    if ($flockBin) {
-        $lockFile = $lockDir . DIRECTORY_SEPARATOR . 'sparkspend_sync_' . basename($script) . '.lock';
-        // -n: skip silently if the previous run still holds the lock
-        $cmd = $flockBin . ' -n ' . escapeshellarg($lockFile) . ' ' . $cmd;
-    }
 
     if (_runBackground($cmd)) {
         $started++;

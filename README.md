@@ -109,6 +109,8 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 */30 * * * * php /sti/til/sparkspend/cron/warm_prices.php >> /sti/til/logs/prices.log 2>&1
 ```
 
+**Sådan opfører cron-jobbene sig.** De fire jobs deler én runner (`includes/CronJob.php`): ét job kører ad gangen (en `flock` i `CACHE_DIR`, som operativsystemet frigiver, hvis processen dør; en igangværende kørsel af samme job gør, at den næste logger "Already running" og stopper). Exit-kode `0` = ok, `1` = fejlet, `2` = Monta rate-limit eller netværk nede (næste kørsel prøver igen). En fejl står i `cron/cron.log` og i `sync_log` (vandstanden bevares). Et job, der intet finder, skriver ingenting i loggen: om de kører, ses i `/health.php`, Oversigten og `php doctor.php`. Jobbene kan kun startes fra kommandolinjen.
+
 **Logfiler roteres automatisk.** `cron/cron.log` (skrives af de tre sync-jobs) roteres af appen selv, når den overstiger `LOG_MAX_BYTES` (standard 5 MB): `cron.log` → `cron.log.1` → … og de ældste slettes efter `LOG_KEEP` filer (standard 3). Det kræver ingen opsætning. Logfiler, som cron skriver med en shell-omdirigering (`prices.log`, PHP's fejllog), roteres ikke af appen; til dem ligger der en logrotate-fil i `cron/logrotate.sparkspend` (kopiér til `/etc/logrotate.d/`, instruktion i filen).
 
 `warm_prices.php` henter elpriserne for de seneste 3 kalenderår og venter igennem Energi Data Services 429-pauser, så siderne (Regning, Årsrapport, Hus, Oversigt) aldrig selv skal vente på dem. På en kold cache tager første kørsel nogle minutter. Indtil da viser Regning "—" for de måneder, der mangler priser.
