@@ -78,8 +78,13 @@ SyncLog::success($db, 'x', 2, '2026-01-01 11:00:00', '2026-01-01 11:05:00');
 check('the next success clears the error and moves the watermark', $row('x')['error_message'] === null && $row('x')['last_sync_timestamp'] === '2026-01-01 11:00:00');
 SyncLog::error($db, 'fresh', 'first run failed');
 check('an error on a source that never ran creates the row with no watermark', $row('fresh')['error_message'] === 'first run failed' && SyncLog::watermark($db, 'fresh') === null);
+SyncLog::error($db, 'x', str_repeat('x', 800));
+check('a long error message is cut to 500 characters', strlen($row('x')['error_message']) === 500);
 SyncLog::error($db, 'x', str_repeat('é', 800));
-check('a long error message is cut to 500', strlen($row('x')['error_message']) <= 500 && strlen($row('x')['error_message']) >= 499);
+$cut = $row('x')['error_message'];
+// With mbstring (CI, production) the cut is at 500 CHARACTERS; without it, at 500 bytes. Either way the result
+// must be a prefix of the message and still valid UTF-8 (never a half character).
+check('a long multibyte message is cut without breaking a character', str_starts_with(str_repeat('é', 800), $cut) && preg_match('//u', $cut) === 1 && (!function_exists('mb_strlen') || mb_strlen($cut) === 500), (string) strlen($cut));
 check('a database without the table gives no watermark instead of an error', SyncLog::watermark(new PDO('sqlite::memory:'), 'x') === null);
 
 array_map('unlink', glob($dir . '/*')); rmdir($dir);
