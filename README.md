@@ -150,6 +150,16 @@ Se `.env.example` for fuld liste.
 - `DEBUG=false`, `VEHICLE_API_KEY` og `HEALTH_KEY` sat til hver sin lange tilfældige værdi, og `EDS_WEB_FETCH=false` når `cron/warm_prices.php` kører i cron.
 - Kør `php doctor.php` efter hver udrulning. Den ændrer ikke noget, men kontrollerer `.env`, mapper, ventende migreringer, at de fire cron-jobs er planlagt med stier der findes, og at hver datakilde er frisk. Exit-kode 1 ved fejl (`--no-cron` springer crontab-tjekket over).
 
+### Sikkerhed
+
+Appen har intet login selv: Authentik foran den er login'et. Det holder kun, hvis intet andet kan nå webserveren. Tre lag, hvert for sig:
+
+1. **Webserveren (vigtigst).** Appen ligger som et git-checkout direkte i webroden, så uden regler udleverer nginx `.env` (nøgler og adgangskoder), `.git`, `data/*.db`, `cron/*.log` og kildekoden, og *kører* enhver `.php`-fil, der bliver bedt om. `docs/nginx-sparkspend.conf` er en skabelon, der kun lader sidens egne filer og seks PHP-indgange være tilgængelige. Efter `nginx -t` og reload: `php doctor.php --probe=http://<serverens-ip> --host=<appens værtsnavn>`; den henter de følsomme filer og skal melde dem alle som afvist. Probe serverens egen adresse, ikke den offentlige (den viser kun login-redirect).
+2. **Appen selv: `TRUSTED_PROXIES`.** Sæt proxyens IP (eller net) i `.env`; så svarer siderne og API'et `403` til alle andre afsendere, også på det interne net. Kun `REMOTE_ADDR` læses, aldrig `X-Forwarded-For`. Home Assistant og overvågningen bruger deres Bearer-nøgle og berøres ikke.
+3. **Filerne.** Rutefilerne, cron-scripts, `migrate.php` og `doctor.php` nægter at køre uden for appens opstart eller kommandolinjen, så en hentning over HTTP er et `404`, ikke en kørsel. (Det er en reserve; regel 1 er den rigtige lås.)
+
+Har `.env` kunnet hentes af andre end dig, så skift de hemmeligheder, den indeholder: Monta-nøglen, MySQL-adgangskoden, `VEHICLE_API_KEY`, `HEALTH_KEY` og `ADMIN_KEY`.
+
 ### Overvågning med Uptime Kuma
 
 `health.php` svarer `200` når alle datakilder er friske og `503` når en er forældet, har fejlet eller aldrig har leveret (Monta, jordvarme, hus, husets måler, elpriser). Grænserne står i `Freshness::MAX_AGE`; tjek på enhedsenergi fra Home Assistant tæller kun, når HA er begyndt at sende.

@@ -9,6 +9,8 @@
  *   php migrate.php --status   # Show migration status without running
  */
 
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+
 require __DIR__ . '/includes/configuration.php';
 require __DIR__ . '/includes/DatabaseManager.php';
 require __DIR__ . '/includes/MigrationRunner.php';

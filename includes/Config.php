@@ -62,6 +62,9 @@ class Config {
             // Admin key (system log access)
             'adminKey' => env('ADMIN_KEY', ''),
 
+            // Peers allowed to reach the web pages / API (the auth proxy). Empty = no restriction. See PeerGuard.
+            'trustedProxies' => array_values(array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', ''))))),
+
             // Health endpoint key (Uptime Kuma etc.): read-only data-freshness verdict, nothing else
             'healthKey' => env('HEALTH_KEY', ''),
 
@@ -145,6 +148,11 @@ class Config {
 
     public static function adminKey(): string {
         return self::get('adminKey', '');
+    }
+
+    /** @return string[] IPs / CIDRs of the proxy in front of the app; [] = no restriction */
+    public static function trustedProxies(): array {
+        return (array) self::get('trustedProxies', []);
     }
 
     public static function healthKey(): string {

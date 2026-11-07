@@ -1,4 +1,5 @@
 <?php
+if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
 /**
  * Charging optimisation: what the home charges cost at the hourly prices and what the same
  * energy would have cost in the cheapest hours the car was available for.

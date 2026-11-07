@@ -15,7 +15,7 @@ $lvl = fn(array $rs, string $needle) => array_values(array_map(fn($r) => $r['lev
 echo "checkEnv()\n";
 $good = ['ELSPOT_AREA' => 'DK2', 'ELSPOT_GLN' => '579', 'VEHICLE_API_KEY' => str_repeat('a', 32), 'HEALTH_KEY' => str_repeat('b', 32),
          'MONTA_CLIENT_ID' => 'x', 'MONTA_CLIENT_SECRET' => 'y', 'MYSQL_HEATPUMP_HOST' => 'h', 'MYSQL_HEATPUMP_USER' => 'u', 'MYSQL_HEATPUMP_DATABASE' => 'd',
-         'EDS_WEB_FETCH' => 'false', 'AUTO_MIGRATE' => 'false'];
+         'EDS_WEB_FETCH' => 'false', 'AUTO_MIGRATE' => 'false', 'TRUSTED_PROXIES' => '10.0.1.5'];
 check('a complete production env has no warnings or failures', Doctor::worst(Doctor::checkEnv($good)) === 'ok', json_encode(Doctor::checkEnv($good)));
 check('a missing price area is a failure', Doctor::worst(Doctor::checkEnv(array_diff_key($good, ['ELSPOT_AREA' => 1]))) === 'fail');
 check('a missing HEALTH_KEY is a warning, not a failure', Doctor::worst(Doctor::checkEnv(array_diff_key($good, ['HEALTH_KEY' => 1]))) === 'warn');
@@ -23,6 +23,7 @@ check('the same key for health and vehicles is warned about', in_array('warn', $
 check('a short API key is warned about', in_array('warn', $lvl(Doctor::checkEnv(['VEHICLE_API_KEY' => 'abc'] + $good), 'kort'), true));
 check('EDS_WEB_FETCH not false is warned about (the rate-limit trap)', in_array('warn', $lvl(Doctor::checkEnv(['EDS_WEB_FETCH' => 'true'] + $good), 'EDS_WEB_FETCH'), true));
 check('DEBUG=true is warned about', in_array('warn', $lvl(Doctor::checkEnv(['DEBUG' => 'true'] + $good), 'DEBUG'), true));
+check('a missing TRUSTED_PROXIES is warned about (the app is open to anything that reaches the server)', in_array('warn', $lvl(Doctor::checkEnv(array_diff_key($good, ['TRUSTED_PROXIES' => 1])), 'TRUSTED_PROXIES'), true));
 check('an empty env fails', Doctor::worst(Doctor::checkEnv([])) === 'fail');
 
 echo "checkCrontab()\n";

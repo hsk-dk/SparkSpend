@@ -1,4 +1,5 @@
 <?php
+if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
 /** Create a charging provider. POST JSON: { name } */
 
 $name = Http::str(Http::body(), 'name');

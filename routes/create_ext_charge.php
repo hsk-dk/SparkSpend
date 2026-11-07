@@ -1,4 +1,5 @@
 <?php
+if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
 /**
  * Create an external charge record.
  * POST (JSON or form): vehicleId, providerId, chargeDateTime (ISO), kwh, pris

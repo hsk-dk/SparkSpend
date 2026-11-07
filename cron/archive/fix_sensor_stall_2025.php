@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /**
  * Fix: Interpolate frozen sensor readings in powerloghus for Jan/Feb 2025
  *

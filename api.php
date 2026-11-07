@@ -17,6 +17,7 @@
 require __DIR__ . '/includes/configuration.php';
 require __DIR__ . '/includes/DatabaseManager.php';
 require __DIR__ . '/includes/Router.php';
+PeerGuard::enforce();   // only the auth proxy may reach the API (TRUSTED_PROXIES)
 
 header('Content-Type: application/json');
 

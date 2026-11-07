@@ -1,4 +1,5 @@
 <?php
+if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
 /**
  * Update an external charge.
  * POST JSON: id, vehicleId, providerId, datetime (ISO), kwh, pris

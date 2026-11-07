@@ -14,6 +14,10 @@ require_once __DIR__ . '/autoload.php';   // classes in includes/ load on first 
 // Load all config values into the Config class
 Config::load();
 
+// Set once the bootstrap has run. The route files check it: fetched directly over HTTP (they sit in the
+// web root) they would otherwise run outside the router, with no method or CSRF check.
+define('SPARKSPEND_BOOTED', true);
+
 // Timezone Configuration
 $timezone = env('TIMEZONE', 'Europe/Copenhagen');
 date_default_timezone_set($timezone);

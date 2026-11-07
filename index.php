@@ -1,6 +1,7 @@
 <?php
 require 'includes/configuration.php';
 require 'includes/DatabaseManager.php';
+PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROXIES)
 ?>
 <!DOCTYPE html>
 <html lang="da">

@@ -4,6 +4,10 @@
  *
  *   php doctor.php            # checks .env, folders, migrations, cron jobs and data freshness
  *   php doctor.php --no-cron  # skip the crontab check (e.g. when cron runs as another user)
+ *   php doctor.php --probe=http://10.0.1.3 --host=sparkspend.example.dk
+ *                             # also fetch .env, .git, the databases, logs and source over HTTP and fail
+ *                             # if the web server hands any of them out. Probe the server's OWN address
+ *                             # (not the public one: that only shows the login redirect).
  *
  * Exit code: 0 = ok or warnings only, 1 = at least one FAIL. Run it after every deploy.
  */
@@ -16,6 +20,10 @@ require __DIR__ . '/includes/DatabaseManager.php';
 require __DIR__ . '/includes/MigrationRunner.php';
 
 $skipCron = in_array('--no-cron', $argv ?? [], true);
+$opt = static function (string $name) use ($argv): ?string {
+    foreach (array_slice($argv ?? [], 1) as $a) if (str_starts_with($a, "--{$name}=")) return substr($a, strlen($name) + 3);
+    return null;
+};
 $results  = [];
 $add = static function (array ...$rs) use (&$results): void { foreach ($rs as $r) $results[] = $r; };
 
@@ -86,6 +94,11 @@ try {
     )));
 } catch (\Throwable $e) {
     $add(['level' => 'fail', 'name' => 'Datafriskhed kunne ikke vurderes', 'detail' => $e->getMessage()]);
+}
+
+// Exposure: which files does the web server hand out? (--probe=http://10.0.1.3 --host=sparkspend.example.dk)
+if (($probe = $opt('probe')) !== null) {
+    $add(...Exposure::probe($probe, $opt('host')));
 }
 
 // Output

@@ -1,4 +1,5 @@
 <?php
+if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
 /** Delete a provider that no external charge refers to. POST JSON: { id } */
 
 $id = Http::int(Http::body(), 'id');

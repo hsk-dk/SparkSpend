@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 /**
  * One-time migration: reset the stuck housepowerlog sync watermark.
  *

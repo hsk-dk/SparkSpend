@@ -45,6 +45,9 @@ final class Doctor
         } elseif (($env['HEALTH_KEY'] ?? '') === $key) {
             $out[] = self::r('warn', 'HEALTH_KEY er den samme som VEHICLE_API_KEY', 'brug en egen nøgle (skrivebeskyttet)');
         }
+        if (trim((string) ($env['TRUSTED_PROXIES'] ?? '')) === '') {
+            $out[] = self::r('warn', 'TRUSTED_PROXIES er ikke sat', 'uden den kan alt på serverens adresse nås uden om login-proxyen; angiv proxyens IP (se README, Sikkerhed)');
+        }
         foreach (['MONTA_CLIENT_ID', 'MONTA_CLIENT_SECRET', 'MYSQL_HEATPUMP_HOST', 'MYSQL_HEATPUMP_USER', 'MYSQL_HEATPUMP_DATABASE'] as $k) {
             if (trim((string) ($env[$k] ?? '')) === '') $out[] = self::r('warn', "$k mangler", 'det tilhørende sync-job kan ikke køre');
         }

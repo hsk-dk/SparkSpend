@@ -1,4 +1,5 @@
 <?php
+if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
 /**
  * Update the vehicle of an internal (Monta) charge; marks it as manually paired.
  * POST JSON: { id, vehicleId }
