@@ -1,0 +1,84 @@
+# Home Assistant automation: send the car's odometer to SparkSpend when its cable is plugged in.
+#
+# Replaces the existing "cablePluggedIn" (same rest_command, same payload: vehicleId + odometer).
+# Install: Settings > Automations > cablePluggedIn > three dots > Edit in YAML > paste this > Save.
+#
+# What is better than the old version
+#  - A car whose sensor was "unavailable" / "unknown" just before plugging in is no longer missed
+#    (the old trigger required from: off / disconnected exactly).
+#  - An odometer that is "unavailable" no longer breaks the template (|round on a string) or reaches SparkSpend
+#    as text (HTTP 400): it is turned into a number first, and when there is none you get ONE clear
+#    notification instead of a silent failure.
+#  - mode: queued: two cars plugged in at the same moment are both sent (single dropped the second).
+#  - A failing REST call (timeout, no network) also gives a notification; before, only a wrong HTTP status did.
+#
+# Vehicle ids are SparkSpend's: 2 = Skoda Enyaq, 3 = e-UP. Add a car by adding a trigger and a line in `cars`.
+alias: cablePluggedIn
+description: Sender bilens kilometerstand til SparkSpend, når ladekablet sættes i
+mode: queued
+max: 5
+triggers:
+  - trigger: state
+    id: skoda
+    alias: Enyaq
+    entity_id: binary_sensor.skoda_enyaq_ladekabel
+    to: "on"
+    not_from:
+      - unavailable
+      - unknown
+  - trigger: state
+    id: e-up
+    alias: E-UP
+    entity_id: sensor.indkorsel_e_up_plug_state
+    to: connected
+    not_from:
+      - unavailable
+      - unknown
+variables:
+  cars:
+    skoda:
+      vehicleId: 2
+      name: Skoda Enyaq
+      odometer_entity: sensor.skoda_enyaq_kilometerstand
+    e-up:
+      vehicleId: 3
+      name: e-Up
+      odometer_entity: sensor.indkorsel_e_up_mileage
+  car: "{{ cars[trigger.id] }}"
+  odometer: "{{ states(car.odometer_entity) | float(0) | round(0) }}"
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ odometer > 0 }}"
+    then:
+      - action: rest_command.cablepluggedin
+        continue_on_error: true
+        response_variable: rest_result
+        data:
+          vehicleId: "{{ car.vehicleId }}"
+          odometer: "{{ odometer }}"
+      - if:
+          - condition: template
+            value_template: "{{ rest_result is not defined or rest_result.status != 201 }}"
+        then:
+          - action: persistent_notification.create
+            data:
+              title: SparkSpend fejl
+              message: >-
+                REST kald fejlede for {{ car.name }} (vehicleId={{ car.vehicleId }}).
+                Status: {{ rest_result.status if rest_result is defined else 'intet svar' }}
+                {{ ('Svar: ' ~ rest_result.content) if rest_result is defined else '' }}
+        else:
+          - action: logbook.log
+            data:
+              name: Vehicle Data
+              message: >-
+                REST command triggered - vehicleId={{ car.vehicleId }}, odometer={{ odometer }},
+                status={{ rest_result.status }}
+    else:
+      - action: persistent_notification.create
+        data:
+          title: SparkSpend - kilometerstand mangler
+          message: >-
+            {{ car.name }} blev sat i lader, men {{ car.odometer_entity }} er
+            '{{ states(car.odometer_entity) }}'. Der er ikke sendt noget til SparkSpend.
