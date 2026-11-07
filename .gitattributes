@@ -1,0 +1,2 @@
+# Shell scripts must keep LF: with core.autocrlf=true Windows would check them out with CRLF, and bash then fails on the .
+*.sh text eol=lf
