@@ -27,6 +27,6 @@ if (!$v['ok']) {
 }
 
 $n = DeviceEnergy::store(DatabaseManager::getPowerlogDb(), $v['rows']);
-CacheHelper::invalidateMeterCaches();   // the house-power / bill views include these rows
+CacheHelper::invalidate(['meter']);   // the house-power / bill views include these rows
 http_response_code(201);
 echo json_encode(['success' => true, 'message' => 'Stored', 'rows' => $n]);

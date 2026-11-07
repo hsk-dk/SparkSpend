@@ -21,8 +21,15 @@ require_once __DIR__ . '/../includes/ElspotPrices.php';
 // One run at a time: a run that waits out a rate limit can take 15 minutes, longer than the 30-minute
 // cron interval allows for a second one beside it.
 $lock = CronJob::acquire('prices');
-if ($lock === null) { echo date('c') . " already running - skipping.
-"; exit(0); }
+if ($lock === null) { echo date('c') . " already running - skipping.\n"; exit(0); }
+
+// When the run ends (whichever way): views built from prices are dropped if this run fetched anything
+// new, and cache files nobody will read again are removed.
+$runStarted = time();
+register_shutdown_function(static function () use ($runStarted): void {
+    if ((Freshness::newestPriceFile(Config::cacheDir()) ?? 0) >= $runStarted) CacheHelper::invalidate(['prices']);
+    CacheHelper::purgeExpired();
+});
 
 $area = Config::elspotArea();
 $gln  = Config::elspotGln();

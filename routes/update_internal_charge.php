@@ -23,5 +23,5 @@ $stmt = $db->prepare("UPDATE charges SET vehicleId = ?, pairingSource = 'manual'
 if (!$stmt->execute([$vehicleId, $id])) {
     Http::fail('Error updating charge', 500);
 }
-CacheHelper::invalidateChargeCaches();
+CacheHelper::invalidate(['charges']);
 Http::send(['success' => true, 'message' => 'Internal charge updated']);

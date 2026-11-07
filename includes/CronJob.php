@@ -77,6 +77,8 @@ final class CronJob
             return 1;
         } finally {
             self::release($lock);
+            // The sync status view reads what this run just wrote.
+            try { CacheHelper::invalidate(['sync']); } catch (\Throwable $ignored) {}
         }
     }
 }

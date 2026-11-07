@@ -29,5 +29,5 @@ $result = ChargeRepository::insertExternal($db, [
 if (!$result['success']) {
     Http::fail($result['error'] ?? 'Error creating charge', 500);
 }
-CacheHelper::invalidateChargeCaches();
+CacheHelper::invalidate(['charges']);
 Http::send(['success' => true, 'id' => $result['id']], 201);

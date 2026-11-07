@@ -13,4 +13,5 @@ if (!Db::rowExists($db, 'vehicles', $id)) {
     Http::fail('Køretøj ikke fundet', 404);
 }
 VehicleRepository::update($db, $id, $name);
+CacheHelper::invalidate(['vehicles']);
 Http::send(['success' => true]);

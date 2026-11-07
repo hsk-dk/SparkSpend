@@ -17,15 +17,27 @@ final class ApiCache
     /** If a fresh cached answer exists: send it and exit. */
     public static function serve(string $key, int $ttl): void
     {
+        if (!self::cacheable($key)) return;
         $cached = CacheHelper::read($key, $ttl);
         if ($cached !== null) { echo $cached; exit; }
+    }
+
+    /**
+     * A key is cached only if its prefix is registered in CacheHelper::DEPENDENCIES: otherwise nothing
+     * would ever invalidate it, and a view that is not told what it depends on must not be cached.
+     */
+    private static function cacheable(string $key): bool
+    {
+        if (CacheHelper::dependenciesOf($key) !== null) return true;
+        error_log("ApiCache: '{$key}' is not registered in CacheHelper::DEPENDENCIES - not cached.");
+        return false;
     }
 
     /** Encode (unless already a JSON string), store when $cache, and send. */
     public static function respond(string $key, mixed $payload, bool $cache = true): void
     {
         $json = is_string($payload) ? $payload : json_encode($payload);
-        if ($cache) CacheHelper::write($key, $json);
+        if ($cache && self::cacheable($key)) CacheHelper::write($key, $json);
         echo $json;
     }
 }

@@ -74,6 +74,7 @@ $result = VehicleRepository::insertOdometerReading($db, [
 ]);
 
 if ($result) {
+    CacheHelper::invalidate(['ha', 'vehicles']);   // efficiency etc. read the odometer / plug-in readings
     http_response_code(201);
     echo json_encode(['success' => true, 'message' => 'Data stored']);
 } else {

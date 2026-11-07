@@ -12,5 +12,5 @@ if ($count > 0) {
     Http::fail("Udbyderen er tilknyttet {$count} ladning(er) og kan ikke slettes", 409);
 }
 ProviderRepository::delete($db, $id);
-CacheHelper::invalidateProviderCaches();
+CacheHelper::invalidate(['providers']);
 Http::send(['success' => true]);

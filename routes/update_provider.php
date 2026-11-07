@@ -10,5 +10,5 @@ if ($id <= 0 || $name === '') {
 
 $db = DatabaseManager::getChargesDb();
 ProviderRepository::update($db, $id, $name);
-CacheHelper::invalidateProviderCaches();
+CacheHelper::invalidate(['providers']);
 Http::send(['success' => true]);

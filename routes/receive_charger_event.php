@@ -45,6 +45,7 @@ $stmt->execute([
 ]);
 
 if ($stmt->rowCount() > 0) {
+    CacheHelper::invalidate(['ha']);   // home-EV energy per hour comes from the sessions these events make
     http_response_code(201);
     echo json_encode(['success' => true, 'message' => 'Event stored']);
 } else {

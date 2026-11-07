@@ -8,5 +8,5 @@ if ($name === '') {
 
 $db = DatabaseManager::getChargesDb();
 $id = ProviderRepository::insert($db, $name);
-CacheHelper::invalidateProviderCaches();
+CacheHelper::invalidate(['providers']);
 Http::send(['success' => true, 'id' => $id, 'providerName' => $name]);

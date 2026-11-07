@@ -14,5 +14,5 @@ if (!Db::rowExists($db, 'ext_charges', $id)) {
 if (!ChargeRepository::deleteExternal($db, $id)) {
     Http::fail('Error deleting charge', 500);
 }
-CacheHelper::invalidateChargeCaches();
+CacheHelper::invalidate(['charges']);
 Http::send(['success' => true]);

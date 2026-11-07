@@ -42,7 +42,7 @@ final class MeterSync
             $mysql  = MySQLManager::getHeatpumpDb();          // both meter tables live in the same MySQL database
             $sqlite = DatabaseManager::getPowerlogDb();
             $fetch  = self::mysqlFetcher($mysql, (string) Config::get($def['mysqlConfig'], $def['mysqlDefault']), $def['normaliseWh']);
-            self::run($sqlite, $def, $fetch, $log, fn() => CacheHelper::invalidateMeterCaches());
+            self::run($sqlite, $def, $fetch, $log, fn() => CacheHelper::invalidate(['meter']));
             return 0;
         }, function (\Throwable $e) use ($def): void {
             // Only if SQLite can be reached; otherwise the error is in cron.log (CronJob) and /health.php goes stale.

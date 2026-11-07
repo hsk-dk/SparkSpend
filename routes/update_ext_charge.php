@@ -37,5 +37,5 @@ $ok = ChargeRepository::updateExternal($db, [
 if (!$ok) {
     Http::fail('Error updating charge', 500);
 }
-CacheHelper::invalidateChargeCaches();
+CacheHelper::invalidate(['charges']);
 Http::send(['success' => true, 'message' => 'External charge updated']);

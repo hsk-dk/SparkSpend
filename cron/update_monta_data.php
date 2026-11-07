@@ -18,7 +18,7 @@ exit(CronJob::run('monta', 'Monta Sync', function (callable $log): int {
         throw new RuntimeException('MONTA_CLIENT_ID / MONTA_CLIENT_SECRET are not configured in .env');
     }
     $api = new MontaClient(Config::montaClientId(), Config::montaClientSecret(), Config::montaAuthEndpoint(), Config::montaDataEndpoint(), $log);
-    return MontaSync::run(DatabaseManager::getChargesDb(), $api, $log, null, fn() => CacheHelper::invalidateChargeCaches());
+    return MontaSync::run(DatabaseManager::getChargesDb(), $api, $log, null, fn() => CacheHelper::invalidate(['charges', 'vehicles']));
 }, function (\Throwable $e): void {
     SyncLog::error(DatabaseManager::getChargesDb(), 'monta', $e->getMessage());
 }));
