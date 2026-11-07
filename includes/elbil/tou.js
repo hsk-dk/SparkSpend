@@ -78,8 +78,9 @@
                 '<div id="touPriceChart"></div>' +
                 (S.allCharges.length > 0 ? '<div id="touChargeChart" class="mt-3"></div>' : '');
 
+            // ApexCharts draws the FIRST series at the bottom: reverse so a Danish week reads Man (top) to Søn (bottom)
             const heatmapOpts = (series, title, color, fmtFn) => ({
-                series,
+                series: series.slice().reverse(),
                 chart: { type: 'heatmap', height: 210, toolbar: { show: false },
                          animations: { enabled: false } },
                 title: { text: title, align: 'left', style: { fontSize: '13px', fontWeight: 600 } },

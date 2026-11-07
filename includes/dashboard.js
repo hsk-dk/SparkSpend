@@ -374,7 +374,7 @@ async function loadElspotForecast(force = false) {
             `api.php?action=elspot-prices&start=${today}&end=${tmrStr}` +
             `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=low`
         );
-        if (!res.ok) return;
+        if (!res.ok) { _showForecastProblem(card, 'Elpriserne kunne ikke hentes (HTTP ' + res.status + ').'); return; }
         const data    = await res.json();
         const allRows = (data.records || []);
 
@@ -490,7 +490,17 @@ async function loadElspotForecast(force = false) {
         _forecastLoadedAt = Date.now();
     } catch (e) {
         console.warn('loadElspotForecast:', e);
+        _showForecastProblem(card, 'Elpriserne kunne ikke vises.');
     }
+}
+
+/** Keep the price card visible with the reason instead of silently hiding it. */
+function _showForecastProblem(card, text) {
+    card.style.display = '';
+    const chartEl = document.getElementById('elspot-forecast-chart');
+    if (chartEl) chartEl.innerHTML = `<p class="text-muted text-center py-3">${text}</p>`;
+    const windowEl = document.getElementById('elspot-cheapest-window');
+    if (windowEl) windowEl.innerHTML = '';
 }
 
 // Electricity cost estimates. The elvarme model (rates, weighting, high/low split,
