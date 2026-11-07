@@ -125,5 +125,13 @@ try {
     error_log('getSyncStatus powerlog: ' . $e->getMessage());
 }
 
-$response = json_encode(['sources' => $sources]);
+// Verdict on how old the newest data is (the same one the health endpoint gives Uptime Kuma).
+$freshness = null;
+try {
+    $freshness = Freshness::collect(DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), Config::cacheDir(), time());
+} catch (\Throwable $e) {
+    error_log('getSyncStatus freshness: ' . $e->getMessage());
+}
+
+$response = json_encode(['sources' => $sources, 'freshness' => $freshness]);
 ApiCache::respond('syncstatus', $response);

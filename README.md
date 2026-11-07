@@ -137,14 +137,26 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 | `AUTO_MIGRATE` | Kør DB-migrationer automatisk ved web-requests (højst en gang i timen) | `true` |
 | `LOG_MAX_BYTES` / `LOG_KEEP` | Rotér `cron/cron.log`, når den er større end så mange bytes; behold så mange roterede filer | `5242880` / `3` |
 | `EDS_WEB_FETCH` | `false` = kun `cron/warm_prices.php` kalder Energi Data Service | `true` |
-| `VEHICLE_API_KEY` | Bearer-nøgle til `receive_vehicle_data.php` og `receive_charger_event.php` (uden nøgle svarer de 503) | — |
+| `VEHICLE_API_KEY` | Bearer-nøgle til `receive_vehicle_data.php`, `receive_charger_event.php` og `receive_device_energy.php` (uden nøgle svarer de 503) | — |
+| `HEALTH_KEY` | Bearer-nøgle til `health.php` (skrivebeskyttet datafriskhed til Uptime Kuma; uden nøgle svarer den 503). Brug en anden værdi end `VEHICLE_API_KEY` | — |
 
 Se `.env.example` for fuld liste.
 
 ### Anbefalet produktionsopsætning
 
 - `AUTO_MIGRATE=false` og kør `php migrate.php` som en del af deploy: så ændres databaseskemaet aldrig af en tilfældig brugeranmodning. `php migrate.php --status` viser, hvad der er anvendt.
-- `DEBUG=false`, `VEHICLE_API_KEY` sat til en lang tilfældig værdi, og `EDS_WEB_FETCH=false` når `cron/warm_prices.php` kører i cron.
+- `DEBUG=false`, `VEHICLE_API_KEY` og `HEALTH_KEY` sat til hver sin lange tilfældige værdi, og `EDS_WEB_FETCH=false` når `cron/warm_prices.php` kører i cron.
+- Kør `php doctor.php` efter hver udrulning. Den ændrer ikke noget, men kontrollerer `.env`, mapper, ventende migreringer, at de fire cron-jobs er planlagt med stier der findes, og at hver datakilde er frisk. Exit-kode 1 ved fejl (`--no-cron` springer crontab-tjekket over).
+
+### Overvågning med Uptime Kuma
+
+`health.php` svarer `200` når alle datakilder er friske og `503` når en er forældet, har fejlet eller aldrig har leveret (Monta, jordvarme, hus, husets måler, elpriser). Grænserne står i `Freshness::MAX_AGE`; tjek på enhedsenergi fra Home Assistant tæller kun, når HA er begyndt at sende.
+
+1. Sæt `HEALTH_KEY` i `.env` (fx `openssl rand -hex 24`).
+2. Undtag `/health.php` fra Authentik, som `receive_*.php`, eller lad Uptime Kuma kalde appen på det interne netværk.
+3. I Uptime Kuma: ny monitor, type **HTTP(s) - Keyword**, URL `https://<host>/health.php`, interval 300 s, nøgleord `"status":"ok"`, og under *Headers*: `{"Authorization": "Bearer <HEALTH_KEY>"}`. Accepterede statuskoder `200-299`. Så bliver monitoren rød i det øjeblik en kilde bliver forældet, og svaret viser hvilken.
+
+Samme dom vises som en gul advarsel øverst i Oversigten.
 
 ---
 

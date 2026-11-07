@@ -568,6 +568,9 @@ async function _enrichSyncLabels() {
 
         const idMap = { monta: 'ev', heatpump: 'hp', housepowerlog: 'hus', hus: 'hus' };
         const now   = Date.now();
+        _renderFreshnessAlert(data.freshness);
+        // The server judges how old is too old (Freshness::MAX_AGE), per source.
+        const staleIds = new Set((data.freshness?.checks || []).filter(c => c.status !== 'ok' && !c.optional).map(c => c.id));
 
         data.sources.forEach(src => {
             const cardPrefix = idMap[src.id];
@@ -589,11 +592,32 @@ async function _enrichSyncLabels() {
             }
 
             el.textContent  = label;
-            el.className    = 'dash-sync' + (diffMin >= 240 ? ' dash-sync-stale' : '');
+            el.className    = 'dash-sync' + (staleIds.has(src.id) ? ' dash-sync-stale' : '');
         });
     } catch (e) {
         // Best-effort — never surface errors
     }
+}
+
+/** A visible warning when a data source has stopped delivering (stale, errored or never seen). */
+function _renderFreshnessAlert(freshness) {
+    const box = document.getElementById('dash-freshness-alert');
+    if (!box) return;
+    const bad = (freshness?.checks || []).filter(c => c.status !== 'ok' && !c.optional);
+    if (!bad.length) { box.style.display = 'none'; box.textContent = ''; return; }
+    const age = sec => sec === null ? 'aldrig modtaget' : sec < 7200 ? `${Math.round(sec / 60)} min gammel` : sec < 172800 ? `${Math.round(sec / 3600)} timer gammel` : `${Math.round(sec / 86400)} dage gammel`;
+    const items = bad.map(c => {
+        const li = document.createElement('li');
+        li.textContent = c.status === 'error' ? `${c.label}: fejl (${c.error})` : `${c.label}: ${age(c.age_sec)}`;
+        return li;
+    });
+    const head = document.createElement('strong');
+    head.textContent = 'Data er ikke frisk';
+    const ul = document.createElement('ul');
+    ul.className = 'mb-0 ps-3';
+    items.forEach(li => ul.appendChild(li));
+    box.replaceChildren(head, ul);
+    box.style.display = '';
 }
 
 function _monthName() {

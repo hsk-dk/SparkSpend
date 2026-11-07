@@ -34,7 +34,7 @@ $envFile = $tmp . '/test.env';
 file_put_contents($envFile, implode("\n", [
     "CHARGING_DB_PATH=$tmp/charging_data.db", "POWERLOG_DB_PATH=$tmp/powerlog_data.db",
     "CACHE_DIR=$tmp/cache", "LOG_PATH=$tmp/php_errors.log",
-    'VEHICLE_API_KEY=test-key', 'ADMIN_KEY=test-admin', 'ELSPOT_AREA=DK2', 'ELSPOT_GLN=5790000705689',
+    'VEHICLE_API_KEY=test-key', 'HEALTH_KEY=test-health', 'ADMIN_KEY=test-admin', 'ELSPOT_AREA=DK2', 'ELSPOT_GLN=5790000705689',
     'WEATHER_LAT=55.68', 'WEATHER_LON=12.57', 'SUBSCRIPTION_PER_DAY=3.5', 'TIMEZONE=Europe/Copenhagen',
     'DEBUG=false', 'AUTO_MIGRATE=true', 'DEV_INSECURE_COOKIE=true', 'MOCK_EDS=true', '',
 ]));
@@ -240,6 +240,15 @@ $skurMonth = $api('action=monthly-bill&months=2')['json']['skur'][substr($de['da
 check('the shed heater shows up in the monthly bill (part of rest)', $skurMonth !== null && $skurMonth >= 4.25, json_encode($skurMonth));
 $hpMonth = array_values(array_filter($api('action=house-power&mode=monthly&year=' . substr($de['date'], 0, 4))['json']['months'] ?? [], fn($m) => $m['month'] === substr($de['date'], 0, 7)))[0] ?? null;
 check('...and in the house-power split', $hpMonth !== null && ($hpMonth['skur'] ?? 0) >= 4.25, json_encode($hpMonth));
+
+$getH = fn(string $key) => http('GET', '/health.php', '', $key === '' ? [] : ["Authorization: Bearer $key"], false);
+check('health without key -> 401', $getH('')['status'] === 401);
+check('health with the vehicle key (a different secret) -> 401', $getH('test-key')['status'] === 401);
+$h = $getH('test-health');
+$hj = json_decode($h['body'], true);
+check('health answers 200 (ok) or 503 (degraded) and the body agrees', in_array($h['status'], [200, 503], true) && ($hj['status'] ?? '') === ($h['status'] === 200 ? 'ok' : 'degraded'), $h['body']);
+check('health lists the checks with a status each', !empty($hj['checks']) && !array_diff(array_column($hj['checks'], 'id'), array_column($hj['checks'], 'id')) && isset($hj['checks'][0]['status']));
+check('health refuses POST', http('POST', '/health.php', '{}', ["Authorization: Bearer test-health"], false)['status'] === 405);
 
 // ── Recording / comparison ───────────────────────────────────────────────────────────────────
 if ($recordFile) { file_put_contents($recordFile, json_encode($fingerprints, JSON_PRETTY_PRINT)); echo "recorded " . count($fingerprints) . " fingerprints in $recordFile\n"; }

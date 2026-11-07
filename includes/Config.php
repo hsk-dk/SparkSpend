@@ -62,6 +62,9 @@ class Config {
             // Admin key (system log access)
             'adminKey' => env('ADMIN_KEY', ''),
 
+            // Health endpoint key (Uptime Kuma etc.): read-only data-freshness verdict, nothing else
+            'healthKey' => env('HEALTH_KEY', ''),
+
             // Vehicle telemetry API key
             'vehicleApiKey' => env('VEHICLE_API_KEY', ''),
 
@@ -142,6 +145,10 @@ class Config {
 
     public static function adminKey(): string {
         return self::get('adminKey', '');
+    }
+
+    public static function healthKey(): string {
+        return self::get('healthKey', '');
     }
 
     public static function vehicleApiKey(): string {

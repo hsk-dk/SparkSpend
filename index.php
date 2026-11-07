@@ -159,6 +159,7 @@ require 'includes/DatabaseManager.php';
   <div id="total-cost-estimate" class="total-cost-card" style="display:none"></div>
 
   <!-- Anomaly Detection Panel -->
+  <div id="dash-freshness-alert" class="alert alert-warning py-2 px-3 small mb-2" role="alert" style="display:none"></div>
   <div id="anomaly-panel" class="anomaly-panel" style="display:none">
     <div class="anomaly-panel-header">
       <i class="fas fa-exclamation-triangle"></i>
