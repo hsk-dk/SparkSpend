@@ -30,22 +30,6 @@ const debounce = (fn, delayMs) => {
 };
 
 /**
- * Centralized fetch error handling
- * @param {Response} response - Fetch response
- * @returns {Promise} Parsed JSON or throws error
- */
-const handleFetchResponse = async (response) => {
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error);
-  }
-  return data;
-};
-
-/**
  * Initialize tooltips for elements with data-bs-toggle="tooltip"
  * Modern approach: one instance per element, no memory leaks
  */
@@ -118,8 +102,9 @@ const formatDate = (dateStr) => {
 };
 
 /**
- * Escape HTML special characters to prevent XSS
- * @param {string} text - Text to escape
+ * Escape HTML special characters to prevent XSS. The one escape function of the front end: every value that
+ * comes from the server or the user and goes into an innerHTML template passes through this.
+ * @param {*} text - Text to escape
  * @returns {string} Escaped text
  */
 const escapeHtml = (text) => {
@@ -130,7 +115,8 @@ const escapeHtml = (text) => {
     '"': '&quot;',
     "'": '&#039;'
   };
-  return text.replace(/[&<>"']/g, m => map[m]);
+  // null/undefined become '' and numbers become text, so a missing field cannot throw halfway through a template
+  return String(text ?? '').replace(/[&<>"']/g, m => map[m]);
 };
 
 // ============================================================================
@@ -597,7 +583,6 @@ const confirmDialog = (opts = {}) => {
 // Export for use in index.php inline scripts
 window.appUtils = {
   debounce,
-  handleFetchResponse,
   initializeTooltips,
   formatCurrency,
   formatDate,

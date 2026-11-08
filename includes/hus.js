@@ -109,11 +109,11 @@ const husApp = (() => {
             }
         }
 
-        function buildUrl() {
-            if (currentMode === 'daily')   return `api.php?action=house-power&mode=daily&month=${currentMonth}`;
-            if (currentMode === 'monthly') return `api.php?action=house-power&mode=monthly&year=${currentYear}`;
-            if (currentMode === 'ytd')     return 'api.php?action=house-power&mode=ytd';
-            return 'api.php?action=house-power&mode=compare';
+        function buildParams() {
+            if (currentMode === 'daily')   return { mode: 'daily', month: currentMonth };
+            if (currentMode === 'monthly') return { mode: 'monthly', year: currentYear };
+            if (currentMode === 'ytd')     return { mode: 'ytd' };
+            return { mode: 'compare' };
         }
 
         // ── Fetch & render ───────────────────────────────────────────────────
@@ -125,8 +125,7 @@ const husApp = (() => {
             if (yearContainer) yearContainer.style.display = 'none';
             statsContent.innerHTML  = '<p>Indlæser data...</p>';
 
-            fetch(buildUrl())
-                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            Api.get('house-power', buildParams())
                 .then(resp => {
                     lastData = resp;
                     const rows = resp.days || resp.months || resp.data || [];
@@ -148,8 +147,7 @@ const husApp = (() => {
 
         // ── Sync status ──────────────────────────────────────────────────────
         function fetchSyncStatus() {
-            fetch('api.php?action=house-power&mode=sync_status')
-                .then(r => r.json())
+            Api.get('house-power', { mode: 'sync_status' })
                 .then(s => {
                     if (!syncStatusEl) return;
                     if (s.last_sync_timestamp) {

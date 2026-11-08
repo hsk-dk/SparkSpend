@@ -875,6 +875,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <script defer src="<?= asset('includes/config.js') ?>"></script>
   <script defer src="<?= asset('includes/actions.js') ?>"></script>
   <script defer src="<?= asset('includes/app.js') ?>"></script>
+  <script defer src="<?= asset('includes/api.js') ?>"></script>
 
   <!-- Module Scripts (defer: run in order after the deferred libraries above) -->
   <script defer src="<?= asset('includes/nav.js') ?>"></script>

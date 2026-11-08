@@ -15,6 +15,6 @@ const Elbil = (() => {
         allCharges: [],
         filterEl: null, showZeroKwhEl: null, dateRangeEl: null, quickFilterEl: null, chargeTableBodyEl: null,
     };
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const esc = appUtils.escapeHtml;
     return { state, modules: {}, esc };
 })();

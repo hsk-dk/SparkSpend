@@ -9,6 +9,7 @@
   },
   "globals": {
     "appUtils": "readonly",
+    "Api": "readonly",
     "Chart": "readonly",
     "ChartDataLabels": "readonly",
     "ApexCharts": "readonly",

@@ -24,9 +24,7 @@
         });
         appUtils.setLoadingState('chargeTableBody', true);
         try {
-            const res  = await fetch('api.php?action=charges&' + params);
-            const data = await appUtils.handleFetchResponse(res);
-            S.allCharges   = data;
+            S.allCharges   = await Api.get('charges', params);
             _visibleRows  = _PAGE_SIZE;
             _applySortAndRender();
         } catch (e) {
@@ -312,17 +310,12 @@
         const form = e.target;
         if (!form.checkValidity()) { appUtils.showFormMessage('internalChargeMsg', 'Udfyld alle felter', 'danger'); return; }
         try {
-            const res    = await fetch('api.php?action=update-internal-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: document.getElementById('internalChargeId').value, vehicleId: document.getElementById('internalVehicleId').value }) });
-            const result = await appUtils.handleFetchResponse(res);
-            if (result.success) {
-                bootstrap.Modal.getInstance(document.getElementById('internalChargeModal')).hide();
-                appUtils.showToast('Intern ladning opdateret', 'success');
-                fetchCharges();
-                M.analytics.fetchVehicleComparison();
-                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
-            } else {
-                appUtils.showFormMessage('internalChargeMsg', result.error || 'Fejl', 'danger');
-            }
+            await Api.post('update-internal-charge', { id: document.getElementById('internalChargeId').value, vehicleId: document.getElementById('internalVehicleId').value });
+            bootstrap.Modal.getInstance(document.getElementById('internalChargeModal')).hide();
+            appUtils.showToast('Intern ladning opdateret', 'success');
+            fetchCharges();
+            M.analytics.fetchVehicleComparison();
+            window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
         } catch (err) { appUtils.showFormMessage('internalChargeMsg', err.message, 'danger'); }
     }
 
@@ -339,18 +332,13 @@
                 kwh: document.getElementById('externalKwh').value,
                 pris: document.getElementById('externalPris').value,
             };
-            const res    = await fetch('api.php?action=update-ext-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            const result = await appUtils.handleFetchResponse(res);
-            if (result.success) {
-                bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
-                appUtils.showToast('Ekstern ladning opdateret', 'success');
-                fetchCharges();
-                M.analytics.fetchVehicleComparison();
-                M.analytics.fetchProviderStats();
-                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
-            } else {
-                appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
-            }
+            await Api.post('update-ext-charge', payload);
+            bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
+            appUtils.showToast('Ekstern ladning opdateret', 'success');
+            fetchCharges();
+            M.analytics.fetchVehicleComparison();
+            M.analytics.fetchProviderStats();
+            window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
         } catch (err) { appUtils.showFormMessage('externalChargeMsg', err.message, 'danger'); }
     }
 
@@ -366,10 +354,8 @@
                 kwh:            document.getElementById('kwh').value,
                 pris:           document.getElementById('pris').value,
             };
-            const res  = await fetch('api.php?action=create-ext-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const data = await res.json();
-            if (data.success) {
+            await Api.post('create-ext-charge', payload);
+            {
                 // Remember choices to prefill the next time the modal opens.
                 try {
                     if (payload.vehicleId)  sessionStorage.setItem('sparkspend_last_vehicle',  payload.vehicleId);
@@ -383,8 +369,6 @@
                 M.analytics.fetchVehicleComparison();
                 M.analytics.fetchProviderStats();
                 window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
-            } else {
-                appUtils.showFormMessage('exChargeMsg', data.error || 'Fejl', 'danger');
             }
         } catch (err) { appUtils.showFormMessage('exChargeMsg', err.message, 'danger'); }
     }
@@ -440,19 +424,13 @@
         document.getElementById('deleteConfirmBtn').onclick = async () => {
             confirmModal.hide();
             try {
-                const res    = await fetch('api.php?action=delete-ext-charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const result = await res.json();
-                if (result.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
-                    appUtils.showToast('Ladningen er slettet', 'success');
-                    fetchCharges();
-                    M.analytics.fetchVehicleComparison();
-                    M.analytics.fetchProviderStats();
-                    window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
-                } else {
-                    appUtils.showFormMessage('externalChargeMsg', result.error || 'Fejl', 'danger');
-                }
+                await Api.post('delete-ext-charge', { id });
+                bootstrap.Modal.getInstance(document.getElementById('externalChargeModal')).hide();
+                appUtils.showToast('Ladningen er slettet', 'success');
+                fetchCharges();
+                M.analytics.fetchVehicleComparison();
+                M.analytics.fetchProviderStats();
+                window.SparkEvents?.dispatchEvent(new Event('charge:saved'));
             } catch (err) { appUtils.showFormMessage('externalChargeMsg', err.message, 'danger'); }
         };
         confirmModal.show();

@@ -18,10 +18,6 @@ Items within each priority tier are ordered by impact.
 `sw.js` har en hardkodet versionstreng (`sparkspend-vX`). Den ændres kun manuelt, så deployede filer kan sidde bag en stale cache i timevis for PWA-brugere. Deploy-scriptet (eller et pre-deploy trin) bør erstatte versionsstrengen med en dato/hash automatisk.
 **Filer:** `sw.js`, `Deploy sparkspend.bat`
 
-### DEBT — `annual.js` optional-chained `escapeHtml` kan rendere råt HTML
-Linje 57: `window.appUtils?.escapeHtml?.()` — hvis `app.js` endnu ikke er evalueret (race condition eller load-fejl), indsættes `err.message` direkte i `innerHTML` uden sanitering. Brug `document.createTextNode` som fallback.
-**Fil:** `includes/annual.js`
-
 ### ENHANCEMENT — Loading-skeletter på dashboard
 Ved langsom forbindelse viser alle tre dashboardkort kun `—` uden nogen feedback om at data hentes. Tilføj en CSS-skeleton-puls på `.dash-stat-value` mens `loadDashboard()` kører.
 **Filer:** `includes/dashboard.js`, `includes/style.css`

@@ -111,13 +111,7 @@
         const name = inp?.value.trim();
         if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
         try {
-            const res  = await fetch('api.php?action=update-vehicle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, name }),
-            });
-            const data = await res.json();
-            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            await Api.post('update-vehicle', { id, name });
             const v = S.vehicles.find(x => x.id == id);
             if (v) v.vehicleName = name;
             document.getElementById('vname-' + id).textContent = name;
@@ -153,13 +147,7 @@
         const name = inp?.value.trim();
         if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
         try {
-            const res  = await fetch('api.php?action=update-provider', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, name }),
-            });
-            const data = await res.json();
-            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            await Api.post('update-provider', { id, name });
             const p = S.providers.find(x => x.id == id);
             if (p) p.providerName = name;
             document.getElementById('pname-' + id).textContent = name;
@@ -174,13 +162,7 @@
         const name = inp?.value.trim();
         if (!name) { _showManageMsg('Navn må ikke være tomt'); return; }
         try {
-            const res  = await fetch('api.php?action=create-provider', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name }),
-            });
-            const data = await res.json();
-            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            const data = await Api.post('create-provider', { name });
             S.providers.push({ id: data.id, providerName: data.providerName });
             S.providers.sort((a, b) => a.providerName.localeCompare(b.providerName, 'da'));
             if (inp) inp.value = '';
@@ -198,13 +180,7 @@
         });
         if (!ok) return;
         try {
-            const res  = await fetch('api.php?action=delete-provider', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id }),
-            });
-            const data = await res.json();
-            if (!data.success) { _showManageMsg(data.error || 'Fejl'); return; }
+            await Api.post('delete-provider', { id });
             S.providers = S.providers.filter(p => p.id != id);
             _renderManageProviders(S.providers);
             M.main._populateProviderSelects();

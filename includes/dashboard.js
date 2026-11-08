@@ -77,10 +77,7 @@ async function loadDashboard(isRefresh = false) {
         cards.forEach(id => document.getElementById(id)?.classList.add('dash-loading'));
     }
     try {
-        const res = await fetch('api.php?action=dashboard');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const data = await Api.get('dashboard');
         if (seq !== _dashLoadSeq) return;   // a newer load has started — drop this response
 
         // Each card renders independently: one bad card must not blank the others.
@@ -285,8 +282,8 @@ async function _enrichHpWithWeather(card, hp) {
             ({ hddThis, hddLast } = _hddCache);
         } else {
             const [resThis, resLast] = await Promise.all([
-                fetch(`api.php?action=weather&start=${thisYear}-${mm}-01&end=${today}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
-                fetch(`api.php?action=weather&start=${lastYear}-${mm}-01&end=${lastYear}-${mm}-${ddNow}&lat=${lat}&lon=${lon}`, { signal: controller.signal }).then(r => r.json()),
+                Api.get('weather', { start: `${thisYear}-${mm}-01`, end: today, lat, lon }, { signal: controller.signal }),
+                Api.get('weather', { start: `${lastYear}-${mm}-01`, end: `${lastYear}-${mm}-${ddNow}`, lat, lon }, { signal: controller.signal }),
             ]);
             hddThis = (resThis.records || []).reduce((s, r) => s + r.hdd, 0);
             hddLast = (resLast.records || []).reduce((s, r) => s + r.hdd, 0);
@@ -370,12 +367,13 @@ async function loadElspotForecast(force = false) {
     const todLabel = now.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'short' });
 
     try {
-        const res = await fetch(
-            `api.php?action=elspot-prices&start=${today}&end=${tmrStr}` +
-            `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=low`
-        );
-        if (!res.ok) { _showForecastProblem(card, 'Elpriserne kunne ikke hentes (HTTP ' + res.status + ').'); return; }
-        const data    = await res.json();
+        let data;
+        try {
+            data = await Api.get('elspot-prices', { start: today, end: tmrStr, area, gln, format: 'hourly', tariff: 'low' });
+        } catch (e) {
+            if (e instanceof Api.ApiError && e.status) { _showForecastProblem(card, 'Elpriserne kunne ikke hentes (' + e.message + ').'); return; }
+            throw e;
+        }
         const allRows = (data.records || []);
 
         // Prefer tomorrow's day-ahead prices; if not published yet, fall back to
@@ -561,9 +559,7 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
 
 async function _enrichSyncLabels() {
     try {
-        const res  = await fetch('api.php?action=sync-status');
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await Api.get('sync-status');
         if (!Array.isArray(data.sources)) return;
 
         const idMap = { monta: 'ev', heatpump: 'hp', housepowerlog: 'hus', hus: 'hus' };
@@ -660,10 +656,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadAnomalies() {
     try {
-        const res  = await fetch('api.php?action=anomalies');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.error || !data.anomalies) return;
+        const data = await Api.get('anomalies');
+        if (!data.anomalies) return;
 
         _renderAnomalies(data.anomalies);
     } catch (e) {

@@ -19,8 +19,7 @@
         if (!el) return;
         const months = document.getElementById('chargeOptMonths')?.value || '3';
         el.innerHTML = '<p class="text-muted small mb-0">Indlæser…</p>';
-        fetch('api.php?action=charge-optimization&months=' + encodeURIComponent(months))
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        Api.get('charge-optimization', { months })
             .then(d => _renderChargeOptimization(el, d))
             .catch(err => {
                 el.innerHTML = '';

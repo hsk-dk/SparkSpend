@@ -19,9 +19,8 @@
     function fetchCostAnalytics() {
         const groupBy = document.querySelector('button[data-grouping].active')?.dataset.grouping || 'week';
         const params  = new URLSearchParams({ filter: S.filterEl.value, dateRange: S.dateRangeEl.value, groupBy, showZeroKwh: S.showZeroKwhEl.checked });
-        fetch('api.php?action=charge-analytics&' + params)
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(data => { if (data.error) throw new Error(data.error); _renderCostAnalytics(data); })
+        Api.get('charge-analytics', params)
+            .then(_renderCostAnalytics)
             .catch(err => {
                 appUtils.showRetryError('costTrendChart', {
                     message: 'Kunne ikke hente omkostningsdata: ' + err.message,
@@ -104,9 +103,8 @@
         if (sortBy) currentVehicleSort = sortBy;
         const params = new URLSearchParams({ dateRange: S.dateRangeEl.value });
         if (currentVehicleSort) params.set('sortBy', currentVehicleSort);
-        fetch('api.php?action=vehicle-comparison&' + params)
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(data => { if (data.error) throw new Error(data.error); _renderVehicleComparison(data.vehicles); })
+        Api.get('vehicle-comparison', params)
+            .then(data => _renderVehicleComparison(data.vehicles))
             .catch(err => {
                 appUtils.showRetryError('vehicleComparisonTableBody', {
                     message: 'Kunne ikke hente bilsammenligning: ' + err.message,
@@ -148,9 +146,8 @@
     // -------------------------------------------------------------------------
     function fetchProviderStats() {
         const params = new URLSearchParams({ filter: S.filterEl.value, dateRange: S.dateRangeEl.value });
-        fetch('api.php?action=provider-stats&' + params)
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(data => { if (data.error) throw new Error(data.error); _renderProviderStats(data); })
+        Api.get('provider-stats', params)
+            .then(_renderProviderStats)
             .catch(err => {
                 appUtils.showRetryError('providerStatsContent', {
                     message: 'Kunne ikke hente ladesteder: ' + err.message,

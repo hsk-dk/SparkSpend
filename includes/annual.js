@@ -39,17 +39,8 @@ const annualApp = (() => {
         loadingEl.style.display = '';
         contentEl.style.display = 'none';
 
-        fetch('api.php?action=annual')
-            .then(r => {
-                const ct = r.headers.get('content-type') || '';
-                if (ct.includes('application/json')) {
-                    return r.json().then(data => ({ ok: r.ok, data, raw: null }));
-                }
-                return r.text().then(raw => ({ ok: false, data: null, raw }));
-            })
-            .then(({ ok, data, raw }) => {
-                if (raw !== null) throw new Error('Server returnerede ikke JSON: ' + raw.slice(0, 200));
-                if (!ok || data.error) throw new Error(data?.error || 'HTTP fejl');
+        Api.get('annual')
+            .then(data => {
                 _data = data;
                 _readCosts(data);
                 // Make content visible before chart init so Chart.js can measure canvas dimensions

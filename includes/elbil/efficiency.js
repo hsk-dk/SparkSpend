@@ -17,9 +17,8 @@
     // -------------------------------------------------------------------------
     function fetchEfficiencyStats() {
         const params = new URLSearchParams({ filter: S.filterEl.value, showZeroKwh: S.showZeroKwhEl.checked, dateRange: S.dateRangeEl.value });
-        fetch('api.php?action=efficiency&' + params)
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(data => { if (data.error) throw new Error(data.error); _renderEfficiency(data); })
+        Api.get('efficiency', params)
+            .then(_renderEfficiency)
             .catch(err => {
                 appUtils.showRetryError('kmPerKwhChart', {
                     message: 'Kunne ikke hente effektivitetsdata: ' + err.message,
@@ -107,11 +106,9 @@
         const last = months[months.length - 1] + '-' + String(lastDay).padStart(2, '0');
         const end = last > todayStr ? todayStr : last;
         if (end < first) return;
-        const params = new URLSearchParams({ action: 'weather', start: first, end, lat, lon });
-        fetch('api.php?' + params)
-            .then(r => r.ok ? r.json() : null)
+        Api.get('weather', { start: first, end, lat, lon })
             .then(d => {
-                if (!d || !Array.isArray(d.records)) return;
+                if (!Array.isArray(d.records)) return;
                 const acc = {};
                 d.records.forEach(r => {
                     const k = String(r.date).slice(0, 7);

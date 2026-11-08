@@ -79,6 +79,10 @@ php dev/run_tests.php pricing  # kun tests med "pricing" i filnavnet
 
 Kører også i GitHub Actions (`.github/workflows/tests.yml`) ved push og pull requests. **Kør `bash dev/ci-local.sh` før du pusher**: den kører PHP-syntaks, testene og PHPStan i en Linux-container med PHP 8.3 og de samme udvidelser som CI (Docker kræves). En lokal PHP mangler ofte en udvidelse (her `mbstring`), og så kan en test bestå lokalt og fejle i CI. `test_config_rates.php` fejler fra 1. januar, hvis afgiftstabellerne i `includes/Config.php` ikke har en række for det nye år.
 
+### Frontend: `Api` og `escapeHtml`
+
+Al kommunikation med `api.php` går gennem `includes/api.js`: `await Api.get('charges', { filter })` og `await Api.post('update-vehicle', { id, name })`. Begge returnerer den parsede JSON eller kaster en `Api.ApiError`, hvis `message` kan vises direkte for brugeren (serverens egen fejltekst, ellers `HTTP <status>`); en POST med `success: false` kaster også. Kald aldrig `fetch()` direkte, og byg ingen `api.php?...`-adresser i hånden. Alt, der kommer fra serveren eller brugeren og skal ind i en `innerHTML`-skabelon, går gennem `appUtils.escapeHtml` (tåler `null` og tal); lav ikke en lokal. `dev/test_frontend.php` fejler, hvis nogen af delene brydes, eller hvis et kald peger på en rute, der ikke findes.
+
 ### En ny rute
 
 En fil i `routes/` returnerer en funktion, der får en `Request` og returnerer en `Response`; den ekkoer, afslutter og læser aldrig `$_GET`/`$_SERVER`/`php://input`. Fejl: `Http::fail('besked', 404)`. Cachet læsning: `ApiCache::fetch($key, $ttl)` og `return ApiCache::store($key, $payload)` (nøglens præfiks skal stå i `CacheHelper::DEPENDENCIES`). Tilføj ruten i `includes/routes.php`. `dev/test_handlers.php` viser, hvordan en rute kaldes i en test uden webserver, og fejler, hvis mønsteret brydes.

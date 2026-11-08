@@ -211,9 +211,7 @@
     // -------------------------------------------------------------------------
     async function fetchVehicles() {
         try {
-            const res  = await fetch('api.php?action=vehicles');
-            const data = await appUtils.handleFetchResponse(res);
-            S.vehicles = data;
+            S.vehicles = await Api.get('vehicles');
             _populateVehicleFilter();
             M.charges.fetchCharges();
             M.efficiency.fetchEfficiencyStats();
@@ -228,9 +226,7 @@
 
     async function fetchProviders() {
         try {
-            const res  = await fetch('api.php?action=providers');
-            const data = await appUtils.handleFetchResponse(res);
-            S.providers = data;
+            S.providers = await Api.get('providers');
             _populateProviderSelects();
         } catch (e) {
             console.error('fetchProviders:', e);

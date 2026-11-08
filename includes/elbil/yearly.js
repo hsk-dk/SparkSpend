@@ -28,8 +28,7 @@
         if (errEl)   errEl.style.display   = 'none';
         if (statsEl) statsEl.innerHTML     = '<p class="text-muted small">Indlæser…</p>';
 
-        fetch('api.php?action=charge-compare')
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        Api.get('charge-compare')
             .then(data => {
                 if (!Array.isArray(data) || data.length === 0) {
                     if (noData) noData.style.display = '';

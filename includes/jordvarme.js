@@ -145,11 +145,11 @@ const jordvarmeApp = (() => {
             }
         }
 
-        function buildUrl() {
-            if (currentMode === "daily")   return `api.php?action=heatpump&mode=daily&month=${currentMonth}`;
-            if (currentMode === "monthly") return `api.php?action=heatpump&mode=monthly&year=${currentYear}`;
-            if (currentMode === "ytd")     return "api.php?action=heatpump&mode=ytd";
-            return "api.php?action=heatpump&mode=compare";
+        function buildParams() {
+            if (currentMode === "daily")   return { mode: "daily", month: currentMonth };
+            if (currentMode === "monthly") return { mode: "monthly", year: currentYear };
+            if (currentMode === "ytd")     return { mode: "ytd" };
+            return { mode: "compare" };
         }
 
         function setChartVisible(visible) {
@@ -167,11 +167,7 @@ const jordvarmeApp = (() => {
             if (yearContainer) yearContainer.style.display = "none";
             statsContent.innerHTML = "<p>Indlæser data...</p>";
 
-            fetch(buildUrl())
-                .then(r => {
-                    if (!r.ok) throw new Error("HTTP " + r.status);
-                    return r.json();
-                })
+            Api.get("heatpump", buildParams())
                 .then(data => {
                     if (!Array.isArray(data) || data.length === 0) {
                         noDataEl.style.display = "";
@@ -248,8 +244,7 @@ const jordvarmeApp = (() => {
             // (low) rate. The whole-house split (Hus/Regning) handles the first
             // 4000 kWh/year at the high rate.
             const params = new URLSearchParams({ start, end, area, gln, tariff: 'low' });
-            fetch('api.php?action=elspot-prices&' + params)
-                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            Api.get('elspot-prices', params)
                 .then(data => {
                     activeCostMap    = {};
                     activeComponents = data.components || null;
@@ -321,15 +316,13 @@ const jordvarmeApp = (() => {
             if (!weatherSettingsReady()) return;
             const { lat, lon } = getWeatherSettings();
             const today = appUtils.ymd();
-            fetch('api.php?action=heatpump&mode=compare')
-                .then(r => r.json())
+            Api.get('heatpump', { mode: 'compare' })
                 .then(compareData => {
                     if (!Array.isArray(compareData) || compareData.length === 0) return;
                     const years   = compareData.map(d => parseInt(d.year)).filter(y => !isNaN(y));
                     const minYear = Math.min(...years);
                     const params  = new URLSearchParams({ start: minYear + '-01-01', end: today, lat, lon });
-                    return fetch('api.php?action=weather&' + params)
-                        .then(r => r.json())
+                    return Api.get('weather', params)
                         .then(weatherData => {
                             const wMap = {};
                             (weatherData.records || []).forEach(r => { wMap[r.date] = r.hdd; });
@@ -383,8 +376,7 @@ const jordvarmeApp = (() => {
             }
 
             const params = new URLSearchParams({ start, end, lat, lon });
-            fetch('api.php?action=weather&' + params)
-                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            Api.get('weather', params)
                 .then(data => {
                     activeWeatherMap = {};
                     activeTemperatureMap = {};
@@ -1113,8 +1105,7 @@ const jordvarmeApp = (() => {
 
         // ── Sync status ──────────────────────────────────────────────────────
         function fetchSyncStatus() {
-            fetch("api.php?action=heatpump&mode=sync_status")
-                .then(r => r.json())
+            Api.get("heatpump", { mode: "sync_status" })
                 .then(data => {
                     if (data && data.updated_at) {
                         const ts = new Date(data.updated_at.replace(" ", "T"));

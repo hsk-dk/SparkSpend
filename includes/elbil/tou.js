@@ -29,12 +29,7 @@
         container.innerHTML = '<p class="text-muted small">Indlæser elspot-data…</p>';
 
         try {
-            const res = await fetch(
-                `api.php?action=elspot-prices&start=${start}&end=${end}` +
-                `&area=${encodeURIComponent(area)}&gln=${encodeURIComponent(gln)}&format=hourly&tariff=low`
-            );
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const data = await res.json();
+            const data = await Api.get('elspot-prices', { start, end, area, gln, format: 'hourly', tariff: 'low' });
             const records = data.records || [];
             if (records.length === 0) {
                 container.innerHTML = '<p class="text-muted small">Ingen prisdata tilgængeligt for den valgte periode.</p>';

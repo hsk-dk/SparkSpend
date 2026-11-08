@@ -16,8 +16,7 @@ const baseloadApp = (() => {
         const canvas = document.getElementById('baseloadChart');
         if (!headline || !canvas) return;
 
-        fetch('api.php?action=base-load&months=24')
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        Api.get('base-load', { months: 24 })
             .then(data => _render(data, headline, canvas))
             .catch(err => {
                 console.error('baseloadApp:', err);

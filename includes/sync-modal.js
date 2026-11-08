@@ -4,7 +4,7 @@
  */
 (function () {
     // Server text goes into innerHTML templates below: escape it.
-    const _escHtml = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    const _escHtml = appUtils.escapeHtml;
 
     const modal       = document.getElementById('syncModal');
     const listEl      = document.getElementById('syncStatusList');
@@ -53,8 +53,7 @@
     function _loadStatus() {
         listEl.innerHTML = '<p class="text-muted text-center mb-0 py-2">Indlæser\u2026</p>';
         msgEl.textContent = '';
-        fetch('api.php?action=sync-status')
-            .then(r => r.json())
+        Api.get('sync-status')
             .then(d => _render(d.sources || []))
             .catch(() => {
                 listEl.innerHTML = '<p class="text-danger mb-0 py-2">Fejl ved hentning af status.</p>';
@@ -64,21 +63,9 @@
     function _loadLog() {
         logContent.innerHTML = '<span class="text-muted">Indlæser log\u2026</span>';
         logMeta.textContent = '';
-        fetch('api.php?action=system-log&lines=80', {
-                headers: { 'X-CSRF-Token': (window.sparkConfig.csrfToken || '') }
-            })
-            .then(r => {
-                if (!r.ok && r.status === 403) {
-                    throw new Error('Adgang nægtet — genindlæs siden og prøv igen.');
-                }
-                return r.json();
-            })
+        Api.get('system-log', { lines: 80 })
             .then(d => {
                 logLoaded = true;
-                if (d.error) {
-                    logContent.innerHTML = `<span style="color:#f87171">${_escHtml(d.error)}</span>`;
-                    return;
-                }
                 if (d.missing) {
                     logContent.innerHTML = '<span style="color:#64748b">Ingen log endnu — kør en synkronisering for at generere output.</span>';
                     logMeta.textContent = '';
@@ -90,7 +77,7 @@
                 }
                 // Colour-code lines by severity
                 const html = d.lines.map(line => {
-                    const esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    const esc = _escHtml(line);
                     const lower = line.toLowerCase();
                     if (lower.includes('error') || lower.includes('fejl') || lower.includes('fatal'))
                         return `<span style="color:#f87171">${esc}</span>`;
@@ -107,9 +94,11 @@
                     ? `Viser de seneste 80 af ${d.total} linjer`
                     : `${d.total} linjer`;
             })
-            .catch(() => {
-                logLoaded = false;
-                logContent.innerHTML = '<span style="color:#f87171">Kunne ikke hente log.</span>';
+            .catch(err => {
+                // The server's own message (e.g. admin key missing) is worth showing; anything else is a plain failure.
+                const known = err instanceof Api.ApiError && err.data && err.data.error;
+                logLoaded = !!known;
+                logContent.innerHTML = `<span style="color:#f87171">${known ? _escHtml(err.message) : 'Kunne ikke hente log.'}</span>`;
             });
     }
 
@@ -160,23 +149,18 @@
             syncAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Synkroniserer\u2026';
         }
         msgEl.textContent = 'Starter sync\u2026';
-        fetch('api.php?action=trigger-sync', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({source}),
+        Api.post('trigger-sync', { source })
+        .then(() => {
+            msgEl.textContent = 'Sync startet — opdaterer om 20 sek.';
+            window.appUtils?.showToast('Synkronisering startet', 'info');
+            setTimeout(() => { _loadStatus(); msgEl.textContent = ''; }, 20000);
         })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) {
-                msgEl.textContent = 'Sync startet — opdaterer om 20 sek.';
-                window.appUtils?.showToast('Synkronisering startet', 'info');
-                setTimeout(() => { _loadStatus(); msgEl.textContent = ''; }, 20000);
-            } else {
-                msgEl.textContent = d.error || 'Ukendt fejl.';
-                window.appUtils?.showToast(d.error || 'Synkronisering fejlede', 'danger');
+        .catch(err => {
+            if (err instanceof Api.ApiError) {
+                msgEl.textContent = err.message === 'Fejl' ? 'Ukendt fejl.' : err.message;
+                window.appUtils?.showToast(err.message === 'Fejl' ? 'Synkronisering fejlede' : err.message, 'danger');
+                return;
             }
-        })
-        .catch(() => {
             msgEl.textContent = 'Netværksfejl.';
             window.appUtils?.showToast('Netværksfejl under synkronisering', 'danger');
         })

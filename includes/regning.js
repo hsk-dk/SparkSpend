@@ -23,10 +23,8 @@ const regningApp = (() => {
 
         _setStatus(statusEl, 'Indlæser data…');
 
-        fetch('api.php?action=monthly-bill&months=24')
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        Api.get('monthly-bill', { months: 24 })
             .then(billData => {
-                if (billData.error) throw new Error(billData.error);
                 // billData.cost (server-side elvarme model) is null without prices.
                 _renderTable(tableWrapper, billData);
                 _clearStatus(statusEl);
@@ -221,11 +219,8 @@ const fordelingApp = (() => {
 
         _setStatus(statusEl, 'Indlæser data…');
 
-        fetch('api.php?action=monthly-bill&months=24')
-            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        Api.get('monthly-bill', { months: 24 })
             .then(billData => {
-                if (billData.error) throw new Error(billData.error);
-
                 if (!billData.cost) {
                     _render(billData, false);
                     const configured = window.sparkConfig?.elspotArea && window.sparkConfig?.elspotGln;
