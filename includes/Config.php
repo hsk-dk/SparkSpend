@@ -79,6 +79,11 @@ class Config {
             // Fixed electricity subscription, kr per day (added to the monthly estimate)
             'subscriptionPerDay' => env('SUBSCRIPTION_PER_DAY', '0'),
 
+            // Backups (cron/backup.php). BACKUP_DIR must be set, absolute and outside the web root.
+            'backupDir'         => rtrim((string) env('BACKUP_DIR', ''), '/\\'),
+            'backupKeepDaily'   => (int) env('BACKUP_KEEP_DAILY', '14'),
+            'backupKeepMonthly' => (int) env('BACKUP_KEEP_MONTHLY', '6'),
+
             // Debug mode
             'debug' => env('DEBUG', 'false') === 'true',
 
@@ -193,6 +198,18 @@ class Config {
     /** Charger rate in kW (kWh per hour a charge can be moved at), 1..50. */
     public static function evMaxKw(): float {
         return max(1.0, min(50.0, (float) self::get('evMaxKw', 7.4)));
+    }
+
+    public static function backupDir(): string {
+        return (string) self::get('backupDir', '');
+    }
+
+    public static function backupKeepDaily(): int {
+        return max(1, (int) self::get('backupKeepDaily', 14));
+    }
+
+    public static function backupKeepMonthly(): int {
+        return max(0, (int) self::get('backupKeepMonthly', 6));
     }
 
     public static function debug(): bool {

@@ -136,7 +136,12 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 
 # Elpris-cache (Energi Data Service rate-limiter hårdt) — hvert 30. minut, og kør den én gang manuelt efter deploy
 */30 * * * * php /sti/til/sparkspend/cron/warm_prices.php >> /sti/til/logs/prices.log 2>&1
+
+# Backup af de to databaser — hver nat (kræver BACKUP_DIR i .env, se docs/backup-restore.md)
+15 3 * * * php /sti/til/sparkspend/cron/backup.php >> /sti/til/logs/backup.log 2>&1
 ```
+
+**Backup og restore:** `cron/backup.php` tager et konsistent øjebliksbillede af databaserne (virker mens appen kører), verificerer det og rydder op efter 14 dage + 6 måneder. `cron/restore_backup.php` tjekker (`--verify`), afprøver (`--to=MAPPE`) og genskaber (`--force`). `.env` tages separat og krypteret. Hele proceduren, inklusive genskabelse efter totalt tab: [docs/backup-restore.md](docs/backup-restore.md).
 
 **Sådan opfører cron-jobbene sig.** De fire jobs deler én runner (`includes/CronJob.php`): ét job kører ad gangen (en `flock` i `CACHE_DIR`, som operativsystemet frigiver, hvis processen dør; en igangværende kørsel af samme job gør, at den næste logger "Already running" og stopper). Exit-kode `0` = ok, `1` = fejlet, `2` = Monta rate-limit eller netværk nede (næste kørsel prøver igen). En fejl står i `cron/cron.log` og i `sync_log` (vandstanden bevares). Et job, der intet finder, skriver ingenting i loggen: om de kører, ses i `/health.php`, Oversigten og `php doctor.php`. Jobbene kan kun startes fra kommandolinjen.
 
