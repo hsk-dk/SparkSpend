@@ -29,3 +29,6 @@ nul
 BACKLOG.md
 *.log.*
 cron/*.lock
+
+# Golden captures are made from copies of production data: never commit them
+dev/golden/out/
