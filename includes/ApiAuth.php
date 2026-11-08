@@ -3,28 +3,21 @@
  * Bearer-token authentication for the machine endpoints that bypass the auth proxy
  * (Home Assistant -> receive_vehicle_data / receive_charger_event).
  *
- * Fails closed: without a configured key the endpoint answers 503, never "open".
+ * Fails closed: without a configured key the endpoint answers 503, never "open". Both failures throw
+ * HttpException, which Router turns into the error envelope.
  * The comparison is constant-time (hash_equals).
  */
 final class ApiAuth
 {
     /** Ends the request with 503/401 unless "Authorization: Bearer <key>" matches the key. */
-    public static function requireBearer(string $configuredKey, string $configName = 'VEHICLE_API_KEY'): void
+    public static function requireBearer(string $configuredKey, string $configName = 'VEHICLE_API_KEY', ?Request $request = null): void
     {
         if ($configuredKey === '') {
-            self::fail(503, ['success' => false, 'error' => "Endpoint not configured — set {$configName} in .env"]);
+            throw new HttpException("Endpoint not configured — set {$configName} in .env", 503);
         }
-        $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        $header = $request !== null ? $request->header('Authorization') : ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
         if (!str_starts_with($header, 'Bearer ') || !hash_equals($configuredKey, substr($header, 7))) {
-            header('WWW-Authenticate: Bearer realm="SparkSpend"');
-            self::fail(401, ['success' => false, 'error' => 'Unauthorized']);
+            throw new HttpException('Unauthorized', 401, ['WWW-Authenticate' => 'Bearer realm="SparkSpend"']);
         }
-    }
-
-    private static function fail(int $code, array $body): never
-    {
-        http_response_code($code);
-        echo json_encode($body);
-        exit;
     }
 }

@@ -9,11 +9,12 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  * GET params:
  *   months  (optional, default 24) — number of months to return
  */
+return static function (Request $request): Response {
+    // 5-minute file cache (keyed by numMonths + date)
+    $numMonths = max(1, min(60, Http::int($request->query, 'months', 24)));
+    $key       = 'bill_' . $numMonths . '_' . date('Y-m-d');
+    if (($hit = ApiCache::fetch($key, CacheHelper::TTL_MEDIUM)) !== null) return Response::json($hit);
 
-// 5-minute file cache (keyed by numMonths + date)
-$_billNumMonths = max(1, min(60, Http::int($_GET, 'months', 24)));
-$_billCacheKey  = 'bill_' . $_billNumMonths . '_' . date('Y-m-d');
-ApiCache::serve($_billCacheKey, CacheHelper::TTL_MEDIUM);
-
-$_bill = MonthlyBill::build(DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), $_billNumMonths);
-ApiCache::respond($_billCacheKey, $_bill['payload'], $_bill['complete']);
+    $bill = MonthlyBill::build(DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), $numMonths);
+    return ApiCache::store($key, $bill['payload'], $bill['complete']);
+};

@@ -7,12 +7,13 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  * last year for Hus (whole-house meter), Jordvarme (heat pump) and El-bil. The detection
  * itself is AnomalyDetector::detect().
  */
+return static function (Request $request): Response {
+    // 5-minute file cache (keyed by date)
+    $key = 'anomaly_' . date('Y-m-d');
+    if (($hit = ApiCache::fetch($key, CacheHelper::TTL_MEDIUM)) !== null) return Response::json($hit);
 
-// 5-minute file cache (keyed by date)
-$_cacheKey = 'anomaly_' . date('Y-m-d');
-ApiCache::serve($_cacheKey, CacheHelper::TTL_MEDIUM);
-
-ApiCache::respond($_cacheKey, AnomalyDetector::detect(
-    DatabaseManager::getChargesDb(),
-    DatabaseManager::getPowerlogDb()
-));
+    return ApiCache::store($key, AnomalyDetector::detect(
+        DatabaseManager::getChargesDb(),
+        DatabaseManager::getPowerlogDb()
+    ));
+};

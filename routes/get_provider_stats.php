@@ -8,83 +8,83 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  * - dateRange: Date range in format "YYYY-MM-DD til YYYY-MM-DD" (optional)
  */
 
-// ─── 5-minute file cache ─────────────────────────────────────────────────────────────
-$_provCacheKey = 'providerstats_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
-ApiCache::serve($_provCacheKey, CacheHelper::TTL_MEDIUM);
-// ─────────────────────────────────────────────────────────────────────────────
+return static function (Request $request): Response {
+    // ─── 5-minute file cache ─────────────────────────────────────────────────────────────
+    $cacheKey = 'providerstats_' . md5(($request->query['filter'] ?? '') . '|' . ($request->query['dateRange'] ?? ''));
+    if (($hit = ApiCache::fetch($cacheKey, CacheHelper::TTL_MEDIUM)) !== null) return Response::json($hit);
+    // ─────────────────────────────────────────────────────────────────────────────
 
-$db = DatabaseManager::getChargesDb();
+    $db = DatabaseManager::getChargesDb();
 
-$vehicleId = isset($_GET['filter']) ? $_GET['filter'] : 'all';
-$dateRange = isset($_GET['dateRange']) ? trim($_GET['dateRange']) : '';
+    $vehicleId = isset($request->query['filter']) ? $request->query['filter'] : 'all';
+    $dateRange = isset($request->query['dateRange']) ? trim($request->query['dateRange']) : '';
 
-// Parse date range
-$dateFilters = null;
-if (!empty($dateRange)) {
-    try {
-        $dateFilters = DateHelper::parseDateRange($dateRange);
-    } catch (Exception $parseEx) {
-        // Invalid format — ignore filter, return all data
+    // Parse date range
+    $dateFilters = null;
+    if (!empty($dateRange)) {
+        try {
+            $dateFilters = DateHelper::parseDateRange($dateRange);
+        } catch (Exception $parseEx) {
+            // Invalid format — ignore filter, return all data
+        }
     }
-}
 
-// Build SQL query with date filtering
-$where  = ["e.kwh > 0"];
-$params = [];
+    // Build SQL query with date filtering
+    $where  = ["e.kwh > 0"];
+    $params = [];
 
-if ($vehicleId !== 'all') {
-    $where[]  = "e.vehicleId = ?";
-    $params[] = intval($vehicleId);
-}
-if ($dateFilters) {
-    $where[]  = "DATE(e.datetime) >= ?";
-    $where[]  = "DATE(e.datetime) <= ?";
-    $params[] = $dateFilters['start'];
-    $params[] = $dateFilters['end'];
-}
+    if ($vehicleId !== 'all') {
+        $where[]  = "e.vehicleId = ?";
+        $params[] = intval($vehicleId);
+    }
+    if ($dateFilters) {
+        $where[]  = "DATE(e.datetime) >= ?";
+        $where[]  = "DATE(e.datetime) <= ?";
+        $params[] = $dateFilters['start'];
+        $params[] = $dateFilters['end'];
+    }
 
-$whereStr = implode(" AND ", $where);
-$stmt = $db->prepare("
-    SELECT e.kwh, e.pris,
-           COALESCE(p.providerName, 'Ukendt') AS providerName
-    FROM ext_charges e
-    LEFT JOIN providers p ON e.providerId = p.id
-    WHERE {$whereStr}
-");
-$stmt->execute($params);
+    $whereStr = implode(" AND ", $where);
+    $stmt = $db->prepare("
+        SELECT e.kwh, e.pris,
+               COALESCE(p.providerName, 'Ukendt') AS providerName
+        FROM ext_charges e
+        LEFT JOIN providers p ON e.providerId = p.id
+        WHERE {$whereStr}
+    ");
+    $stmt->execute($params);
 
-$map = [];
-foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $name = $row['providerName'];
-    if (!isset($map[$name])) {
-        $map[$name] = [
-            'providerName' => $name,
-            'charge_count' => 0,
-            'total_kwh'    => 0.0,
-            'total_cost'   => 0.0,
+    $map = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $name = $row['providerName'];
+        if (!isset($map[$name])) {
+            $map[$name] = [
+                'providerName' => $name,
+                'charge_count' => 0,
+                'total_kwh'    => 0.0,
+                'total_cost'   => 0.0,
+            ];
+        }
+        $map[$name]['charge_count']++;
+        $map[$name]['total_kwh']  += floatval($row['kwh']);
+        $map[$name]['total_cost'] += floatval($row['pris']);
+    }
+
+    $result = [];
+    foreach ($map as $entry) {
+        $result[] = [
+            'providerName'     => $entry['providerName'],
+            'charge_count'     => $entry['charge_count'],
+            'total_kwh'        => round($entry['total_kwh'], 2),
+            'total_cost'       => round($entry['total_cost'], 2),
+            'avg_cost_per_kwh' => $entry['total_kwh'] > 0
+                ? round($entry['total_cost'] / $entry['total_kwh'], 3)
+                : 0,
         ];
     }
-    $map[$name]['charge_count']++;
-    $map[$name]['total_kwh']  += floatval($row['kwh']);
-    $map[$name]['total_cost'] += floatval($row['pris']);
-}
 
-$result = [];
-foreach ($map as $entry) {
-    $result[] = [
-        'providerName'     => $entry['providerName'],
-        'charge_count'     => $entry['charge_count'],
-        'total_kwh'        => round($entry['total_kwh'], 2),
-        'total_cost'       => round($entry['total_cost'], 2),
-        'avg_cost_per_kwh' => $entry['total_kwh'] > 0
-            ? round($entry['total_cost'] / $entry['total_kwh'], 3)
-            : 0,
-    ];
-}
+    // Sort by avg_cost_per_kwh ascending (cheapest first)
+    usort($result, fn($a, $b) => $a['avg_cost_per_kwh'] <=> $b['avg_cost_per_kwh']);
 
-// Sort by avg_cost_per_kwh ascending (cheapest first)
-usort($result, fn($a, $b) => $a['avg_cost_per_kwh'] <=> $b['avg_cost_per_kwh']);
-
-http_response_code(200);
-$json = json_encode($result);
-ApiCache::respond($_provCacheKey, $json);
+    return ApiCache::store($cacheKey, $result);
+};

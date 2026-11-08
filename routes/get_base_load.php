@@ -6,13 +6,14 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  * GET api.php?action=base-load[&months=24]
  *   { months: [{month, median, min, max, days}], latest: {watts, kwh_per_month, days, from, to}|null, params }
  */
-$months = min(60, max(3, Http::int($_GET, 'months', 24)));
-$today  = date('Y-m-d');
+return static function (Request $request): Response {
+    $months = min(60, max(3, Http::int($request->query, 'months', 24)));
+    $today  = date('Y-m-d');
 
-$_cacheKey = 'baseload_' . $months . '_' . $today;
-ApiCache::serve($_cacheKey, CacheHelper::TTL_MEDIUM);
+    $key = 'baseload_' . $months . '_' . $today;
+    if (($hit = ApiCache::fetch($key, CacheHelper::TTL_MEDIUM)) !== null) return Response::json($hit);
 
-$response = json_encode(BaseLoad::build(
-    DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), $months, $today
-));
-ApiCache::respond($_cacheKey, $response);
+    return ApiCache::store($key, BaseLoad::build(
+        DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), $months, $today
+    ));
+};

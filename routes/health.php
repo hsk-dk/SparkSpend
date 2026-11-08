@@ -13,18 +13,17 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  */
 require_once __DIR__ . '/../includes/ApiAuth.php';
 
-ApiAuth::requireBearer(Config::healthKey(), 'HEALTH_KEY');
-if (!in_array($_SERVER['REQUEST_METHOD'] ?? '', ['GET', 'HEAD'], true)) {
-    Http::fail('Method not allowed', 405);
-}
+return static function (Request $request): Response {
+    ApiAuth::requireBearer(Config::healthKey(), 'HEALTH_KEY', $request);
+    if (!in_array($request->method, ['GET', 'HEAD'], true)) {
+        Http::fail('Method not allowed', 405);
+    }
 
-$result = Freshness::collect(
-    DatabaseManager::getChargesDb(),
-    DatabaseManager::getPowerlogDb(),
-    Config::cacheDir(),
-    time()
-);
-if ($result['status'] !== 'ok') {
-    http_response_code(503);
-}
-echo json_encode($result);
+    $result = Freshness::collect(
+        DatabaseManager::getChargesDb(),
+        DatabaseManager::getPowerlogDb(),
+        Config::cacheDir(),
+        time()
+    );
+    return Response::json($result, $result['status'] !== 'ok' ? 503 : null);
+};

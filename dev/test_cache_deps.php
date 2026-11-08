@@ -41,7 +41,7 @@ foreach (glob("$root/routes/*.php") as $file) {
     $code = str_replace("\r\n", "\n", file_get_contents($file));
     if (!str_contains($code, 'ApiCache::')) continue;
     preg_match_all('/\w*[Kk]ey\w*\s*=\s*\'([a-z_]+)\'/', $code, $m1);
-    preg_match_all('/ApiCache::(?:serve|respond)\(\s*\'([a-z_]+)\'/', $code, $m2);
+    preg_match_all('/ApiCache::(?:fetch|store)\(\s*\'([a-z_]+)\'/', $code, $m2);
     $prefixes = array_unique(array_merge($m1[1], $m2[1]));
     if (!$prefixes) check(basename($file) . ': a cache key prefix can be found (update this test if the key is built differently)', false);
     foreach ($prefixes as $p) {
@@ -125,13 +125,13 @@ check('several tags at once', !file_exists($files['heatpump_']) && !file_exists(
 check('invalidate([]) removes nothing', ($touch('heatpump_k.json') && (CacheHelper::invalidate([]) || true) && count(glob("$dir/sparkspend_heatpump_*.json")) === 1));
 
 echo "ApiCache fails safe\n";
-ob_start(); ApiCache::respond('mystery_2026', ['a' => 1]); $out = ob_get_clean();
-check('an unregistered key is answered but NOT stored', $out === '{"a":1}' && !glob("$dir/sparkspend_mystery_*"));
+$answer = ApiCache::store('mystery_2026', ['a' => 1]);
+check('an unregistered key is answered but NOT stored', $answer->body === '{"a":1}' && !glob("$dir/sparkspend_mystery_*"));
 file_put_contents("$dir/sparkspend_mystery_2026.json", '{"stale":true}');
-ob_start(); ApiCache::serve('mystery_2026', 3600); $out = ob_get_clean();
-check('...and an unregistered key is never served from a file', $out === '');
-ob_start(); ApiCache::respond('dashboard_2026-11-07', ['b' => 2]); ob_end_clean();
-check('a registered key is stored', is_file("$dir/sparkspend_dashboard_2026-11-07.json"));
+check('...and an unregistered key is never served from a file', ApiCache::fetch('mystery_2026', 3600) === null);
+ApiCache::store('dashboard_2026-11-07', ['b' => 2]);
+check('a registered key is stored, and fetched back', is_file("$dir/sparkspend_dashboard_2026-11-07.json") && ApiCache::fetch('dashboard_2026-11-07', 3600) === '{"b":2}');
+check('an incomplete answer is returned but not stored', ApiCache::store('annual_2026-11-07', ['c' => 3], false)->body === '{"c":3}' && !is_file("$dir/sparkspend_annual_2026-11-07.json"));
 check('longest prefix wins: chargeopt_3_... is the optimiser, not something shorter', CacheHelper::dependenciesOf('chargeopt_3_2026-11-07-13_12_7.4') === CacheHelper::DEPENDENCIES['chargeopt_']);
 check('a key that merely contains a prefix is not registered', CacheHelper::dependenciesOf('x_dashboard_1') === null);
 

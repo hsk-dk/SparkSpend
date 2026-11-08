@@ -96,6 +96,7 @@ class CacheHelper {
         'bill_'            => ['charges', 'meter', 'ha', 'prices'],
         'providerstats_'   => ['charges', 'providers'],
         'vehicle_compare_' => ['charges', 'vehicles'],
+        'elspot_'          => ['prices'],
         'syncstatus'       => ['sync'],
     ];
 

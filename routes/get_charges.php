@@ -9,121 +9,123 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  * - dateRange: Date range in format "YYYY-MM-DD til YYYY-MM-DD" or "YYYY-MM-DD to YYYY-MM-DD"
  */
 
-$db = DatabaseManager::getChargesDb();
+return static function (Request $request): Response {
+    $db = DatabaseManager::getChargesDb();
 
-// Parse request parameters
-$filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
-$showZeroKwh = (isset($_GET['showZeroKwh']) && $_GET['showZeroKwh'] === 'true') ? true : false;
-$dateRange = isset($_GET['dateRange']) ? $_GET['dateRange'] : '';
+    // Parse request parameters
+    $filter = isset($request->query['filter']) ? $request->query['filter'] : 'all';
+    $showZeroKwh = (isset($request->query['showZeroKwh']) && $request->query['showZeroKwh'] === 'true') ? true : false;
+    $dateRange = isset($request->query['dateRange']) ? $request->query['dateRange'] : '';
 
-// Build dynamic query with prepared statements
-$internalWhere = [];
-$externalWhere = [];
-$params = [];
+    // Build dynamic query with prepared statements
+    $internalWhere = [];
+    $externalWhere = [];
+    $params = [];
 
-// Vehicle filter
-if ($filter !== 'all') {
-    $vehicleId = intval($filter);
-    $internalWhere[] = "vehicleId = ?";
-    $externalWhere[] = "vehicleId = ?";
-}
-
-// kWh filter
-if (!$showZeroKwh) {
-    $internalWhere[] = "consumedKwh > 0";
-    $externalWhere[] = "kwh > 0";
-}
-
-// Date range filter
-$dateFilters = null;
-if ($dateRange) {
-    try {
-        $dateFilters = DateHelper::parseDateRange($dateRange);
-    } catch (\Throwable $e) {
-        // Invalid date range, ignore filter
-        error_log("Invalid date range: " . $e->getMessage());
+    // Vehicle filter
+    if ($filter !== 'all') {
+        $vehicleId = intval($filter);
+        $internalWhere[] = "vehicleId = ?";
+        $externalWhere[] = "vehicleId = ?";
     }
-}
 
-if ($dateFilters) {
-    $internalWhere[] = "DATE(stoppedAt) BETWEEN ? AND ?";
-    $externalWhere[] = "DATE(datetime) BETWEEN ? AND ?";
-}
+    // kWh filter
+    if (!$showZeroKwh) {
+        $internalWhere[] = "consumedKwh > 0";
+        $externalWhere[] = "kwh > 0";
+    }
 
-// Build WHERE clauses
-$internalWhereStr = count($internalWhere) > 0 ? "WHERE " . implode(" AND ", $internalWhere) : "";
-$externalWhereStr = count($externalWhere) > 0 ? "WHERE " . implode(" AND ", $externalWhere) : "";
+    // Date range filter
+    $dateFilters = null;
+    if ($dateRange) {
+        try {
+            $dateFilters = DateHelper::parseDateRange($dateRange);
+        } catch (\Throwable $e) {
+            // Invalid date range, ignore filter
+            error_log("Invalid date range: " . $e->getMessage());
+        }
+    }
 
-// Build final query with UNION ALL
-$query = "
-    SELECT
-        id,
-        stoppedAt AS datetime,
-        consumedKwh AS kwh,
-        cost AS pris,
-        vehicleId,
-        NULL AS providerId,
-        'internal' AS source,
-        startedAt,
-        stoppedAt,
-        state,
-        stopReason,
-        socPercentage,
-        socLimit,
-        pairingSource
-    FROM charges
-    $internalWhereStr
-    UNION ALL
-    SELECT
-        id,
-        datetime,
-        kwh,
-        pris,
-        vehicleId,
-        providerId,
-        'external' AS source,
-        NULL AS startedAt,
-        NULL AS stoppedAt,
-        NULL AS state,
-        NULL AS stopReason,
-        NULL AS socPercentage,
-        NULL AS socLimit,
-        NULL AS pairingSource
-    FROM ext_charges
-    $externalWhereStr
-    ORDER BY datetime ASC
-";
+    if ($dateFilters) {
+        $internalWhere[] = "DATE(stoppedAt) BETWEEN ? AND ?";
+        $externalWhere[] = "DATE(datetime) BETWEEN ? AND ?";
+    }
 
-// Prepare and execute
-$stmt = $db->prepare($query);
+    // Build WHERE clauses
+    $internalWhereStr = count($internalWhere) > 0 ? "WHERE " . implode(" AND ", $internalWhere) : "";
+    $externalWhereStr = count($externalWhere) > 0 ? "WHERE " . implode(" AND ", $externalWhere) : "";
 
-// Build parameter array for prepared statement
-$stmtParams = [];
+    // Build final query with UNION ALL
+    $query = "
+        SELECT
+            id,
+            stoppedAt AS datetime,
+            consumedKwh AS kwh,
+            cost AS pris,
+            vehicleId,
+            NULL AS providerId,
+            'internal' AS source,
+            startedAt,
+            stoppedAt,
+            state,
+            stopReason,
+            socPercentage,
+            socLimit,
+            pairingSource
+        FROM charges
+        $internalWhereStr
+        UNION ALL
+        SELECT
+            id,
+            datetime,
+            kwh,
+            pris,
+            vehicleId,
+            providerId,
+            'external' AS source,
+            NULL AS startedAt,
+            NULL AS stoppedAt,
+            NULL AS state,
+            NULL AS stopReason,
+            NULL AS socPercentage,
+            NULL AS socLimit,
+            NULL AS pairingSource
+        FROM ext_charges
+        $externalWhereStr
+        ORDER BY datetime ASC
+    ";
 
-// First: internal query parameters (vehicleId, then dates)
-if ($filter !== 'all') {
-    $vehicleId = intval($filter);
-    $stmtParams[] = $vehicleId;
-}
+    // Prepare and execute
+    $stmt = $db->prepare($query);
 
-if ($dateFilters) {
-    $stmtParams[] = $dateFilters['start'];
-    $stmtParams[] = $dateFilters['end'];
-}
+    // Build parameter array for prepared statement
+    $stmtParams = [];
 
-// Second: external query parameters (vehicleId, then dates) - same as internal
-if ($filter !== 'all') {
-    $vehicleId = intval($filter);
-    $stmtParams[] = $vehicleId;
-}
+    // First: internal query parameters (vehicleId, then dates)
+    if ($filter !== 'all') {
+        $vehicleId = intval($filter);
+        $stmtParams[] = $vehicleId;
+    }
 
-if ($dateFilters) {
-    $stmtParams[] = $dateFilters['start'];
-    $stmtParams[] = $dateFilters['end'];
-}
+    if ($dateFilters) {
+        $stmtParams[] = $dateFilters['start'];
+        $stmtParams[] = $dateFilters['end'];
+    }
 
-$stmt->execute($stmtParams);
-$charges = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
+    // Second: external query parameters (vehicleId, then dates) - same as internal
+    if ($filter !== 'all') {
+        $vehicleId = intval($filter);
+        $stmtParams[] = $vehicleId;
+    }
 
-// Return JSON response
-echo json_encode($charges);
+    if ($dateFilters) {
+        $stmtParams[] = $dateFilters['start'];
+        $stmtParams[] = $dateFilters['end'];
+    }
+
+    $stmt->execute($stmtParams);
+    $charges = $stmt->fetchAll(PDO::FETCH_ASSOC) ?? [];
+
+    // Return JSON response
+    return Response::json($charges);
+};

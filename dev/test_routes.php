@@ -155,7 +155,7 @@ $gets = [
 $fingerprints = [];
 // Routes whose VALUES depend on the time of day (projections use the elapsed part of today):
 // only their structure is fingerprinted, or two runs a minute apart would never match.
-$timeDependent = ['action=dashboard'];
+$timeDependent = ['action=dashboard', 'action=sync-status'];   // sync-status: ages (age_sec) change every second
 $shape = function ($v) use (&$shape) {
     if (is_array($v)) { $o = []; foreach ($v as $k => $x) $o[$k] = $shape($x); return $o; }
     return gettype($v) === 'integer' || gettype($v) === 'double' ? 'number' : gettype($v);

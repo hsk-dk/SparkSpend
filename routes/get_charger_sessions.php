@@ -11,28 +11,30 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  */
 require_once __DIR__ . '/../includes/ChargerSessions.php';
 
-$days = isset($_GET['days']) ? (int) $_GET['days'] : 30;
-$days = max(1, min(365, $days));
-$since = gmdate('Y-m-d\TH:i:s\Z', time() - $days * 86400);
+return static function (Request $request): Response {
+    $days = isset($request->query['days']) ? (int) $request->query['days'] : 30;
+    $days = max(1, min(365, $days));
+    $since = gmdate('Y-m-d\TH:i:s\Z', time() - $days * 86400);
 
-$db = DatabaseManager::getChargesDb();
-$stmt = $db->prepare("
-    SELECT eventAt, event, chargerStatus, sessionEnergy, lifetimeEnergy, power, cars
-    FROM charger_events WHERE eventAt >= ? ORDER BY eventAt
-");
-$stmt->execute([$since]);
-$events = $stmt->fetchAll(PDO::FETCH_ASSOC);
-foreach ($events as &$e) {
-    $e['cars'] = $e['cars'] !== null ? json_decode($e['cars'], true) : null;
-    foreach (['sessionEnergy', 'lifetimeEnergy', 'power'] as $k) {
-        if ($e[$k] !== null) $e[$k] = (float) $e[$k];
+    $db = DatabaseManager::getChargesDb();
+    $stmt = $db->prepare("
+        SELECT eventAt, event, chargerStatus, sessionEnergy, lifetimeEnergy, power, cars
+        FROM charger_events WHERE eventAt >= ? ORDER BY eventAt
+    ");
+    $stmt->execute([$since]);
+    $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($events as &$e) {
+        $e['cars'] = $e['cars'] !== null ? json_decode($e['cars'], true) : null;
+        foreach (['sessionEnergy', 'lifetimeEnergy', 'power'] as $k) {
+            if ($e[$k] !== null) $e[$k] = (float) $e[$k];
+        }
     }
-}
-unset($e);
+    unset($e);
 
-echo json_encode([
-    'success'  => true,
-    'days'     => $days,
-    'events'   => count($events),
-    'sessions' => array_reverse(ChargerSessions::build($events)),
-]);
+    return Response::json([
+        'success'  => true,
+        'days'     => $days,
+        'events'   => count($events),
+        'sessions' => array_reverse(ChargerSessions::build($events)),
+    ]);
+};

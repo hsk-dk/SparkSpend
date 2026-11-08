@@ -11,23 +11,23 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  */
 require_once __DIR__ . '/../includes/ApiAuth.php';
 
-ApiAuth::requireBearer(Config::vehicleApiKey());
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-    Http::fail('Method not allowed', 405);
-}
+return static function (Request $request): Response {
+    ApiAuth::requireBearer(Config::vehicleApiKey(), 'VEHICLE_API_KEY', $request);
+    if ($request->method !== 'POST') {
+        Http::fail('Method not allowed', 405);
+    }
 
-$raw   = file_get_contents('php://input');
-$input = is_string($raw) ? json_decode($raw, true) : null;
-if (!is_array($input)) {
-    Http::fail('Invalid JSON format');
-}
+    $input = json_decode($request->raw(), true);
+    if (!is_array($input)) {
+        Http::fail('Invalid JSON format');
+    }
 
-$v = DeviceEnergy::validate($input, date('Y-m-d'));
-if (!$v['ok']) {
-    Http::fail($v['error']);
-}
+    $v = DeviceEnergy::validate($input, date('Y-m-d'));
+    if (!$v['ok']) {
+        Http::fail($v['error']);
+    }
 
-$n = DeviceEnergy::store(DatabaseManager::getPowerlogDb(), $v['rows']);
-CacheHelper::invalidate(['meter']);   // the house-power / bill views include these rows
-http_response_code(201);
-echo json_encode(['success' => true, 'message' => 'Stored', 'rows' => $n]);
+    $n = DeviceEnergy::store(DatabaseManager::getPowerlogDb(), $v['rows']);
+    CacheHelper::invalidate(['meter']);   // the house-power / bill views include these rows
+    return Response::json(['success' => true, 'message' => 'Stored', 'rows' => $n], 201);
+};

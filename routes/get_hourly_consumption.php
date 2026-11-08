@@ -15,18 +15,19 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  */
 require_once __DIR__ . '/../includes/HourlyConsumption.php';
 
-$start = isset($_GET['start']) ? trim($_GET['start']) : '';
-$end   = isset($_GET['end'])   ? trim($_GET['end'])   : '';
+return static function (Request $request): Response {
+    $start = isset($request->query['start']) ? trim($request->query['start']) : '';
+    $end   = isset($request->query['end'])   ? trim($request->query['end'])   : '';
 
-if (!Http::isDate($start) || !Http::isDate($end) || $end < $start
-    || (new DateTimeImmutable($start))->diff(new DateTimeImmutable($end))->days > 62) {
-    Http::fail('start and end must be valid YYYY-MM-DD dates, end >= start, at most 62 days apart');
-}
+    if (!Http::isDate($start) || !Http::isDate($end) || $end < $start
+        || (new DateTimeImmutable($start))->diff(new DateTimeImmutable($end))->days > 62) {
+        Http::fail('start and end must be valid YYYY-MM-DD dates, end >= start, at most 62 days apart');
+    }
 
-$_cacheKey = 'hourlycons_' . $start . '_' . $end;
-ApiCache::serve($_cacheKey, CacheHelper::TTL_MEDIUM);
+    $key = 'hourlycons_' . $start . '_' . $end;
+    if (($hit = ApiCache::fetch($key, CacheHelper::TTL_MEDIUM)) !== null) return Response::json($hit);
 
-$response = json_encode(HourlyConsumption::series(
-    DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), $start, $end
-));
-ApiCache::respond($_cacheKey, $response);
+    return ApiCache::store($key, HourlyConsumption::series(
+        DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb(), $start, $end
+    ));
+};

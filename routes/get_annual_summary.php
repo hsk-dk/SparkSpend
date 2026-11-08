@@ -6,11 +6,12 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  * Returns per-year totals for EV (internal + external charges), heatpump, and house
  * consumption plus estimated costs. The data assembly is AnnualSummary::build().
  */
+return static function (Request $request): Response {
+    // 1-hour file cache
+    $key = 'annual_' . date('Y-m-d');
+    if (($hit = ApiCache::fetch($key, CacheHelper::TTL_LONG)) !== null) return Response::json($hit);
 
-// 1-hour file cache
-$_annualCacheKey = 'annual_' . date('Y-m-d');
-ApiCache::serve($_annualCacheKey, CacheHelper::TTL_LONG);
-
-$_annual = AnnualSummary::build(DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb());
-// Not stored when prices were incomplete (rate-limited).
-ApiCache::respond($_annualCacheKey, $_annual['payload'], $_annual['complete']);
+    $annual = AnnualSummary::build(DatabaseManager::getChargesDb(), DatabaseManager::getPowerlogDb());
+    // Not stored when prices were incomplete (rate-limited).
+    return ApiCache::store($key, $annual['payload'], $annual['complete']);
+};

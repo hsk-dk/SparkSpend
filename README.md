@@ -79,6 +79,19 @@ php dev/run_tests.php pricing  # kun tests med "pricing" i filnavnet
 
 Kører også i GitHub Actions (`.github/workflows/tests.yml`) ved push og pull requests. **Kør `bash dev/ci-local.sh` før du pusher**: den kører PHP-syntaks, testene og PHPStan i en Linux-container med PHP 8.3 og de samme udvidelser som CI (Docker kræves). En lokal PHP mangler ofte en udvidelse (her `mbstring`), og så kan en test bestå lokalt og fejle i CI. `test_config_rates.php` fejler fra 1. januar, hvis afgiftstabellerne i `includes/Config.php` ikke har en række for det nye år.
 
+### En ny rute
+
+En fil i `routes/` returnerer en funktion, der får en `Request` og returnerer en `Response`; den ekkoer, afslutter og læser aldrig `$_GET`/`$_SERVER`/`php://input`. Fejl: `Http::fail('besked', 404)`. Cachet læsning: `ApiCache::fetch($key, $ttl)` og `return ApiCache::store($key, $payload)` (nøglens præfiks skal stå i `CacheHelper::DEPENDENCIES`). Tilføj ruten i `includes/routes.php`. `dev/test_handlers.php` viser, hvordan en rute kaldes i en test uden webserver, og fejler, hvis mønsteret brydes.
+
+```php
+<?php
+if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
+return static function (Request $request): Response {
+    $months = max(1, min(12, Http::int($request->query, 'months', 3)));
+    return Response::json(MyReport::build(DatabaseManager::getChargesDb(), $months));
+};
+```
+
 ### Golden-test ved refaktorering af beregninger
 
 `bash dev/golden/capture.sh before <mappe-med-databaser> ...` kører dashboardet under et frosset ur (libfaketime i Docker) på flere tidspunkter (månedsskifte, sommertid, skudår ...) og gemmer svarene i `dev/golden/out/before/` (ignoreret af git, de er afledt af produktionsdata). Ret koden, kør igen med `after`, og `diff -r dev/golden/out/before dev/golden/out/after` skal være tom. Mappen skal indeholde `charging_data.db` og `powerlog_data.db`: en kopi af produktionens, eller `SEED_DIR=<mappe> php dev/seed_dev.php`.

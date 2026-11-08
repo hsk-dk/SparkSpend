@@ -6,29 +6,31 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  */
 require_once __DIR__ . '/../includes/ChargeInput.php';
 
-$input      = Http::body();
-$vehicleId  = Http::int($input, 'vehicleId');
-$providerId = Http::int($input, 'providerId');
-$when       = Http::str($input, 'chargeDateTime');
+return static function (Request $request): Response {
+    $input      = $request->body();
+    $vehicleId  = Http::int($input, 'vehicleId');
+    $providerId = Http::int($input, 'providerId');
+    $when       = Http::str($input, 'chargeDateTime');
 
-if ($vehicleId <= 0 || $providerId <= 0 || $when === '') {
-    Http::fail('Missing required fields: vehicleId, providerId, chargeDateTime');
-}
-$v = ChargeInput::validate(['chargeDateTime' => $when] + $input, 'chargeDateTime', 'Invalid charge date format');
+    if ($vehicleId <= 0 || $providerId <= 0 || $when === '') {
+        Http::fail('Missing required fields: vehicleId, providerId, chargeDateTime');
+    }
+    $v = ChargeInput::validate(['chargeDateTime' => $when] + $input, 'chargeDateTime', 'Invalid charge date format');
 
-$db = DatabaseManager::getChargesDb();
-$result = ChargeRepository::insertExternal($db, [
-    'vehicleId'  => $vehicleId,
-    'providerId' => $providerId,
-    'kwh'        => $v['kwh'],
-    'cost'       => $v['pris'],
-    'chargeDate' => $v['date'],
-    'provider'   => '',
-    'category'   => '',
-]);
+    $db = DatabaseManager::getChargesDb();
+    $result = ChargeRepository::insertExternal($db, [
+        'vehicleId'  => $vehicleId,
+        'providerId' => $providerId,
+        'kwh'        => $v['kwh'],
+        'cost'       => $v['pris'],
+        'chargeDate' => $v['date'],
+        'provider'   => '',
+        'category'   => '',
+    ]);
 
-if (!$result['success']) {
-    Http::fail($result['error'] ?? 'Error creating charge', 500);
-}
-CacheHelper::invalidate(['charges']);
-Http::send(['success' => true, 'id' => $result['id']], 201);
+    if (!$result['success']) {
+        Http::fail($result['error'] ?? 'Error creating charge', 500);
+    }
+    CacheHelper::invalidate(['charges']);
+    return Response::json(['success' => true, 'id' => $result['id']], 201);
+};

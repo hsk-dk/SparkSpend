@@ -24,113 +24,114 @@ if (!defined('SPARKSPEND_BOOTED')) { http_response_code(404); exit; }
  */
 require_once __DIR__ . '/../includes/EfficiencyCalc.php';
 
-// ─── 5-minute file cache ─────────────────────────────────────────────────────────────
-$_effCacheKey = 'efficiency_' . md5(($_GET['filter'] ?? '') . '|' . ($_GET['dateRange'] ?? ''));
-ApiCache::serve($_effCacheKey, CacheHelper::TTL_MEDIUM);
-// ─────────────────────────────────────────────────────────────────────────────
+return static function (Request $request): Response {
+    // ─── 5-minute file cache ─────────────────────────────────────────────────────────────
+    $cacheKey = 'efficiency_' . md5(($request->query['filter'] ?? '') . '|' . ($request->query['dateRange'] ?? ''));
+    if (($hit = ApiCache::fetch($cacheKey, CacheHelper::TTL_MEDIUM)) !== null) return Response::json($hit);
+    // ─────────────────────────────────────────────────────────────────────────────
 
-$db = DatabaseManager::getChargesDb();
+    $db = DatabaseManager::getChargesDb();
 
-$filter    = $_GET['filter'] ?? 'all';
-$dateRange = $_GET['dateRange'] ?? '';
-$vehicleFilter = ($filter !== 'all' && $filter !== '') ? intval($filter) : null;
+    $filter    = $request->query['filter'] ?? 'all';
+    $dateRange = $request->query['dateRange'] ?? '';
+    $vehicleFilter = ($filter !== 'all' && $filter !== '') ? intval($filter) : null;
 
-// A non-empty but unparseable range is a clear filter intent: reject it (400) rather
-// than silently returning everything, which would look like a valid but wrong result.
-$dateFilters = null;
-if ($dateRange !== '') {
-    try {
-        $dateFilters = DateHelper::parseDateRange($dateRange);
-    } catch (\Throwable $e) {
-        Http::fail('Ugyldigt dateRange-format. Forventet: "YYYY-MM-DD til YYYY-MM-DD".');
+    // A non-empty but unparseable range is a clear filter intent: reject it (400) rather
+    // than silently returning everything, which would look like a valid but wrong result.
+    $dateFilters = null;
+    if ($dateRange !== '') {
+        try {
+            $dateFilters = DateHelper::parseDateRange($dateRange);
+        } catch (\Throwable $e) {
+            Http::fail('Ugyldigt dateRange-format. Forventet: "YYYY-MM-DD til YYYY-MM-DD".');
+        }
     }
-}
-$fromTs = $dateFilters ? strtotime($dateFilters['start'] . ' 00:00:00') : null;
-$toTs   = $dateFilters ? strtotime($dateFilters['end']   . ' 23:59:59') : null;
+    $fromTs = $dateFilters ? strtotime($dateFilters['start'] . ' 00:00:00') : null;
+    $toTs   = $dateFilters ? strtotime($dateFilters['end']   . ' 23:59:59') : null;
 
-// ─── Data. ALL history is read (not just the selected range): a drive that ends
-// inside the range may start before it, and needs the reading before the range. ──────
-$vehicleSql = $vehicleFilter !== null ? ' AND vehicleId = ?' : '';
-$vehicleArg = $vehicleFilter !== null ? [$vehicleFilter] : [];
+    // ─── Data. ALL history is read (not just the selected range): a drive that ends
+    // inside the range may start before it, and needs the reading before the range. ──────
+    $vehicleSql = $vehicleFilter !== null ? ' AND vehicleId = ?' : '';
+    $vehicleArg = $vehicleFilter !== null ? [$vehicleFilter] : [];
 
-$stmt = $db->prepare("
-    SELECT vehicleId, cablePluggedInAt, odometer FROM vehicle_charges
-    WHERE vehicleId IS NOT NULL AND odometer IS NOT NULL $vehicleSql
-    ORDER BY vehicleId, cablePluggedInAt
-");
-$stmt->execute($vehicleArg);
-$readingsByVehicle = [];
-foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-    $ts = strtotime((string) $r['cablePluggedInAt']);
-    if ($ts === false) continue;
-    $readingsByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'odometer' => (float) $r['odometer']];
-}
-
-// Charges per vehicle, timed by when they ended. Ongoing sessions (no stoppedAt) are
-// not counted until they are finished: their energy is still partial.
-$stmt = $db->prepare("
-    SELECT vehicleId, stoppedAt AS datetime, consumedKwh AS kwh, cost AS pris FROM charges
-    WHERE vehicleId IS NOT NULL AND stoppedAt IS NOT NULL AND consumedKwh > 0 $vehicleSql
-");
-$stmt->execute($vehicleArg);
-$chargesByVehicle = [];
-foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-    $ts = strtotime((string) $r['datetime']);
-    if ($ts === false) continue;
-    $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => $r['pris'] !== null ? (float) $r['pris'] : null];
-}
-foreach (ChargeRepository::getExternal($db, null, null, $vehicleFilter, false) as $r) {
-    $ts = strtotime((string) ($r['datetime'] ?? ''));
-    if ($ts === false || empty($r['vehicleId']) || (float) $r['kwh'] <= 0) continue;
-    $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => isset($r['pris']) ? (float) $r['pris'] : null];
-}
-
-// ─── Per vehicle ──────────────────────────────────────────────────────────────────────
-$tz   = new DateTimeZone(date_default_timezone_get());
-$now  = time();
-$vehicles = [];
-$series   = [];
-
-ksort($readingsByVehicle);
-foreach ($readingsByVehicle as $vehicleId => $readings) {
-    $calc  = EfficiencyCalc::intervals($readings, $chargesByVehicle[$vehicleId] ?? []);
-    $all   = $calc['intervals'];
-    $range = $dateFilters ? EfficiencyCalc::endingBetween($all, $fromTs, $toTs) : $all;
-
-    $monthly = [];
-    foreach (EfficiencyCalc::byMonth($range, $tz) as $month => $metrics) {
-        $monthly[] = ['month' => $month] + $metrics;
+    $stmt = $db->prepare("
+        SELECT vehicleId, cablePluggedInAt, odometer FROM vehicle_charges
+        WHERE vehicleId IS NOT NULL AND odometer IS NOT NULL $vehicleSql
+        ORDER BY vehicleId, cablePluggedInAt
+    ");
+    $stmt->execute($vehicleArg);
+    $readingsByVehicle = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $ts = strtotime((string) $r['cablePluggedInAt']);
+        if ($ts === false) continue;
+        $readingsByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'odometer' => (float) $r['odometer']];
     }
 
-    $vehicles[] = [
-        'vehicleId' => $vehicleId,
-        'overall'   => EfficiencyCalc::metrics($range),
-        'rolling'   => [
-            '30'  => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 30)),
-            '90'  => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 90)),
-            '365' => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 365)),
-        ],
-        'monthly'   => $monthly,
-        'dropped'   => $calc['dropped'],     // intervals skipped because the odometer went backwards
-    ];
-
-    foreach (EfficiencyCalc::cumulative($range) as $p) {
-        $series[] = ['vehicleId' => $vehicleId, 'date' => date('Y-m-d H:i', $p['timestamp'])] + $p;
+    // Charges per vehicle, timed by when they ended. Ongoing sessions (no stoppedAt) are
+    // not counted until they are finished: their energy is still partial.
+    $stmt = $db->prepare("
+        SELECT vehicleId, stoppedAt AS datetime, consumedKwh AS kwh, cost AS pris FROM charges
+        WHERE vehicleId IS NOT NULL AND stoppedAt IS NOT NULL AND consumedKwh > 0 $vehicleSql
+    ");
+    $stmt->execute($vehicleArg);
+    $chargesByVehicle = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $ts = strtotime((string) $r['datetime']);
+        if ($ts === false) continue;
+        $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => $r['pris'] !== null ? (float) $r['pris'] : null];
     }
-}
+    foreach (ChargeRepository::getExternal($db, null, null, $vehicleFilter, false) as $r) {
+        $ts = strtotime((string) ($r['datetime'] ?? ''));
+        if ($ts === false || empty($r['vehicleId']) || (float) $r['kwh'] <= 0) continue;
+        $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => isset($r['pris']) ? (float) $r['pris'] : null];
+    }
 
-// Charges with no vehicle cannot be attributed to a car; say so instead of hiding them.
-$unassigned = ['charges' => 0, 'kwh' => 0.0];
-if ($vehicleFilter === null) {
-    $sql = "SELECT COUNT(*) AS n, COALESCE(SUM(consumedKwh), 0) AS kwh FROM charges
-            WHERE vehicleId IS NULL AND stoppedAt IS NOT NULL AND consumedKwh > 0";
-    $args = [];
-    if ($dateFilters) { $sql .= " AND date(stoppedAt) >= ? AND date(stoppedAt) <= ?"; $args = [$dateFilters['start'], $dateFilters['end']]; }
-    $stmt = $db->prepare($sql);
-    $stmt->execute($args);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $unassigned = ['charges' => (int) $row['n'], 'kwh' => round((float) $row['kwh'], 1)];
-}
+    // ─── Per vehicle ──────────────────────────────────────────────────────────────────────
+    $tz   = new DateTimeZone(date_default_timezone_get());
+    $now  = time();
+    $vehicles = [];
+    $series   = [];
 
-$json = json_encode(['vehicles' => $vehicles, 'series' => $series, 'unassigned' => $unassigned]);
-ApiCache::respond($_effCacheKey, $json);
+    ksort($readingsByVehicle);
+    foreach ($readingsByVehicle as $vehicleId => $readings) {
+        $calc  = EfficiencyCalc::intervals($readings, $chargesByVehicle[$vehicleId] ?? []);
+        $all   = $calc['intervals'];
+        $range = $dateFilters ? EfficiencyCalc::endingBetween($all, $fromTs, $toTs) : $all;
+
+        $monthly = [];
+        foreach (EfficiencyCalc::byMonth($range, $tz) as $month => $metrics) {
+            $monthly[] = ['month' => $month] + $metrics;
+        }
+
+        $vehicles[] = [
+            'vehicleId' => $vehicleId,
+            'overall'   => EfficiencyCalc::metrics($range),
+            'rolling'   => [
+                '30'  => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 30)),
+                '90'  => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 90)),
+                '365' => EfficiencyCalc::metrics(EfficiencyCalc::rolling($all, $now, 365)),
+            ],
+            'monthly'   => $monthly,
+            'dropped'   => $calc['dropped'],     // intervals skipped because the odometer went backwards
+        ];
+
+        foreach (EfficiencyCalc::cumulative($range) as $p) {
+            $series[] = ['vehicleId' => $vehicleId, 'date' => date('Y-m-d H:i', $p['timestamp'])] + $p;
+        }
+    }
+
+    // Charges with no vehicle cannot be attributed to a car; say so instead of hiding them.
+    $unassigned = ['charges' => 0, 'kwh' => 0.0];
+    if ($vehicleFilter === null) {
+        $sql = "SELECT COUNT(*) AS n, COALESCE(SUM(consumedKwh), 0) AS kwh FROM charges
+                WHERE vehicleId IS NULL AND stoppedAt IS NOT NULL AND consumedKwh > 0";
+        $args = [];
+        if ($dateFilters) { $sql .= " AND date(stoppedAt) >= ? AND date(stoppedAt) <= ?"; $args = [$dateFilters['start'], $dateFilters['end']]; }
+        $stmt = $db->prepare($sql);
+        $stmt->execute($args);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $unassigned = ['charges' => (int) $row['n'], 'kwh' => round((float) $row['kwh'], 1)];
+    }
+
+    return ApiCache::store($cacheKey, ['vehicles' => $vehicles, 'series' => $series, 'unassigned' => $unassigned]);
+};
