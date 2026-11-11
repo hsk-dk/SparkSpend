@@ -7,6 +7,7 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 ## [Unreleased]
 
 ### Fixed
+- **Charts threw "Cannot read properties of undefined (reading '_listened')" on mouse moves and updates.** The datalabels plugin was registered when the Elbil tab first opened. A chart made earlier (Jordvarme, Hus, Regning) had no per-chart plugin state, so after Elbil had been visited its next event or `update()` crashed, and the Jordvarme view showed an error. It is now registered once in `app.js`, before any chart exists (every Chart.js chart sets `datalabels` itself, so no look changes). Older than the `Api` change and unrelated to it: the Elbil split of 2026-11-04. `dev/test_frontend.php` guards it.
 - **Sync modal's system log said "Adgang nægtet".** `system-log` checks the `X-CSRF-Token` header even on a GET (the fetch wrapper only adds it to POST/PUT/PATCH/DELETE), and the move to `Api.get` dropped the header the old call sent. `Api.get` now takes `{ headers }` and the modal passes the token; `dev/test_frontend.php` fails if it does not. My browser run after the move did not open this panel, which is why it got through.
 
 ### Quality
