@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Fixed
+- **Sync modal's system log said "Adgang nægtet".** `system-log` checks the `X-CSRF-Token` header even on a GET (the fetch wrapper only adds it to POST/PUT/PATCH/DELETE), and the move to `Api.get` dropped the header the old call sent. `Api.get` now takes `{ headers }` and the modal passes the token; `dev/test_frontend.php` fails if it does not. My browser run after the move did not open this panel, which is why it got through.
+
 ### Quality
 - **The front end has one request layer and one escape function.** 45 `fetch()` calls in 17 files each spelled out their own `res.ok`, `res.json()`, `data.error` and `data.success` handling (seven different ways, some with none: a failed `sync-status` or `update-vehicle` answer was read as if it were data). New `includes/api.js`: `Api.get(action, params)` and `Api.post(action, body)` return the parsed JSON or throw an `Api.ApiError` whose message is the server's own text (`HTTP <status>` or "not JSON" otherwise); a POST answer with `success: false` throws too, so a caller has the happy path and one `catch`. Params are URL-encoded by `URLSearchParams` (no hand-built query strings), `null` is left out, and a stray `action` in the params cannot override the real one. Four HTML escapers (one threw on `null`, one left out `'`, one in `sync-modal.js` and the log viewer) are now `appUtils.escapeHtml`, which accepts `null`, `undefined` and numbers. `appUtils.handleFetchResponse` is gone.
 - Audit of the 187 interpolations in `innerHTML` templates: every user-entered or free-text value (vehicle, provider, stop reason, messages, log lines) was already escaped; the rest are ids, numbers, constants and fragments built from those. No hole found, so this is consistency, not a fix.

@@ -51,6 +51,13 @@ $dynamic = [];
 foreach ($src as $f => $s) if (preg_match('/\bApi\.(get|post)\(\s*[^\s\'"]/', $code($s))) $dynamic[] = $f;
 check('actions are literals (so this test can see them)', $dynamic === [], implode(', ', $dynamic));
 
+echo "\nReads that need the CSRF token on a GET\n";
+// A route that checks X-CSRF-Token on a GET (system-log) is not served by the fetch wrapper, which only adds it to
+// POST/PUT/PATCH/DELETE: the caller must send it. Dropping it in the move to Api.get made the log panel say "Adgang nægtet".
+$sysLog = file_get_contents("$root/routes/get_system_log.php");
+check('system-log still checks X-CSRF-Token', str_contains($sysLog, "header('X-CSRF-Token')"));
+check('so the sync modal sends it with Api.get', (bool) preg_match("~Api\.get\('system-log'.*?X-CSRF-Token~s", $src['includes/sync-modal.js']));
+
 echo "\nOne escape function\n";
 $bad = [];
 foreach ($src as $f => $s) {

@@ -51,8 +51,9 @@ const Api = (() => {
         return data;
     }
 
-    /** @param {string} action  @param {Object|URLSearchParams} [params]  @param {{signal?: AbortSignal}} [opts] */
-    const get = (action, params, opts = {}) => request(action, params, { signal: opts.signal });
+    /** @param {string} action  @param {Object|URLSearchParams} [params]  @param {{signal?: AbortSignal, headers?: Object}} [opts]
+     *  headers: for the few reads that want proof of a served page (system-log needs X-CSRF-Token even on a GET). */
+    const get = (action, params, opts = {}) => request(action, params, { signal: opts.signal, headers: opts.headers });
 
     /** POST a JSON body. @param {string} action  @param {Object} [body]  @param {Object|URLSearchParams} [params] */
     const post = (action, body = {}, params) => request(action, params, {

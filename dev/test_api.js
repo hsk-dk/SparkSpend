@@ -89,6 +89,8 @@ function load(file, sandbox) {
     check('a GET answer with success:true passes', (await Api.get('x')).ok === 1);
 
     reply = json(200, { x: 1 });
+    await Api.get('x', {}, { headers: { 'X-CSRF-Token': 'T' } });
+    check('extra headers are passed on to fetch (system-log needs the CSRF token on a GET)', calls.at(-1).init.headers['X-CSRF-Token'] === 'T');
     await Api.get('x', {}, { signal: 'SIG' });
     check('an AbortSignal is passed on to fetch', calls.at(-1).init.signal === 'SIG');
 

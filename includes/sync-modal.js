@@ -63,7 +63,8 @@
     function _loadLog() {
         logContent.innerHTML = '<span class="text-muted">Indlæser log\u2026</span>';
         logMeta.textContent = '';
-        Api.get('system-log', { lines: 80 })
+        // system-log wants the session's CSRF token as proof the request comes from a page we served, even on a GET
+        Api.get('system-log', { lines: 80 }, { headers: { 'X-CSRF-Token': window.sparkConfig.csrfToken || '' } })
             .then(d => {
                 logLoaded = true;
                 if (d.missing) {
