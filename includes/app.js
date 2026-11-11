@@ -603,6 +603,11 @@ window.appUtils = {
   initializeAppUtilities
 };
 
+// Register the datalabels plugin once, before any chart exists. It used to be registered when the Elbil tab first opened:
+// a chart made earlier (Jordvarme, Hus, Regning) then had no per-chart plugin state, and its next update or mouse event threw
+// "Cannot read properties of undefined (reading '_listened')". Every Chart.js chart sets datalabels itself, so this changes no look.
+if (window.Chart && window.ChartDataLabels) Chart.register(ChartDataLabels);
+
 // Phones: Chart.js' default shape (twice as wide as tall) leaves a 70 px high chart on a 300 px wide card.
 document.addEventListener('DOMContentLoaded', () => {
   if (window.Chart && window.innerWidth < 600) Chart.defaults.aspectRatio = 1.2;

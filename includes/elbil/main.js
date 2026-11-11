@@ -24,8 +24,6 @@
         S.quickFilterEl     = document.getElementById('quickFilter');
         S.chargeTableBodyEl = document.getElementById('chargeTableBody');
 
-        Chart.register(ChartDataLabels);
-
         _setupFlatpickr();
         _setupEventListeners();
         M.charges.bind();

@@ -58,6 +58,16 @@ $sysLog = file_get_contents("$root/routes/get_system_log.php");
 check('system-log still checks X-CSRF-Token', str_contains($sysLog, "header('X-CSRF-Token')"));
 check('so the sync modal sends it with Api.get', (bool) preg_match("~Api\.get\('system-log'.*?X-CSRF-Token~s", $src['includes/sync-modal.js']));
 
+echo "\nChart.js plugin registration\n";
+// The datalabels plugin must exist before the first chart is made (see app.js); registering it on first use of one tab broke
+// charts created earlier with "reading '_listened'".
+$reg = [];
+foreach ($src as $f => $s) if (preg_match('/Chart\.register\s*\(\s*ChartDataLabels/', $code($s))) $reg[] = $f;
+check('ChartDataLabels is registered once, in app.js', $reg === ['includes/app.js'], implode(', ', $reg));
+$bad = [];
+foreach ($src as $f => $s) if ($f !== 'includes/app.js' && preg_match('/new Chart\(/', $code($s)) && !str_contains($s, 'datalabels')) $bad[] = $f;
+check('every file that makes a Chart.js chart configures datalabels itself', $bad === [], implode(', ', $bad));
+
 echo "\nOne escape function\n";
 $bad = [];
 foreach ($src as $f => $s) {
