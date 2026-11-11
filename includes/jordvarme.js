@@ -92,6 +92,10 @@ const jordvarmeApp = (() => {
                 if (!isChronological && yearContainer) yearContainer.style.display = "none";
                 activeCostMap = {}; activeComponents = null;
                 activeWeatherMap = {}; activeTemperatureMap = {}; compareNormalized = false;
+                // The rows of the previous view have another shape (ytd, daily, monthly, compare). The cost and weather
+                // answers often arrive before the new rows and re-render from lastKwhData: with the old rows and the new
+                // mode that threw "reading 'month'" / "reading 'slice'".
+                lastKwhData = null;
                 fetchAndRender();
                 // compare/ytd: fetchElCosts is triggered inside fetchAndRender once
                 // data arrives, so the actual year range is known (avoids fetching

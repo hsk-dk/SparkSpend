@@ -68,6 +68,12 @@ $bad = [];
 foreach ($src as $f => $s) if ($f !== 'includes/app.js' && preg_match('/new Chart\(/', $code($s)) && !str_contains($s, 'datalabels')) $bad[] = $f;
 check('every file that makes a Chart.js chart configures datalabels itself', $bad === [], implode(', ', $bad));
 
+echo "\nJordvarme: a view switch must not re-render the old rows\n";
+// Cost and weather answers re-render from lastKwhData; after a switch (ytd -> monthly ...) it still holds the old view's rows,
+// which have another shape: "reading 'month'" / "reading 'slice'". The click handler clears it before it fetches.
+check('the mode-button handler clears lastKwhData before fetchAndRender()',
+    (bool) preg_match('/currentMode\s*=\s*this\.dataset\.mode;.*?lastKwhData\s*=\s*null;.*?fetchAndRender\(\)/s', $src['includes/jordvarme.js']));
+
 echo "\nOne escape function\n";
 $bad = [];
 foreach ($src as $f => $s) {
