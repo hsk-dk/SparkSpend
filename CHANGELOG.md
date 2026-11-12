@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed
+- **Heat pump card explains a big gap between the raw and the weather-corrected year-on-year change.** When the degree days of the month so far differ by 10 % or more from the same days last year, a line under the weather-corrected one says why, e.g. "Koldere vejr end samme periode sidste år: 38 % flere gradedage" (this November: +29 % kWh, +38 % degree days, so -6 % per degree day). Nothing is shown when the weather was about the same. `dev/test_dashboard_js.js` runs the function from the real file.
+
 ### Fixed
 - **Jordvarme threw "reading 'month'" / "reading 'slice'" after switching view (Dag/Måned/Sammenlign/År til dato).** The cost and weather answers re-render the statistics from `lastKwhData`, and when they arrived before the new rows it still held the previous view's rows, which have another shape. The mode-button handler now clears it first. Reproduced in the browser (ytd -> monthly -> daily with a slowed heatpump call), then seven switches without an error. Not caused by the `Api` change: the order of calls is the same as before.
 - **Charts threw "Cannot read properties of undefined (reading '_listened')" on mouse moves and updates.** The datalabels plugin was registered when the Elbil tab first opened. A chart made earlier (Jordvarme, Hus, Regning) had no per-chart plugin state, so after Elbil had been visited its next event or `update()` crashed, and the Jordvarme view showed an error. It is now registered once in `app.js`, before any chart exists (every Chart.js chart sets `datalabels` itself, so no look changes). Older than the `Api` change and unrelated to it: the Elbil split of 2026-11-04. `dev/test_frontend.php` guards it.

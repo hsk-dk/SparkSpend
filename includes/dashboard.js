@@ -257,6 +257,18 @@ function renderHusCard(rest) {
     _renderSeasonBadge(card, rest.pct_change_year);
 }
 
+/**
+ * Why the raw year-on-year change and the weather-corrected one differ: the same days last year had another number of degree
+ * days. Returns '' while the weather was about the same (under 10 %), so the line only appears when it explains something.
+ */
+function _hddExplanation(hddThis, hddLast) {
+    const diff = Math.round((hddThis / hddLast - 1) * 100);
+    if (!Number.isFinite(diff) || Math.abs(diff) < 10) return '';
+    const colder = diff > 0;
+    return `${colder ? 'Koldere' : 'Varmere'} vejr end samme periode sidste år: ` +
+        `${_fmt(Math.abs(diff), 0)} % ${colder ? 'flere' : 'færre'} gradedage`;
+}
+
 async function _enrichHpWithWeather(card, hp) {
     const lat = window.sparkConfig?.weatherLat || '';
     const lon = window.sparkConfig?.weatherLon || '';
@@ -299,6 +311,10 @@ async function _enrichHpWithWeather(card, hp) {
         trendEl.innerHTML +=
             `<div class="${up ? 'trend-up' : 'trend-down'}" title="Justeret for graddage (HDD 17°C)">` +
             `${up ? '↑' : '↓'} ${_fmt(Math.abs(normalizedPct), 1)}% vejrkorrigeret vs. samme måned sidste år</div>`;
+        const why = _hddExplanation(hddThis, hddLast);
+        if (why) {
+            trendEl.innerHTML += `<div class="trend-explain text-muted small" title="Gradedage (HDD 17°C) 1. til i dag, mod samme dage sidste år">${why}</div>`;
+        }
     } catch (e) {
         if (e.name !== 'AbortError') console.warn('_enrichHpWithWeather:', e);
     }
