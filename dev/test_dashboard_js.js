@@ -44,5 +44,26 @@ check('a fall: down arrow, green class, whole percent', line(-12.2).includes('tr
 check('no decimals on a rounded figure', !/\d,\d/.test(line(7.6)) && !/\d,\d/.test(line(-12.2)));
 check('not a number: no line', line(NaN) === '' && line(Infinity) === '');
 
+console.log('\n_sharePercents / _costShareBars');
+const shares = vm.createContext({ Number, Math });
+vm.runInContext(fn('_fmt') + '\n' + fn('_sharePercents') + '\n' + fn('_costShareBars') + '\n' +
+    src.match(/const _SHARE_PARTS = \[[\s\S]*?\];\nconst _SHARE_SUB_COLOR = '[^']+';/)[0].replace(/^const /gm, 'var '), shares);
+const pct = shares._sharePercents, bars = shares._costShareBars;
+const sum = a => a.reduce((s, v) => s + v, 0);
+check('percents add up to exactly 100 (thirds: 34/33/33)', sum(pct([1, 1, 1])) === 100 && pct([1, 1, 1]).join() === '34,33,33', pct([1, 1, 1]).join());
+check('the dashboard figures (389/178/250 kWh) give 48/22/30 % (sums to 100)', pct([388.73, 178.4, 249.78]).join() === '48,22,30', pct([388.73, 178.4, 249.78]).join());
+check('nothing, negatives and NaN count as zero', pct([0, 0]).join() === '0,0' && pct([-5, 10, NaN]).join() === '0,100,0');
+const html = bars({ ev: 388.73, hp: 178.4, rest: 249.78 }, { ev: 1036, hp: 752, rest: 1141, sub: 105 });
+check('two bars and a legend', (html.match(/class="tc-row"/g) || []).length === 2 && html.includes('class="tc-legend"'), html.slice(0, 80));
+check('kWh bar has three segments, kr bar four (with the subscription)', (html.match(/class="tc-track"[\s\S]*?<\/div><\/div>/g) || []).map(s => (s.match(/tc-seg/g) || []).length).join() === '3,4');
+check('segment widths of a bar add up to 100 %', (() => {
+    const bar = html.match(/class="tc-track"[\s\S]*?<\/div><\/div>/)[0];
+    return Math.abs(sum([...bar.matchAll(/width:([\d.]+)%/g)].map(m => +m[1])) - 100) < 0.05;
+})());
+check('the legend sets the kWh share beside the kr share (EV 48 % of kWh, 34 % of kr)', html.includes('EV hjemme <b>48 %</b> af kWh · <b>34 %</b> af kr'), html.match(/EV hjemme <b>[^<]*<\/b>[^<]*<b>[^<]*<\/b>/)?.[0]);
+check('each bar is described for screen readers', html.includes('role="img" aria-label="kWh hidtil 817: EV hjemme 48 %, Jordvarme 22 %, Øvrigt 30 %"'), html.match(/aria-label="[^"]*"/)?.[0]);
+check('no subscription: the kr bar has three segments', (bars({ ev: 1, hp: 1, rest: 1 }, { ev: 1, hp: 1, rest: 1, sub: 0 }).match(/tc-seg/g) || []).length === 6);
+check('no kWh or no kr: no bars', bars({ ev: 0, hp: 0, rest: 0 }, { ev: 1, hp: 1, rest: 1, sub: 0 }) === '' && bars({ ev: 1, hp: 1, rest: 1 }, { ev: 0, hp: 0, rest: 0, sub: 0 }) === '');
+
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

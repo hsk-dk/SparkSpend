@@ -531,6 +531,64 @@ function _showForecastProblem(card, text) {
     if (windowEl) windowEl.innerHTML = '';
 }
 
+// The three consumers of the house meter, in the colours of their cards. "Øvrigt" is the Hus card's name for what
+// is left of the house meter after the heat pump and home EV charging.
+const _SHARE_PARTS = [
+    { key: 'ev',   label: 'EV hjemme', color: '#6BA3FF' },
+    { key: 'hp',   label: 'Jordvarme', color: '#22c55e' },
+    { key: 'rest', label: 'Øvrigt',    color: '#f59e0b' },
+];
+const _SHARE_SUB_COLOR = '#94a3b8';
+
+/** Whole percents of the (positive) values that add up to exactly 100 (largest remainder); all 0 when there is nothing. */
+function _sharePercents(values) {
+    const pos = values.map(v => (Number.isFinite(v) && v > 0 ? v : 0));
+    const total = pos.reduce((s, v) => s + v, 0);
+    if (!(total > 0)) return pos.map(() => 0);
+    const raw = pos.map(v => v / total * 100);
+    const out = raw.map(Math.floor);
+    const left = 100 - out.reduce((s, v) => s + v, 0);
+    raw.map((r, i) => [r - out[i], i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => { out[i]++; });
+    return out;
+}
+
+/**
+ * Two stacked bars for the band above the cards: where the house meter's kWh went so far, and what the month's
+ * kr are expected to be, in the same three colours. The point is the difference between them: the EV is about half of
+ * the kWh but, charged at night, a smaller share of the kr. kwh = {ev, hp, rest} (month to date); cost = {ev, hp,
+ * rest, sub} (expected for the whole month, the same figures as the total). '' when either is empty.
+ */
+function _costShareBars(kwh, cost) {
+    const kVals = _SHARE_PARTS.map(x => Number(kwh[x.key]) || 0);
+    const cVals = _SHARE_PARTS.map(x => Number(cost[x.key]) || 0).concat([Number(cost.sub) || 0]);
+    const kTotal = kVals.reduce((s, v) => s + Math.max(0, v), 0);
+    const cTotal = cVals.reduce((s, v) => s + Math.max(0, v), 0);
+    if (!(kTotal > 0) || !(cTotal > 0)) return '';
+
+    const kPct = _sharePercents(kVals);
+    const cPct = _sharePercents(cVals);
+    const seg = (label, value, unit, pct, color, total) =>
+        `<span class="tc-seg" style="width:${(Math.max(0, value) / total * 100).toFixed(2)}%;background:${color}" ` +
+        `title="${label}: ${_fmt(value, 0)} ${unit} (${pct} %)"></span>`;
+    const row = (caption, total, unit, parts) =>
+        `<div class="tc-row"><span class="tc-label">${caption} <b>${_fmt(total, 0)}</b></span>` +
+        `<div class="tc-track" role="img" aria-label="${caption} ${_fmt(total, 0)}: ` +
+        `${parts.map(x => `${x.label} ${x.pct} %`).join(', ')}">` +
+        parts.map(x => seg(x.label, x.value, unit, x.pct, x.color, total)).join('') + `</div></div>`;
+
+    const kParts = _SHARE_PARTS.map((x, i) => ({ ...x, value: kVals[i], pct: kPct[i] }));
+    const cParts = _SHARE_PARTS.map((x, i) => ({ ...x, value: cVals[i], pct: cPct[i] }));
+    if (cVals[3] > 0) cParts.push({ label: 'Abonnement', color: _SHARE_SUB_COLOR, value: cVals[3], pct: cPct[3] });
+
+    const legend = _SHARE_PARTS.map((x, i) =>
+        `<span class="tc-key"><i class="tc-dot" style="background:${x.color}"></i>${x.label} ` +
+        `<b>${kPct[i]}\u00a0%</b> af kWh \u00b7 <b>${cPct[i]}\u00a0%</b> af kr</span>`).join('');
+    return `<div class="total-cost-bars">` +
+        row('kWh hidtil', kTotal, 'kWh', kParts) +
+        row('kr forventet', cTotal, 'kr', cParts) +
+        `<div class="tc-legend">${legend}</div></div>`;
+}
+
 // Electricity cost estimates. The elvarme model (rates, weighting, high/low split,
 // projection) is computed on the server (includes/CostEstimates.php) and arrives as
 // `cost` in the dashboard payload; this only displays it.
@@ -567,13 +625,15 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
         const el = document.getElementById('total-cost-estimate');
         if (el) {
             const perDay = cost.per_day || 0;
-            el.innerHTML = `<span class="total-cost-icon">\u26a1</span>` +
+            const kwhNow = { ev: ev ? ev.home_kwh : 0, hp: hp ? hp.month_kwh : 0, rest: rest ? rest.month_kwh : 0 };
+            el.innerHTML = `<div class="total-cost-top"><span class="total-cost-icon">⚡</span>` +
                 `<span class="total-cost-amount">Forventet elregning: ~${cost.total_proj} kr</span>` +
-                `<span class="total-cost-breakdown">EV hjemme: ~${Math.round(cost.ev_proj)} \u00b7 VP: ~${cost.hp_proj} \u00b7 Rest: ~${cost.rest_proj}` +
-                (perDay > 0 ? ` \u00b7 Abonnement: ~${_fmt(cost.subscription_proj, 0)} kr` : ' kr \u00b7 ekskl. abonnement') + `</span>`;
+                `<span class="total-cost-breakdown">EV hjemme: ~${Math.round(cost.ev_proj)} · Jordvarme: ~${cost.hp_proj} · Øvrigt: ~${cost.rest_proj}` +
+                (perDay > 0 ? ` · Abonnement: ~${_fmt(cost.subscription_proj, 0)} kr` : ' kr · ekskl. abonnement') + `</span></div>` +
+                _costShareBars(kwhNow, { ev: cost.ev_proj, hp: cost.hp_proj, rest: cost.rest_proj, sub: perDay > 0 ? cost.subscription_proj : 0 });
             el.title = `Estimat for hele måneden. Hidtil: ~${_fmt(cost.total_mtd, 0)} kr. ` +
                        `EV hjemme: faktisk pris fra Monta (inkl. tariffer og afgifter); resten af måneden til ladeprisen de seneste 8 dage. Ladning ude er ikke med: den betales til ladeoperatøren. ` +
-                       `VP og Rest: elvarme-model, ${basisNote}, inkl. tariffer, elafgift og moms. ` +
+                       `Jordvarme og Øvrigt: elvarme-model, ${basisNote}, inkl. tariffer, elafgift og moms. ` +
                        (perDay > 0 ? `Abonnement: ${_fmt(perDay, 2)} kr/dag.` : 'Uden abonnement.');
             el.style.display = '';
         }

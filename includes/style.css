@@ -1746,6 +1746,23 @@ header {
   font-size: 0.9rem;
 }
 
+.total-cost-card { flex-direction: column; align-items: stretch; gap: 10px; }
+.total-cost-card .total-cost-top { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.total-cost-bars { display: flex; flex-direction: column; gap: 6px; }
+.total-cost-bars .tc-row { display: flex; align-items: center; gap: 10px; }
+.total-cost-bars .tc-label { flex: 0 0 150px; font-size: 0.75rem; color: var(--muted-strong, #4b5563); }
+.total-cost-bars .tc-track { flex: 1; display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #e5e7eb; }
+.total-cost-bars .tc-seg { height: 100%; flex-shrink: 0; transition: width 0.4s ease; }
+.total-cost-bars .tc-seg + .tc-seg { border-left: 1px solid rgba(255, 255, 255, 0.85); }
+.total-cost-bars .tc-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-left: 160px; font-size: 0.75rem; color: var(--muted-strong, #4b5563); }
+.total-cost-bars .tc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+@media (max-width: 640px) {
+  .total-cost-bars .tc-row { flex-direction: column; align-items: stretch; gap: 3px; }
+  .total-cost-bars .tc-label { flex: none; }
+  .total-cost-bars .tc-track { flex: none; }   /* in a column flex:1 would make the 10px height basis 0 */
+  .total-cost-bars .tc-legend { margin-left: 0; }
+}
+
 .total-cost-card .total-cost-icon {
   font-size: 1.2rem;
 }
