@@ -40,7 +40,6 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines.
 - **Komplet mørkt tema (M).** Kun `.dashboard-card` har en mørk variant i dag; diagrammer, tabeller og modaler er lyse. `includes/style.css`
 - **Opladningskort (L).** Et kort over, hvor der er ladet (Leaflet). Kræver, at stedet gemmes ved import.
 - **Live elpris fra Tibber/Nordpool (L).**
-- **Budget/månedligt mål er væk (M).** Står som lavet nedenfor, men `budget` findes ikke længere i koden: fjernet i `ed66b7f` ("Refactor dashboard styles…"). Genindfør, eller slet den fra listen over afsluttede.
 
 ### Teknisk gæld
 
@@ -49,6 +48,7 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines.
 ### Fravalgt
 
 - **EV-hjemmeladning kr fra spotpris.** Montas `cost`-felt er gyldigt og bruges; spotprisberegning giver ikke et bedre tal.
+- **Budget og forbrugsmål.** Appen sammenligner udelukkende med tidligere forbrug (forrige måned, samme periode sidste år). Mål og budgetter hører ikke til.
 
 ---
 
@@ -74,7 +74,7 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines.
 - ✅ **DEBT — Rate-limiting på triggerSync.php** — Filbaseret 30s cooldown via `sparkspend_sync_cooldown.lock` i CACHE_DIR. Returnerer HTTP 429 med dansk fejlbesked hvis for tidligt. `triggerSync.php`.
 - ✅ **DEBT — Inkonsistent JSON-fejlformat** — `receive_vehicle_data.php` standardiseret til `{error: string}` på alle fejlstier (var `{status, message}`). Succesvar bevarer `{status: 'success'}` da det er eksternt API. `receive_vehicle_data.php`.
 - ✅ **DEBT — Negativ/ikke-finit input afvises ikke i ext-charges** — `is_finite()` guard tilføjet til `$kwh` og `$pris` validering. `pris` tillader nu `>= 0` (gratis ladning mulig). `createExCharge.php`, `updateExtCharge.php`.
-- ✅ **ENHANCEMENT — Hus budget-mål (kWh/måned)** — Nyt felt i budget-modalen (`sparkspend_budget_hus_kwh`). `_renderProgress()` kaldt i `renderHusCard()`. "Nulstil" rydder alle tre mål. `dashboard.js?v=20260531c`.
+- ✅ **ENHANCEMENT — Hus budget-mål (kWh/måned)** — Nyt felt i budget-modalen (`sparkspend_budget_hus_kwh`). `_renderProgress()` kaldt i `renderHusCard()`. "Nulstil" rydder alle tre mål. `dashboard.js?v=20260531c`. *Fjernet igen i `ed66b7f` — bevidst: appen sammenligner kun med tidligere forbrug, ikke med mål.*
 - ✅ **ENHANCEMENT — "Alt normalt" bekræftelse i anomali-panelet** — Grøn `#anomaly-ok` chip vises fra dag 5 i måneden når ingen warning/critical anomalier. Skjules automatisk hvis panelet aktiveres.
 - ✅ **ENHANCEMENT — EV hjemme/ude split-bar på dashboardkortet** — Tofarvet bjælke (blå=hjemme, amber=ude) viser kWh-fordelingen visuelt med separat kr/kWh for hver type. Driver-note i trend-sektionen aktiveres når udeandelen ændrer sig ≥5 procentpoint vs. forrige måned. `getDashboardSummary.php` udvider EV-objektet med `home_kwh/cost/cpkwh`, `ext_kwh/cost/cpkwh`, `ext_cnt`, `prev_ext_kwh_pct`. `dashboard.js?v=20260531`, `style.css?v=20260531`.
 - ✅ **ENHANCEMENT — Hus kompositions-split-bar på dashboardkortet** — 3-farvet bjælke (blå=EV, grøn=Jordvarme, amber=Rest) på Hus-kortet. `ev_home_kwh` og `hp_kwh` tilføjet til `hus`-objekt i `getDashboardSummary.php`. `dashboard.js?v=20260531b`.
@@ -88,7 +88,7 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines.
 - ✅ **ENHANCEMENT — Opladningstabel kolonne for sessionstilstand** — `state` og `stopReason` fra `charges`-tabellen tilføjet til `getCharges.php` SELECT (NULL for ext_charges). `_renderCharges` i `elbil.js` viser farvekodet badge under type-ikonet: grøn "Afsluttet", amber "Stoppet", rød "Fejl". `stopReason` vises som tooltip på badget.
 - ✅ **ENHANCEMENT — State-of-charge (SoC) sporing** — `socPercentage` og `socLimit` returneres nu fra `getCharges.php`. `_renderCharges` viser "SoC: X% / Y%" (eller "SoC: X%" hvis ingen grænse) under varighed/effekt i sessionskolonnen.
 - ✅ **ENHANCEMENT — Sparkline x-akse viser rullende 30 dage i stedet for måned-til-dato** — `$sparkWindowStart = today − 29 days` i `getDashboardSummary.php`; HP/Hus `lagDelta` queries udvidet tilsvarende; alle tre sparklines er nu altid 30 elementer. `dashboard.js` bruger rolling start-dato til tooltip-labels.
-- ✅ **ENHANCEMENT — Budget / månedligt forbrugsmål** — Nyt `budgetModal` med inputs for EV-budget (kr) og Jordvarme-mål (kWh), gemt i `localStorage`. `_renderProgress()` i `dashboard.js` viser en farvekoderet fremdriftsbjælke under sparkline på EV- og Jordvarme-kortene (grøn < 85%, amber 85–99%, rød ≥ 100%). Bullseye-knap i headeren åbner modalen.
+- ✅ **ENHANCEMENT — Budget / månedligt forbrugsmål** — Nyt `budgetModal` med inputs for EV-budget (kr) og Jordvarme-mål (kWh), gemt i `localStorage`. `_renderProgress()` i `dashboard.js` viser en farvekoderet fremdriftsbjælke under sparkline på EV- og Jordvarme-kortene (grøn < 85%, amber 85–99%, rød ≥ 100%). Bullseye-knap i headeren åbner modalen. *Fjernet igen i `ed66b7f` — bevidst: appen sammenligner kun med tidligere forbrug, ikke med mål.*
 - ✅ **ENHANCEMENT — Konsekvente farver på tværs af sektioner** — Grøn (Jordvarme), blå (El-bil), amber (Restforbrug).
 - ✅ **BUG — `ext_charges.datetime` gemt som pseudo-UTC** — `createExCharge.php` og `updateExtCharge.php` gemmer nu ægte UTC.
 - ✅ **ENHANCEMENT — Jordvarme estimeret kr-pris (alle 4 tilstande)** — `activeCostMap` + `fetchElCosts()` i `jordvarme.js`.
