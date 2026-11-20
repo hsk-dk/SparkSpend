@@ -769,9 +769,9 @@ tr:last-child td {
 }
 
 .alert-warning {
-  background: rgba(255, 193, 7, 0.1);
+  background: #fff8e1;   /* opaque: it sits straight on the page photo, so a 10 % tint gave no fixed backdrop to measure against */
   border-color: #FFC107;
-  color: #f57f17;
+  color: #92400e;   /* was #f57f17: 1.7-2.4:1 */
 }
 
 .alert-info {
@@ -1204,7 +1204,7 @@ header {
 
 .dash-period {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--muted-strong, #4b5563);
   margin-top: 2px;
 }
 
@@ -1235,7 +1235,7 @@ header {
 
 .dash-stat-label {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--muted-strong, #4b5563);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1247,7 +1247,7 @@ header {
 
 .trend-up      { color: var(--color-increase); }
 .trend-down    { color: var(--color-decrease); }
-.trend-neutral { color: #6b7280; font-style: italic; }
+.trend-neutral { color: var(--muted-strong, #4b5563); font-style: italic; }
 
 .dash-sparkline {
   height: 52px;
@@ -1263,7 +1263,7 @@ header {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #6b7280;
+  color: var(--muted-strong, #4b5563);
   margin-bottom: 4px;
 }
 
@@ -1433,7 +1433,7 @@ header {
   border: none;
   padding: 5px 12px;
   border-radius: 6px;
-  color: #6b7280;
+  color: var(--muted-strong, #4b5563);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -1473,11 +1473,15 @@ header {
 }
 
 .year-chip {
-  padding: 4px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 10px;
   border-radius: 20px;
   border: 2px solid var(--chip-color, #6b7280);
-  background: var(--chip-color, #6b7280);
-  color: #fff;
+  background: #fff;
+  background: color-mix(in srgb, var(--chip-color, #6b7280) 16%, #fff);
+  color: #1f2937;   /* dark text: the series colour sits on the border and the dot, not behind the letters */
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1485,14 +1489,29 @@ header {
   line-height: 1.4;
 }
 
+.year-chip::before {
+  content: '';
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--chip-color, #6b7280);
+}
+
+/* Hidden series: no fill, dashed border, hollow dot (the state is shape, not only colour) */
 .year-chip:not(.active) {
   background: transparent;
-  color: var(--chip-color, #6b7280);
-  opacity: 0.65;
+  color: var(--muted-strong, #4b5563);
+  border-style: dashed;
+}
+
+.year-chip:not(.active)::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--chip-color, #6b7280);
 }
 
 .year-chip:hover {
-  opacity: 1;
+  opacity: 0.85;
 }
 
 /* Coloured dot used in compare stats table */
@@ -1623,7 +1642,7 @@ header {
 }
 .anomaly-item-msg {
   font-size: 0.82rem;
-  color: #6b7280;
+  color: var(--muted-strong, #4b5563);
   margin-top: 2px;
 }
 
@@ -1738,7 +1757,7 @@ header {
   background: rgba(148, 163, 184, 0.15);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 6px;
-  color: #64748b;
+  color: #475569;   /* was #64748b: 3.9:1 */
   font-size: 0.8rem;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -1832,7 +1851,7 @@ header {
 
 .dash-season-badge.season-normal { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
 .dash-season-badge.season-high { background: rgba(100, 116, 139, 0.16); color: #334155; }   /* kWh, not money: not red */
-.dash-season-badge.season-low { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.dash-season-badge.season-low { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }   /* was #2563eb: 4.4:1 at 10 px */
 
 /* ===== TOAST NOTIFICATIONS ===== */
 
@@ -2224,6 +2243,7 @@ header {
   --ok-strong:     #166534;
   --bad-strong:    #b91c1c;
   --muted-strong:  #4b5563;   /* 7.5:1 on white */
+  --warn-strong:   #92400e;   /* 8:1 on white: amber as TEXT (the bright amber stays for fills) */
 }
 
 .dashboard-card { background: rgba(255, 255, 255, 0.92); }
@@ -2238,6 +2258,7 @@ header {
 .trend-down { color: var(--ok-strong); }
 .trend-up   { color: var(--bad-strong); }
 .dash-split-home-lbl { color: var(--accent-strong); }
+.dash-split-ext-lbl  { color: var(--warn-strong); }
 th.sort-active { color: var(--accent-strong); }
 
 /* active/selected controls: white on a dark blue fill instead of white or blue on light blue */

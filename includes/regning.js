@@ -316,9 +316,9 @@ const fordelingApp = (() => {
 
         el.innerHTML = cards.map(c => `
             <div class="col">
-                <div class="rounded p-3 text-center h-100" style="background:${c.bg}; border:1px solid ${c.colour}33">
+                <div class="rounded p-3 text-center h-100" style="background:${c.bg}; border:1px solid ${c.colour}33; border-top:4px solid ${c.colour}">
                     <div class="small text-muted mb-1">${c.label}</div>
-                    <div class="fw-bold fs-5" style="color:${c.colour}">${fmt(c.val)}</div>
+                    <div class="fw-bold fs-5">${fmt(c.val)}</div>
                     <div class="small text-muted">${pct(c.val)} af total</div>
                 </div>
             </div>`).join('');
