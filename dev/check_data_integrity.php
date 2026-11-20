@@ -276,6 +276,18 @@ try {
                    + $vEmpty + $pEmpty + $vcNullTs + $vcOrphan;
     echo "=== charges.db Report: " . ($chargesIssues === 0 ? "✓ NO ISSUES" : "⚠ $chargesIssues issue(s) found") . " ===\n";
 
+    // ── The same checks as `php doctor.php` (types, orphans, implausible rows of the last 90 days) ──────────
+    echo "\nDataIntegrity (shared with php doctor.php)...\n";
+    require_once dirname(__DIR__) . '/includes/DataIntegrity.php';
+    $findings = array_merge(
+        DataIntegrity::check($cdb, 'charges.db'),
+        DataIntegrity::content($cdb, 'charges.db'),
+        DataIntegrity::check(DatabaseManager::getPowerlogDb(), 'powerlog.db')
+    );
+    foreach ($findings as $f) {
+        echo ['ok' => '✓', 'warn' => '⚠', 'fail' => '✗'][$f['level']] ?? '?', ' ', $f['name'], ($f['detail'] !== '' ? " ({$f['detail']})" : ''), "\n";
+    }
+
 } catch (Exception $e) {
     echo "✗ charges.db Error: " . $e->getMessage() . "\n";
     exit(1);

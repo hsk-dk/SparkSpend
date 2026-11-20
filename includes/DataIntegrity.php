@@ -40,6 +40,67 @@ final class DataIntegrity
         return $out;
     }
 
+    /** How far back the content checks look. Older rows are history: a stray one from last year should not keep the doctor yellow. */
+    public const CONTENT_DAYS = 90;
+
+    /**
+     * Rows that are well-formed but wrong in a way that distorts a figure, in the last CONTENT_DAYS days (charges database).
+     * The type and orphan checks above find damage to the data; these find implausible data:
+     *  - a stop before the start, or a negative / absurd kWh or price (the session figures and kr/kWh);
+     *  - a session still open after two days (it counts up to "now" until Monta closes it);
+     *  - a charge with kWh but no price (counts 0 kr, so the month's price is understated);
+     *  - an odometer reading of 0, or one lower than the one before (kr/km and km/kWh; EfficiencyCalc drops the outliers, but
+     *    it is worth knowing that the car or the importer sent one).
+     * Each finding is a warning with a count and an example id. Tables that are missing are skipped.
+     *
+     * @return array<int,array{level:string,name:string,detail:string}>
+     */
+    public static function content(PDO $db, string $label, ?int $now = null, int $days = self::CONTENT_DAYS): array
+    {
+        $now  = $now ?? time();
+        $from = gmdate('Y-m-d H:i:s', $now - $days * 86400);
+        $open = gmdate('Y-m-d H:i:s', $now - 2 * 86400);
+        $have = array_flip(self::tables($db));
+        $out  = [];
+        $warn = static function (string $what, int $n, string $example, string $why) use (&$out, $label): void {
+            if ($n > 0) $out[] = ['level' => 'warn', 'name' => "{$label}: {$n} {$what}", 'detail' => "eksempel: {$example}. {$why}"];
+        };
+        // count + an example id in one query: the first column is the count, the second an example
+        $q = static function (string $sql, array $args) use ($db): array {
+            $s = $db->prepare($sql); $s->execute($args);
+            $r = $s->fetch(PDO::FETCH_NUM);
+            return [(int) ($r[0] ?? 0), (string) ($r[1] ?? '')];
+        };
+
+        if (isset($have['charges'])) {
+            $in = "datetime(startedAt) >= ?";
+            [$n, $ex] = $q("SELECT COUNT(*), MIN(id) FROM charges WHERE $in AND stoppedAt IS NOT NULL AND datetime(stoppedAt) < datetime(startedAt) AND consumedKwh > 0", [$from]);
+            $warn('ladninger, hvor stop ligger før start', $n, "id $ex", 'varighed og kW bliver forkerte; ret i Monta-importen eller i rækken');
+            [$n, $ex] = $q("SELECT COUNT(*), MIN(id) FROM charges WHERE $in AND (consumedKwh < 0 OR consumedKwh > 150 OR cost < 0)", [$from]);
+            $warn('ladninger med negative eller urealistiske kWh/pris (kWh over 150 eller under 0, pris under 0)', $n, "id $ex", 'tallene tælles med i måneden');
+            [$n, $ex] = $q("SELECT COUNT(*), MIN(id) FROM charges WHERE stoppedAt IS NULL AND datetime(startedAt) >= ? AND datetime(startedAt) < ?", [$from, $open]);
+            $warn('ladninger uden stoptid, startet for mere end 2 dage siden', $n, "id $ex", 'Monta har ikke lukket dem; de tælles op til sidste opdatering');
+            [$n, $ex] = $q("SELECT COUNT(*), MIN(id) FROM charges WHERE $in AND stoppedAt IS NOT NULL AND consumedKwh > 0 AND cost IS NULL", [$from]);
+            $warn('ladninger med kWh men uden pris', $n, "id $ex", 'de tæller 0 kr, så månedens pris er undervurderet (kortet viser en stjerne)');
+        }
+        if (isset($have['ext_charges'])) {
+            [$n, $ex] = $q("SELECT COUNT(*), MIN(id) FROM ext_charges WHERE datetime(datetime) >= ? AND (kwh <= 0 OR pris < 0)", [$from]);
+            $warn('eksterne ladninger med kWh på 0 eller negativ pris', $n, "id $ex", 'ret eller slet rækken');
+        }
+        if (isset($have['vehicle_charges'])) {
+            [$n, $ex] = $q("SELECT COUNT(*), MIN(id) FROM vehicle_charges WHERE datetime(cablePluggedInAt) >= ? AND (odometer IS NULL OR odometer = 0)", [$from]);
+            $warn('kilometeraflæsninger på 0', $n, "id $ex", 'kr/km og km/kWh springer dem over, men bilen eller importen har sendt en tom aflæsning');
+            [$n, $ex] = $q("SELECT COUNT(*), MIN(id) FROM (
+                                SELECT id, odometer AS o, cablePluggedInAt AS at,
+                                       LAG(odometer) OVER (PARTITION BY vehicleId ORDER BY datetime(cablePluggedInAt)) AS p
+                                FROM vehicle_charges WHERE odometer > 0
+                            ) WHERE p IS NOT NULL AND p > 0 AND o < p AND datetime(at) >= ?", [$from]);
+            $warn('kilometeraflæsninger lavere end den forrige', $n, "id $ex", 'en kilometerstand kan ikke gå baglæns: en forkert aflæsning eller en ny bil på samme id');
+        }
+        if (!$out) $out[] = ['level' => 'ok', 'name' => "{$label}: indholdet ser rigtigt ud (seneste {$days} dage)", 'detail' => ''];
+        return $out;
+    }
+
     /** @return array<int,array{table:string,column:string,declared:string,type:string,count:int}> */
     public static function typeDamage(PDO $db): array
     {

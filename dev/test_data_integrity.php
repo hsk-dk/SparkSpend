@@ -102,5 +102,73 @@ SyncLog::success($pl, 'x', 3, '2026-01-01 10:00:00');
 check('DeviceEnergy::store and SyncLog', $damage($pl) === [] && $type($pl, "SELECT typeof(kwh) FROM device_energy") === 'real' && $type($pl, "SELECT typeof(last_sync_count) FROM sync_log") === 'integer');
 check('the powerlog database is clean too', array_column(DataIntegrity::check($pl, 'P'), 'level') === ['ok']);
 
+echo "\ncontent(): implausible rows of the last 90 days\n";
+$now = strtotime('2026-11-20 12:00:00');
+$cdb = freshDb('charges');
+$cdb->exec("INSERT INTO vehicles (id, vehicleName) VALUES (1, 'Enyaq')");
+$cdb->exec("INSERT INTO providers (providerName) VALUES ('Clever')");
+$ins = function (int $id, array $f) use ($cdb) {
+    $f += ['vehicleId' => 1, 'startedAt' => '2026-11-10T10:00:00Z', 'stoppedAt' => '2026-11-10T12:00:00Z', 'consumedKwh' => 20, 'cost' => 40];
+    $cdb->prepare("INSERT INTO charges (id, vehicleId, startedAt, stoppedAt, consumedKwh, cost, state, pairingSource) VALUES (?, ?, ?, ?, ?, ?, 'completed', 'matched')")
+        ->execute([$id, $f['vehicleId'], $f['startedAt'], $f['stoppedAt'], $f['consumedKwh'], $f['cost']]);
+};
+$names = fn(array $r) => implode(' | ', array_column($r, 'name'));
+$ins(1, []);
+$cdb->prepare("INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (1, ?, ?)")->execute(['2026-11-05T18:00:00+01:00', 1000]);
+$cdb->prepare("INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (1, ?, ?)")->execute(['2026-11-12T18:00:00+01:00', 1150]);
+$r = DataIntegrity::content($cdb, 'EV', $now);
+check('plausible rows: one ok line', count($r) === 1 && $r[0]['level'] === 'ok' && str_contains($r[0]['name'], '90 dage'), $names($r));
+
+$ins(2, ['startedAt' => '2026-11-11T10:00:00Z', 'stoppedAt' => '2026-11-11T09:00:00Z']);
+$r = DataIntegrity::content($cdb, 'EV', $now);
+check('a stop before the start (with kWh) is found, with an example id', count($r) === 1 && $r[0]['level'] === 'warn' && str_contains($r[0]['name'], '1 ladninger, hvor stop ligger før start') && str_contains($r[0]['detail'], 'id 2'), $names($r));
+$cdb->exec("UPDATE charges SET consumedKwh = 0 WHERE id = 2");
+check('...but not when the session holds no kWh (it changes no figure)', DataIntegrity::content($cdb, 'EV', $now)[0]['level'] === 'ok');
+$cdb->exec("DELETE FROM charges WHERE id = 2");
+
+$ins(3, ['consumedKwh' => 400, 'startedAt' => '2026-11-12T10:00:00Z', 'stoppedAt' => '2026-11-12T20:00:00Z']);
+$ins(4, ['cost' => -5, 'startedAt' => '2026-11-13T10:00:00Z', 'stoppedAt' => '2026-11-13T12:00:00Z']);
+$r = DataIntegrity::content($cdb, 'EV', $now);
+check('absurd kWh and a negative price are counted together', count($r) === 1 && str_contains($r[0]['name'], '2 ladninger med negative eller urealistiske'), $names($r));
+$cdb->exec("DELETE FROM charges WHERE id IN (3, 4)");
+
+$ins(5, ['stoppedAt' => null, 'startedAt' => '2026-11-15T10:00:00Z']);
+$ins(6, ['stoppedAt' => null, 'startedAt' => '2026-11-20T09:00:00Z']);
+$r = DataIntegrity::content($cdb, 'EV', $now);
+check('a session open for more than 2 days is found; one started this morning is not', count($r) === 1 && str_contains($r[0]['name'], '1 ladninger uden stoptid') && str_contains($r[0]['detail'], 'id 5'), $names($r));
+$cdb->exec("DELETE FROM charges WHERE id IN (5, 6)");
+
+$ins(7, ['cost' => null, 'startedAt' => '2026-11-14T10:00:00Z', 'stoppedAt' => '2026-11-14T12:00:00Z']);
+$r = DataIntegrity::content($cdb, 'EV', $now);
+check('a charge with kWh but no price is found', count($r) === 1 && str_contains($r[0]['name'], '1 ladninger med kWh men uden pris'), $names($r));
+$cdb->exec("DELETE FROM charges WHERE id = 7");
+
+$cdb->prepare("INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (1, ?, 0)")->execute(['2026-11-14T18:00:00+01:00']);
+$r = DataIntegrity::content($cdb, 'EV', $now);
+check('an odometer reading of 0 is found, and is not also reported as "backwards"', count($r) === 1 && str_contains($r[0]['name'], '1 kilometeraflæsninger på 0'), $names($r));
+$cdb->exec("DELETE FROM vehicle_charges WHERE odometer = 0");
+$cdb->prepare("INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (1, ?, ?)")->execute(['2026-11-16T18:00:00+01:00', 1100]);
+$r = DataIntegrity::content($cdb, 'EV', $now);
+check('a reading lower than the one before (1100 after 1150) is found', count($r) === 1 && str_contains($r[0]['name'], '1 kilometeraflæsninger lavere end den forrige'), $names($r));
+$cdb->exec("DELETE FROM vehicle_charges WHERE odometer = 1100");
+
+$cdb->prepare("INSERT INTO ext_charges (vehicleId, providerId, kwh, pris, datetime) VALUES (1, 1, 0, 10, ?)")->execute(['2026-11-15 12:00:00']);
+check('an external charge with 0 kWh is found', str_contains($names(DataIntegrity::content($cdb, 'EV', $now)), '1 eksterne ladninger'));
+$cdb->exec("DELETE FROM ext_charges");
+
+echo "\nonly the last 90 days (old history stays quiet)\n";
+$ins(8, ['stoppedAt' => null, 'startedAt' => '2025-11-27T07:25:00Z']);
+$cdb->prepare("INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (1, ?, 0)")->execute(['2025-11-19T18:27:05+01:00']);
+check('a stuck session and a 0 reading from a year ago are not reported', DataIntegrity::content($cdb, 'EV', $now)[0]['level'] === 'ok');
+check('...they are when the window reaches them (the same data as of 5 Dec 2025)', count(DataIntegrity::content($cdb, 'EV', strtotime('2025-12-05'))) >= 2);
+check('the window can be set', DataIntegrity::content($cdb, 'EV', $now, 400)[0]['level'] === 'warn');
+
+echo "\nmissing tables\n";
+$empty = new PDO('sqlite::memory:'); $empty->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$r = DataIntegrity::content($empty, 'X', $now);
+check('a database without the tables: ok, no exception', count($r) === 1 && $r[0]['level'] === 'ok');
+check('the powerlog database has none of those tables: ok', DataIntegrity::content(freshDb('powerlog'), 'P', $now)[0]['level'] === 'ok');
+check('doctor.php runs the content check on the charges database', str_contains(file_get_contents(__DIR__ . '/../doctor.php'), "DataIntegrity::content(\$db, \$label)"));
+
 echo "\n$n checks, $fails failed\n";
 exit($fails === 0 ? 0 : 1);

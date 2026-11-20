@@ -57,7 +57,7 @@ class Config {
             'weatherLon' => env('WEATHER_LON', ''),
 
             // Cache directory
-            'cacheDir' => rtrim(env('CACHE_DIR', sys_get_temp_dir()), '/\\'),
+            'cacheDir' => rtrim((string) (env('CACHE_DIR', '') ?: self::defaultCacheDir()), '/\\'),
 
             // Admin key (system log access)
             'adminKey' => env('ADMIN_KEY', ''),
@@ -145,6 +145,17 @@ class Config {
 
     public static function powerlogDbPath(): string {
         return self::get('powerlogDbPath', 'data/powerlog_data.db');
+    }
+
+    /**
+     * Where the file cache lives when CACHE_DIR is not set: data/cache/ next to the databases (the web server already
+     * hides data/), created on first use. The system temp directory was the old default; some hosts empty it, and the
+     * price files (EDS rate-limits hard) go with it. Falls back to the temp directory only if data/cache cannot be made.
+     */
+    public static function defaultCacheDir(?string $root = null): string {
+        $dir = rtrim($root ?? dirname(__DIR__), '/\\') . '/data/cache';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        return is_dir($dir) && is_writable($dir) ? $dir : sys_get_temp_dir();
     }
 
     public static function cacheDir(): string {

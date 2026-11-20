@@ -16,11 +16,6 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines, kr-andel og
 
 - **Vejrkorrektion mod forrige måned (M).** Den findes kun mod sidste år; Jordvarmes "+99 % mod forrige mdr" er mest vejr (mild oktober). `includes/dashboard.js`
 
-### Drift og data
-
-- **Mobilvalidering af kortene under 400 px (S).** Overskriftsbåndet er set på smal skærm, men ikke kortenes statistikrækker, split-bar og sparkline. `includes/style.css`
-- **Elpriscachen ligger i systemets temp-mappe som standard (S).** `CACHE_DIR` kan sætte den, men standarden er `sys_get_temp_dir()`, som er flygtig på nogle hosts. `includes/Config.php`
-- **Integritetstjek af `charging_data.db` (M).** `dev/check_data_integrity.php` kontrollerer kun `powerlogjord`; `DataIntegrity.php` dækker mere, men tjek, om EV-databasen har en tilsvarende rutine, og saml dem.
 
 ### Features (ingen af dem findes i koden)
 
@@ -45,6 +40,7 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines, kr-andel og
 
 ## Afsluttet
 
+- ✅ **2026-11-20 — Drift og data: de tre små punkter** — (1) *Mobilvalidering:* kortene er målt ved 320, 360, 375 og 390 px med worst-case-tal (fire cifre i kWh, fem i kr, tre i procent, alle bjælker og billedtekster): ingen overløb, ingen afklippet tekst, ingen statistiktal der ombrydes, ingen sidebredde-overløb. Intet at rette. (2) *Cache:* standarden er `data/cache/` (oprettes ved første brug), `CACHE_DIR` vinder, temp er kun nødløsning; nginx-reglen dækker `data/`. `Config::defaultCacheDir()`. (3) *Integritet:* `charging_data.db` var allerede dækket af type- og orphan-tjekket og af `dev/check_data_integrity.php`; det, der manglede, var tjek af indholdet: `DataIntegrity::content()` (seneste 90 dage) er nu med i `php doctor.php` og i scriptet. Produktion er ren; de fem gamle rækker fra nov. 2025 er harmløse.
 - ✅ **2026-11-20 — Oversigten: de fire små punkter** — (1) Sammenligningerne nævner datoerne ("vs. 1.–20. okt.", "vs. 1.–20. nov. 2025"), prognosen siger "hele oktober: 153". (2) Rød kun til penge: vejrkorrektionen, tendensordet under sparklines og "over normalt" er neutrale. (3) Jordvarme/Hus-sparklines har stiplet gennemsnitslinje og "Gns. … · i dag hidtil …". (4) Elbil-sparklinen er et 7-dages snit (kWh/dag) fra serveren (`sparkline_7d`, `DashboardEv::rollingMean`) i stedet for ladedage. `includes/dashboard.js`, `DashboardEv.php`, `style.css`.
 - ✅ **2026-11-20 — Gatewayens automatiske opdatering tager ikke længere loggingen med** — HA har fået en overvågning, der genstarter logningen, når nettet er tilbage (ligger i HA, ikke i dette repo), så et hul i logningen bliver kun så langt som selve nedbruddet og ikke til nogen opdager det. Et opdateringsvindue i UniFi er stadig en mulighed, men ikke nødvendigt.
 - ✅ **2026-11-20 — Undersøgt: datahullet 11. nov. og prisskiftet i november** — *Hullet:* husmåler og jordvarmemåler mangler 02:00–06:00 den 11. nov. (4 timer); det er det eneste hul siden 20. sep. og kan ikke udfyldes, fordi kilden heller ikke har rækker. Målerne er akkumulerede (`kwh` stiger), så den første aflæsning efter hullet bærer hele forbruget: dags-, måneds- og årstal er rigtige (`lagDelta`), og de fire timer fordeles jævnt (`HourlyConsumption::fromReadings`), hvilket passer med ladningen den nat (39,7 kWh, cirka 10 kW). Intet at rette. *Prisskiftet:* Montas ladepris følger spotprisen: `kr/kWh ≈ 0,39 + 1,14 × spot`, R² = 0,94 over 38 ladninger siden 20. sep. (spot = middelværdi af DK2-kvarttimepriserne, mens ladningen stod på, fra EDS-cachen). Spot var i gennemsnit 1,72 kr/kWh under ladningerne 1.–11. nov. mod 0,96 den 12.–20. nov. (markedet som helhed 2,21 mod 1,41); afstanden til Montas pris er konstant cirka 0,5 kr (tariffer og afgifter). Ingen fejl i kostprisen, og ladningerne lægges til tider billigere end markedets gennemsnit. Forbehold: EV-prognosens "seneste 8 dage" er en antagelse om, at prisniveauet holder; spotprisen svinger fra uge til uge.

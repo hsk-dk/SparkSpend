@@ -70,6 +70,7 @@ foreach ([
         $add(['level' => 'ok', 'name' => "$label kan åbnes", 'detail' => $path]);
         $add(Doctor::checkMigrations($label, MigrationRunner::status($db, $dir)));
         $add(...DataIntegrity::check($db, $label));   // numbers stored as text/blob, rows that point at nothing
+        if ($getter === 'getChargesDb') $add(...DataIntegrity::content($db, $label));   // implausible rows of the last 90 days
     } catch (\Throwable $e) {
         $add(['level' => 'fail', 'name' => "$label kan ikke åbnes", 'detail' => $e->getMessage()]);
     }

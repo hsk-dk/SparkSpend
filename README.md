@@ -159,7 +159,7 @@ Tilføj til `/etc/crontab` eller cPanel's cron-manager:
 | `MONTA_CLIENT_SECRET` | Monta OAuth klient-hemmelighed | — |
 | `CHARGING_DB_PATH` | Sti til charges.db | `data/charging_data.db` |
 | `POWERLOG_DB_PATH` | Sti til powerlog_data.db | `data/powerlog_data.db` |
-| `CACHE_DIR` | Mappe til filcache (standard: `/tmp`) | `sys_get_temp_dir()` |
+| `CACHE_DIR` | Mappe til filcache (standard: `data/cache/`, oprettes ved første brug; systemets temp-mappe, hvis den ikke kan oprettes) | `data/cache` |
 | `ELSPOT_AREA` | Prisområde (`DK1` eller `DK2`) | `DK2` |
 | `ELSPOT_GLN` | Netselskabets GLN-nummer | — |
 | `WEATHER_LAT` | Breddegrad (decimal) | — |
@@ -212,4 +212,4 @@ Samme dom vises som en gul advarsel øverst i Oversigten.
 php dev/check_data_integrity.php
 ```
 
-Tjekker både `powerlog_data.db` (jordvarme/hus) og `charges.db` (EV) for NULL-værdier, ugyldige rækker og referenceintegritet.
+Tjekker både `powerlog_data.db` (jordvarme/hus) og `charges.db` (EV) for NULL-værdier, ugyldige rækker og referenceintegritet. Samme tjek som `php doctor.php` kører også her: tal gemt som tekst/blob, rækker der peger på intet, og urimeligt indhold i de seneste 90 dage (stop før start, negative eller urealistiske kWh/priser, ladninger der har stået åbne i over to dage, ladninger uden pris, kilometeraflæsninger på 0 eller lavere end den forrige).
