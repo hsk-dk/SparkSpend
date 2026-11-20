@@ -65,5 +65,20 @@ check('each bar is described for screen readers', html.includes('role="img" aria
 check('no subscription: the kr bar has three segments', (bars({ ev: 1, hp: 1, rest: 1 }, { ev: 1, hp: 1, rest: 1, sub: 0 }).match(/tc-seg/g) || []).length === 6);
 check('no kWh or no kr: no bars', bars({ ev: 0, hp: 0, rest: 0 }, { ev: 1, hp: 1, rest: 1, sub: 0 }) === '' && bars({ ev: 1, hp: 1, rest: 1 }, { ev: 0, hp: 0, rest: 0, sub: 0 }) === '');
 
+console.log('\n_sparklineTrend / _sparkBarColors (today is only part over)');
+const spark = vm.createContext({ Number, Math });
+vm.runInContext(fn('_sparklineTrend') + '\n' + fn('_sparkBarColors'), spark);
+const trend = spark._sparklineTrend;
+const flat29 = Array(29).fill(10);
+check('a steady series with a half-finished today is "Stabilt", not "Faldende"',
+    trend([...flat29, 5.3]).label.includes('Stabilt'), JSON.stringify(trend([...flat29, 5.3])));
+check('the same today bar being huge changes nothing either', trend([...flat29, 90]).label.includes('Stabilt'));
+check('a real rise over the finished days is still found', trend([...Array(10).fill(5), ...Array(10).fill(7), ...Array(10).fill(10)]).label.includes('Stigende'));
+check('a real fall is still found', trend([...Array(10).fill(10), ...Array(10).fill(7), ...Array(10).fill(5)]).label.includes('Faldende'));
+check('too short a series, or nothing at all: no trend', trend([1, 2, 3]) === null && trend(null) === null && trend(Array(30).fill(0)) === null);
+const colors = spark._sparkBarColors(4, '#22c55e');
+check('only the last bar (today) is pale', colors.join() === '#22c55eaa,#22c55eaa,#22c55eaa,#22c55e33', colors.join());
+check('one bar: it is today, so pale', spark._sparkBarColors(1, '#fff')[0] === '#fff33' && spark._sparkBarColors(0, '#fff').length === 0);
+
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

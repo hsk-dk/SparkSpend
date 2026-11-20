@@ -334,6 +334,11 @@ async function _enrichHpWithWeather(card, hp) {
     }
 }
 
+/** Bar fills of a sparkline: full colour for the finished days, a pale one for the last bar, today, which is only part over. */
+function _sparkBarColors(count, color) {
+    return Array.from({ length: count }, (_, i) => color + (i === count - 1 ? '33' : 'aa'));
+}
+
 function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = null) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
@@ -345,7 +350,7 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
             labels: dataPoints.map((_, i) => i),
             datasets: [{
                 data: dataPoints,
-                backgroundColor: color + 'aa',
+                backgroundColor: _sparkBarColors(dataPoints.length, color),
                 borderColor:     color,
                 borderWidth: 1,
                 borderRadius: 2,
@@ -362,7 +367,8 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
                         title: (items) => {
                             const d = new Date(monthStart);
                             d.setDate(d.getDate() + items[0].dataIndex);
-                            return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+                            const day = d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+                            return items[0].dataIndex === dataPoints.length - 1 ? `${day} (i dag, hidtil)` : day;
                         },
                         label: (item) => item.raw.toFixed(1) + ' kWh'
                     }
@@ -917,10 +923,13 @@ function _dismissAnomalies(anomalies) {
 // #5 — Sparkline Trend Detection
 // =============================================================================
 
+// The last point is today, which is only part over (a bar at noon is about half of what the day will be), so the
+// trend compares the first and last 10 COMPLETE days.
 function _sparklineTrend(sparkline) {
     if (!sparkline || sparkline.length < 20) return null;
-    const first10 = sparkline.slice(0, 10).reduce((s, v) => s + v, 0) / 10;
-    const last10  = sparkline.slice(-10).reduce((s, v) => s + v, 0) / 10;
+    const done = sparkline.slice(0, -1);
+    const first10 = done.slice(0, 10).reduce((s, v) => s + v, 0) / 10;
+    const last10  = done.slice(-10).reduce((s, v) => s + v, 0) / 10;
     if (first10 === 0 && last10 === 0) return null;
     const pctChange = first10 > 0 ? ((last10 - first10) / first10) * 100 : (last10 > 0 ? 100 : 0);
     if (pctChange > 15)  return { label: '\u2197 Stigende', cls: 'trend-rising' };
