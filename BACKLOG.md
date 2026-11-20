@@ -9,13 +9,27 @@ Hvert punkt har en størrelse: **S** = under en time, **M** = en aften, **L** = 
 
 ## Åbent
 
+### Design, UX og datavisualisering (ekspertpanelets gennemgang 2026-11-20)
+
+Alle otte visninger gennemgået i browseren på 1280 og 375 px med seed-data, plus målinger af kontrast, skriftstørrelser, trykflader og tilgængelighed. Rækkefølgen er panelets. Det, der er godt og skal bevares: farverne betyder det samme overalt (blå elbil, grøn jordvarme, gul øvrigt), ufuldstændige perioder er markeret (lys søjle, stiplet måned, "til dato"), tabeller har rigtige `th`, `lang="da"`, bevægelsesreduktion og ingen vandret scroll på nogen side.
+
+1. **Kontrast på de tre steder, der aflæses mest (S).** "Data er ikke frisk" (orange på lys, 1,7:1), år-chippene på Elbil → Sammenligning (hvid tekst, 2,3–3,7:1: 2025 grøn 2,3, 2026 gul 2,8, "Gns." 2,6) og de store tal på Hus → Fordeling ("4.352 kr" grøn 2,1:1, "1.044 kr" gul 2,0:1). Mål: mørk tekst, serie-farven som lille prik eller kant. Også "Afvis" (3,9:1) og "under normalt" (4,4:1). `includes/style.css`, `includes/hus.js`, `includes/elbil/yearly.js`, `includes/dashboard.js`
+2. **Tilgængelighed: diagrammer, landemærker, navigation (M).** Ingen af de 10 diagram-lærreder har `role="img"` eller `aria-label` (genbrug billedteksterne fra de nye bjælker, fx "Husmåler hidtil: 817 kWh: EV 48 %, …"); ingen `<main>` og intet "spring til indhold"-link; faner og undersider har hverken `role="tab"`, `aria-selected` eller `aria-current`, så den valgte side kun ses; overskrifterne hopper fra `h1` til `h3` (ingen `h2`), og Oversigtens kort er `div`'er uden overskrift. `index.php`, `includes/nav.js`, `includes/app.js`
+3. **Skriftskala og små skrifter (M).** Oversigten bruger 18 forskellige skriftstørrelser (10 til 20 px), sider længere inde 4–6. Fastlæg 5 trin (fx 12 / 14 / 16 / 20 / 28 px) som CSS-variabler, og løft alt under 12 px: kortenes etiketter ("Ladninger", "kWh", "Pris"), "Forventet"-linjen og hjemme/ude-etiketterne er 10–11 px, og det er netop dem, man skal bruge hurtigst. På mobil er "Afsluttet" 9,8 px. `includes/style.css`
+4. **Årsrapport og årsgraf (M).** Hus total står ved siden af EV og Jordvarme, men indeholder dem: stable EV, Jordvarme og Øvrigt i stedet (samme farver). På Elbil → Sammenligning ligner den igangværende måned et fald til omkring 10 kWh i grafens højre kant (den er stiplet, men læses stadig som et styrtdyk): markér "til dato" ved punktet, evt. med en tynd fremskrivning. `includes/annual.js`, `includes/elbil/yearly.js`
+5. **Trykflader og smalle tabeller (S).** Under 36 px højde: "Gå til →" 30, "Afvis" 34, "Rediger" 31, periodeknapperne 29–32 og år-chippene 29 px; mål 44 px på mobil. Tabellen "Opsummering" på Elbil → Ladninger løber ud over kanten på 375 px (mangler scroll-omslag). `includes/style.css`, `index.php`
+6. **Jordvarme: dobbelt akse (M).** kWh til venstre og temperatur til højre med en linje inviterer til at aflæse en sammenhæng, der ikke er der. Prøv temperaturen som egen smal række under søjlerne. `includes/jordvarme.js`
+7. **Hus → Regning: en mur af tal (M).** 26 rækker × 8 kolonner uden andet end tal; indbyggede søjler eller en farveskala i kr-kolonnerne gør den til noget, man kan læse hen over. På mobil er Hus-diagrammerne kun 230–260 px brede med 31 søjler: vis uger under 400 px eller lad dem scrolle sidelæns. `includes/regning.js`, `includes/hus.js`
+8. **Mørkt tema er halvt (M).** Kun `.dashboard-card` har en mørk variant; sider, diagrammer, tabeller og modaler er lyse. Lav et helt tema, eller fjern det halve. (Hører sammen med punkt 3: skalaen og farverne som variabler gør det billigt.) `includes/style.css`
+
+Ikke gennemgået: modalerne (Administrér, synk, systemlog), tilstande med rigtige data, og skærmlæser i praksis.
+
 ### Features (ingen af dem findes i koden)
 
 - **CSV/Excel-eksport af opladningshistorik og Jordvarme-måneder (M).** Ingen eksport findes nogen steder.
 - **Månedlig rapport på mail/PDF (L).** KWh, pris, tendenser og sparklines som udskrivbart sammendrag.
 - **CO₂ pr. kWh (M).** Energi Data Service har `co2emissionsprognose` pr. time; samme pipeline som elpriserne kunne lægge gCO₂/kWh på hver ladning.
 - **Tastaturgenveje til faner (S).** `O`, `E`, `J`, `H` og `Escape` til modaler. `includes/nav.js`
-- **Komplet mørkt tema (M).** Kun `.dashboard-card` har en mørk variant i dag; diagrammer, tabeller og modaler er lyse. `includes/style.css`
 - **Opladningskort (L).** Et kort over, hvor der er ladet (Leaflet). Kræver, at stedet gemmes ved import.
 - **Live elpris fra Tibber/Nordpool (L).**
 
