@@ -5,6 +5,33 @@
  * per-year totals for EV, heatpump, and house consumption.
  */
 
+/**
+ * One year as the house meter sees it. The meter's total is split into the heat pump, the EV charged at home and the rest
+ * ("Øvrigt" = meter - heat pump - home EV, never negative, the same rule as the dashboard and the cost model). Charging away
+ * from home never passes the meter, so it is not in the stack (`evAway`); it is only in the table.
+ * `rest` and `hus` are null for a year without a house meter.
+ */
+function _annualParts(y) {
+    const vp     = Number(y.heatpump && y.heatpump.kwh) || 0;
+    const evHome = Number(y.ev && (y.ev.home_kwh ?? y.ev.kwh)) || 0;
+    const hus    = y.hus ? (Number(y.hus.kwh) || 0) : null;
+    return {
+        vp, evHome, hus,
+        rest: hus === null ? null : Math.max(0, hus - vp - evHome),
+        evAway: Math.max(0, (Number(y.ev && y.ev.kwh) || 0) - evHome),
+    };
+}
+
+/** The same split in kr: Monta's price for the home charging, the model's price for the heat pump and the rest (null when not estimated). */
+function _annualPartsKr(y) {
+    const c = y.cost || null;
+    return {
+        evHome: Number(y.ev && (y.ev.home_cost ?? y.ev.cost)) || 0,
+        vp:     c && c.vp !== null && c.vp !== undefined ? Number(c.vp) : null,
+        rest:   c && c.rest !== null && c.rest !== undefined ? Number(c.rest) : null,
+    };
+}
+
 const annualApp = (() => {
     let chartInstance = null;
     let _mode = 'kwh';
@@ -83,6 +110,10 @@ const annualApp = (() => {
     }
 
     // ── Chart ─────────────────────────────────────────────────────────────────
+    // Stacked: what the house meter went to, year by year (heat pump, EV at home, the rest), so the bar is the house.
+    // Beside each other, "Hus total" looked like a fourth thing and a year with an EV looked like a year of doubled use.
+    const _COLOURS = { vp: 'rgba(34, 197, 94, 0.8)', ev: 'rgba(59, 130, 246, 0.8)', rest: 'rgba(245, 158, 11, 0.8)' };
+
     function _renderChart(data) {
         const canvas = document.getElementById('annualChart');
         const noteEl = document.getElementById('annualKrNote');
@@ -91,78 +122,31 @@ const annualApp = (() => {
         if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
         const labels = data.years.map(y => _yearLabel(y));
-
-        let datasets, yLabel, tooltipFmt;
+        const hasHus = data.years.some(y => y.hus !== null);
+        const seg = (label, key, values) => ({ label, data: values, backgroundColor: _COLOURS[key], borderRadius: 2, stack: 'house' });
+        let datasets, yLabel, fmt;
 
         if (_mode === 'kr') {
-            const hasHus = data.years.some(y => y.hus !== null);
-            datasets = [{
-                label: 'El-bil kr',
-                data: data.years.map(y => y.ev.cost),
-                backgroundColor: 'rgba(59, 130, 246, 0.8)',
-                borderRadius: 3,
-            }];
-            // VP + Hus estimated cost — only once spot-price estimates are ready
-            if (_costsReady) {
-                datasets.push({
-                    label: 'Jordvarme kr*',
-                    data: data.years.map(y => _vpCostByYear[y.year] ?? 0),
-                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                    borderRadius: 3,
-                });
-                if (hasHus) {
-                    datasets.push({
-                        label: 'Hus total kr*',
-                        data: data.years.map(y => _husCostByYear[y.year] ?? 0),
-                        backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                        borderRadius: 3,
-                    });
-                }
-            }
+            const parts = data.years.map(_annualPartsKr);
+            datasets = [];
+            // The heat pump and the rest are estimated from spot prices: only once those are there
+            if (_costsReady) datasets.push(seg('Jordvarme kr*', 'vp', parts.map(p => p.vp ?? 0)));
+            datasets.push(seg('El-bil hjemme kr', 'ev', parts.map(p => p.evHome)));
+            if (_costsReady && hasHus) datasets.push(seg('Øvrigt kr*', 'rest', parts.map(p => p.rest ?? 0)));
             yLabel = 'kr';
-            tooltipFmt = ctx => ' ' + ctx.dataset.label + ': ' + _fmtKr(ctx.raw);
-            // Show the "EV-only" note only when VP/Hus estimates are unavailable
-            // (elspot not configured). Once estimates arrive, the chart shows all
-            // three and the table footnote explains the estimate instead.
+            fmt = _fmtKr;
+            // The "EV only" note is for when the spot-price estimates are unavailable (elspot not configured)
             if (noteEl) noteEl.style.display = _costsReady ? 'none' : '';
         } else {
-            const hasHus = data.years.some(y => y.hus !== null);
+            const parts = data.years.map(_annualParts);
             datasets = [
-                {
-                    label: 'El-bil kWh',
-                    data: data.years.map(y => y.ev.kwh),
-                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
-                    borderRadius: 3,
-                },
-                {
-                    label: 'Jordvarme kWh',
-                    data: data.years.map(y => y.heatpump.kwh),
-                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                    borderRadius: 3,
-                },
+                seg('Jordvarme kWh', 'vp', parts.map(p => p.vp)),
+                seg('El-bil hjemme kWh', 'ev', parts.map(p => p.evHome)),
             ];
-            if (hasHus) {
-                datasets.push({
-                    label: 'Hus total kWh',
-                    data: data.years.map(y => y.hus?.kwh ?? 0),
-                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                    borderRadius: 3,
-                });
-            }
-            yLabel = 'kWh';
-            tooltipFmt = ctx => ' ' + ctx.dataset.label + ': ' + _fmtKwh(ctx.raw);
+            if (hasHus) datasets.push(seg('Øvrigt kWh', 'rest', parts.map(p => p.rest ?? 0)));
+            yLabel = hasHus ? 'kWh (husmåler)' : 'kWh';
+            fmt = _fmtKwh;
             if (noteEl) noteEl.style.display = 'none';
-        }
-
-        if (chartInstance) {
-            // In-place update — avoids destroy/recreate on mode toggle
-            chartInstance.data.labels = labels;
-            chartInstance.data.datasets.length = 0;
-            datasets.forEach(ds => chartInstance.data.datasets.push(ds));
-            chartInstance.options.scales.y.title.text = yLabel;
-            chartInstance.options.plugins.tooltip.callbacks.label = tooltipFmt;
-            chartInstance.update('none');
-            return;
         }
 
         chartInstance = new Chart(canvas.getContext('2d'), {
@@ -175,12 +159,22 @@ const annualApp = (() => {
                     legend: { position: 'top' },
                     datalabels: { display: false },
                     tooltip: {
-                        callbacks: { label: tooltipFmt },
+                        callbacks: {
+                            label: ctx => ' ' + ctx.dataset.label + ': ' + fmt(ctx.raw),
+                            footer: items => {
+                                if (!items.length) return '';
+                                const lines = ['I alt: ' + fmt(items.reduce((s, i) => s + i.raw, 0))];
+                                const away = _mode === 'kwh' ? _annualParts(data.years[items[0].dataIndex]).evAway : 0;
+                                if (away > 0) lines.push('Ladning ude (ikke på måleren): ' + _fmtKwh(away));
+                                return lines;
+                            },
+                        },
                     },
                 },
                 scales: {
-                    x: { grid: { display: false } },
+                    x: { stacked: true, grid: { display: false } },
                     y: {
+                        stacked: true,
                         beginAtZero: true,
                         title: { display: true, text: yLabel },
                         ticks: {
@@ -201,8 +195,10 @@ const annualApp = (() => {
         const rows   = [...data.years].reverse();   // newest year first
         const showCost = _costsReady;   // VP/Hus kr columns only once estimated
 
-        const vpKrTh  = showCost ? '<th class="text-end">Jordvarme kr*</th>' : '';
-        const husKrTh = (showCost && hasHus) ? '<th class="text-end">Hus total kr*</th>' : '';
+        const vpKrTh   = showCost ? '<th class="text-end">Jordvarme kr*</th>' : '';
+        const restTh   = hasHus ? '<th class="text-end">Øvrigt kWh</th>' : '';
+        const restKrTh = (showCost && hasHus) ? '<th class="text-end">Øvrigt kr*</th>' : '';
+        const husKrTh  = (showCost && hasHus) ? '<th class="text-end">Hus total kr*</th>' : '';
 
         let html = `
         <div class="table-responsive mt-3">
@@ -211,10 +207,12 @@ const annualApp = (() => {
               <tr>
                 <th>År</th>
                 <th class="text-end">EV ladninger</th>
-                <th class="text-end">EV kWh</th>
+                <th class="text-end">EV kWh (alt)</th>
                 <th class="text-end">EV pris</th>
                 <th class="text-end">Jordvarme kWh</th>
                 ${vpKrTh}
+                ${restTh}
+                ${restKrTh}
                 ${hasHus ? '<th class="text-end">Hus total kWh</th>' : ''}
                 ${husKrTh}
               </tr>
@@ -228,6 +226,9 @@ const annualApp = (() => {
             const vpKrCell  = showCost
                 ? `<td class="text-end">${_vpCostByYear[y.year] > 0 ? _fmtKr(_vpCostByYear[y.year]) : '—'}</td>`
                 : '';
+            const restCell   = hasHus ? `<td class="text-end">${y.hus !== null ? _fmtKwh(_annualParts(y).rest) : '—'}</td>` : '';
+            const restKr     = _annualPartsKr(y).rest;
+            const restKrCell = (showCost && hasHus) ? `<td class="text-end">${restKr > 0 ? _fmtKr(restKr) : '—'}</td>` : '';
             const husKrCell = (showCost && hasHus)
                 ? `<td class="text-end">${_husCostByYear[y.year] > 0 ? _fmtKr(_husCostByYear[y.year]) : '—'}</td>`
                 : '';
@@ -239,6 +240,8 @@ const annualApp = (() => {
                 <td class="text-end">${appUtils.formatCurrency(y.ev.cost)}</td>
                 <td class="text-end">${_fmtKwh(y.heatpump.kwh)}</td>
                 ${vpKrCell}
+                ${restCell}
+                ${restKrCell}
                 ${husCell}
                 ${husKrCell}
               </tr>`;
@@ -248,6 +251,9 @@ const annualApp = (() => {
             </tbody>
           </table>
         </div>`;
+
+        html += `<p class="text-muted small mt-2 mb-0">Diagrammet deler husmåleren i jordvarme, el-bil (kun hjemmeladning) og øvrigt (måler minus de to). ` +
+            `Ladning ude passerer ikke måleren og står kun i tabellens EV-kolonner.</p>`;
 
         if (showCost) {
             html += `<p class="text-muted small mt-2 mb-0">* Estimeret ud fra spotpris, ` +

@@ -112,6 +112,8 @@ final class AnnualSummary
                     'cost'    => round($int['cost'] + $ext['cost'], 2),
                     // Home charging only: what passes the house meter (used for the "rest" split)
                     'home_kwh' => round($int['kwh'], 2),
+                    // ...and what it cost (Monta's price): the EV part of the stacked kr chart
+                    'home_cost' => round($int['cost'], 2),
                     // Months of the year that have at least one home charge (a year with fewer is a partial year)
                     'months'   => $int['months'] ?? 0,
                 ],

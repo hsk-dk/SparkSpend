@@ -82,7 +82,8 @@ final class CostEstimates
                 'vpKwh' => $vpKwh, 'restKwh' => $restKwh, 'evKwh' => $evKwh,
                 'highRate' => $hr, 'lowRate' => $lr, 'highKwhPerMonth' => $highKwhPerYear,
             ]);
-            $costs[$key] = ['vp' => $c['vpCost'], 'hus' => $y['hus'] !== null ? $c['total'] : null];
+            // 'rest' is the model's price of the rest (house meter - heat pump - home EV); 'hus' is the whole house incl. the EV at the low rate
+            $costs[$key] = ['vp' => $c['vpCost'], 'rest' => $y['hus'] !== null ? $c['restCost'] : null, 'hus' => $y['hus'] !== null ? $c['total'] : null];
         }
         return ['costs' => $costs, 'complete' => $high['complete'] && $low['complete']];
     }
