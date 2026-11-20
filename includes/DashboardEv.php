@@ -6,6 +6,9 @@
  */
 final class DashboardEv
 {
+    /** Home kWh in the last 8 days needed before their price is trusted as "the price now". */
+    private const RECENT_MIN_KWH = 20.0;
+
     /**
      * @return array{
      *   intMonth:array, intPrev:array, intLY:array, intPrevFull:array, intLYFull:array,
@@ -53,6 +56,8 @@ final class DashboardEv
         $intLYFullKwh = 0.0; $intLYFullCost = 0.0;
         $evByDay      = [];
         $evChargingNow = false;   // an open session that Monta touched within the last 30 minutes
+        $recentStart  = $p->todayDt->modify('-7 days')->format('Y-m-d');   // the last 8 days incl. today
+        $recentKwh = 0.0; $recentCost = 0.0;                               // priced home charging in that window
 
         foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             if ((int)$row['ongoing'] === 1) {
@@ -68,6 +73,10 @@ final class DashboardEv
             foreach ($splits as $day => $slice) {
                 if ($day >= $sparkWindowStart && $day <= $today) {
                     $evByDay[$day] = ($evByDay[$day] ?? 0) + $slice['kwh'];
+                }
+                if ($day >= $recentStart && $day <= $today && !$noCost) {
+                    $recentKwh  += $slice['kwh'];
+                    $recentCost += $slice['cost'];
                 }
                 if ($day >= $sparkStart && $day <= $today) {
                     $intMonthKwh  += $slice['kwh'];
@@ -158,6 +167,7 @@ final class DashboardEv
         return [
             'intMonth'    => ['cnt' => $intMonthCnt, 'kwh' => $intMonthKwh, 'cost' => $intMonthCost,
                               'unpriced_cnt' => $intUnpricedCnt, 'unpriced_kwh' => $intUnpricedKwh],
+            'recentHome'  => ['kwh' => $recentKwh, 'cost' => $recentCost],
             'intPrev'     => ['kwh' => $intPrevKwh, 'cost' => $intPrevCost],
             'intLY'       => ['kwh' => $intLYKwh, 'cost' => $intLYCost],
             'intPrevFull' => ['kwh' => $intPrevFullKwh, 'cost' => $intPrevFullCost],
@@ -199,7 +209,24 @@ final class DashboardEv
         $evCostPerKwh        = $_pricedKwh > 0.001 ? round($totalCost / $_pricedKwh, 3) : null;
         $evHomePct           = $totalKwh > 0      ? round(floatval($intMonth['kwh']) / $totalKwh * 100, 1) : null;
         $_evProj             = $p->projectMonth($totalCost, $prevTotalCost, $prevFullCost, $lyTotalCost, $lyFullCost);
-        $evProjected         = $_evProj['value'] !== null ? round($_evProj['value']) : null;
+        // The projection carries this month's AVERAGE price into the days that are left. When the price has moved
+        // during the month (Nov 1-11 cost 2.1-2.6 kr/kWh, Nov 13-20 about 1.4) that is wrong in the direction of the
+        // old days, so the part still to come is repriced at the home price of the last 8 days. Away charging is
+        // sporadic and keeps its own average. Without enough recent kWh to trust, nothing changes.
+        $homeKwhNow  = floatval($intMonth['kwh']);
+        $homeCostNow = floatval($intMonth['cost']);
+        $homeAvg     = ($homeKwhNow - $_unpricedKwh) > 0.001 ? $homeCostNow / ($homeKwhNow - $_unpricedKwh) : 0.0;
+        $recent      = $r['recentHome'];
+        $recentPrice = $recent['kwh'] >= self::RECENT_MIN_KWH ? $recent['cost'] / $recent['kwh'] : 0.0;
+        $priceRatio  = ($homeAvg > 0 && $recentPrice > 0) ? $recentPrice / $homeAvg : 1.0;
+        $evProjected = null; $homeProjected = null;
+        if ($_evProj['value'] !== null) {
+            $remaining    = max(0.0, $_evProj['value'] - $totalCost);
+            $homeShare    = $totalCost > 0 ? $homeCostNow / $totalCost : 1.0;
+            $remHome      = $remaining * $homeShare * $priceRatio;
+            $homeProjected = round($homeCostNow + $remHome);
+            $evProjected   = round($totalCost + $remHome + $remaining * (1 - $homeShare));
+        }
         $evPctChangeKwh      = $prevTotalKwh  > 0 ? round(($totalKwh - $prevTotalKwh) / $prevTotalKwh * 100, 1) : null;
         $evPctChangeKwhYear  = $lyTotalKwh    > 0 ? round(($totalKwh - $lyTotalKwh)   / $lyTotalKwh   * 100, 1) : null;
         $evPctChangeCost     = $prevTotalCost > 0 ? round(($totalCost - $prevTotalCost) / $prevTotalCost * 100, 1) : null;
@@ -223,6 +250,8 @@ final class DashboardEv
             'cost_per_kwh'         => $evCostPerKwh,
             'home_kwh_pct'         => $evHomePct,
             'projected_cost'       => $evProjected,
+            'home_projected_cost'  => $homeProjected,   // home charging only: what the electricity bill contains
+            'recent_home_cpkwh'    => $recentPrice > 0 ? round($recentPrice, 3) : null,
             'projection_basis'     => $_evProj['basis'],
             'pct_change_kwh'       => $evPctChangeKwh,
             'pct_change_year_kwh'  => $evPctChangeKwhYear,

@@ -269,6 +269,23 @@ function _hddExplanation(hddThis, hddLast) {
         `${_fmt(Math.abs(diff), 0)} % ${colder ? 'flere' : 'færre'} gradedage`;
 }
 
+/**
+ * The weather-corrected year-on-year line. The figure is rounded to whole percent first and shown as such: a decimal
+ * on a number that was already rounded ("0,0 %") claims precision it does not have. Zero gets no arrow and no
+ * red/green, because "no change" is not a rise.
+ */
+function _weatherCorrectedLine(normalizedPct) {
+    const pct = Math.round(normalizedPct);
+    if (!Number.isFinite(pct)) return '';
+    const title = 'Justeret for graddage (HDD 17°C)';
+    if (pct === 0) {
+        return `<div class="trend-neutral" title="${title}">→ uændret vejrkorrigeret vs. samme måned sidste år</div>`;
+    }
+    const up = pct > 0;
+    return `<div class="${up ? 'trend-up' : 'trend-down'}" title="${title}">` +
+        `${up ? '↑' : '↓'} ${_fmt(Math.abs(pct), 0)} % vejrkorrigeret vs. samme måned sidste år</div>`;
+}
+
 async function _enrichHpWithWeather(card, hp) {
     const lat = window.sparkConfig?.weatherLat || '';
     const lon = window.sparkConfig?.weatherLon || '';
@@ -303,14 +320,11 @@ async function _enrichHpWithWeather(card, hp) {
         }
         if (hddThis <= 0 || hddLast <= 0) return;
 
-        const normalizedPct = Math.round(((hp.month_kwh / hddThis) / (lastYearKwh / hddLast) - 1) * 100);
+        const normalizedPct = ((hp.month_kwh / hddThis) / (lastYearKwh / hddLast) - 1) * 100;
 
         const trendEl = card.querySelector('.dash-trend');
         if (!trendEl) return;
-        const up = normalizedPct >= 0;
-        trendEl.innerHTML +=
-            `<div class="${up ? 'trend-up' : 'trend-down'}" title="Justeret for graddage (HDD 17°C)">` +
-            `${up ? '↑' : '↓'} ${_fmt(Math.abs(normalizedPct), 1)}% vejrkorrigeret vs. samme måned sidste år</div>`;
+        trendEl.innerHTML += _weatherCorrectedLine(normalizedPct);
         const why = _hddExplanation(hddThis, hddLast);
         if (why) {
             trendEl.innerHTML += `<div class="trend-explain text-muted small" title="Gradedage (HDD 17°C) 1. til i dag, mod samme dage sidste år">${why}</div>`;
@@ -547,7 +561,7 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
     }
 
     // Total electricity cost estimate (projected for the full month). EV is Monta's actual
-    // price (all tariffs and taxes included); VP and Rest are the elvarme model; the fixed
+    // price for home charging (all tariffs and taxes included; away charging is not on the bill); VP and Rest are the elvarme model; the fixed
     // subscription (SUBSCRIPTION_PER_DAY) is its own item.
     if (cost.total_proj > 0) {
         const el = document.getElementById('total-cost-estimate');
@@ -555,10 +569,10 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
             const perDay = cost.per_day || 0;
             el.innerHTML = `<span class="total-cost-icon">\u26a1</span>` +
                 `<span class="total-cost-amount">Forventet elregning: ~${cost.total_proj} kr</span>` +
-                `<span class="total-cost-breakdown">EV: ~${Math.round(cost.ev_proj)} \u00b7 VP: ~${cost.hp_proj} \u00b7 Rest: ~${cost.rest_proj}` +
+                `<span class="total-cost-breakdown">EV hjemme: ~${Math.round(cost.ev_proj)} \u00b7 VP: ~${cost.hp_proj} \u00b7 Rest: ~${cost.rest_proj}` +
                 (perDay > 0 ? ` \u00b7 Abonnement: ~${_fmt(cost.subscription_proj, 0)} kr` : ' kr \u00b7 ekskl. abonnement') + `</span>`;
             el.title = `Estimat for hele måneden. Hidtil: ~${_fmt(cost.total_mtd, 0)} kr. ` +
-                       `EV: faktisk pris fra Monta (inkl. tariffer og afgifter, hjemme og ude). ` +
+                       `EV hjemme: faktisk pris fra Monta (inkl. tariffer og afgifter); resten af måneden til ladeprisen de seneste 8 dage. Ladning ude er ikke med: den betales til ladeoperatøren. ` +
                        `VP og Rest: elvarme-model, ${basisNote}, inkl. tariffer, elafgift og moms. ` +
                        (perDay > 0 ? `Abonnement: ${_fmt(perDay, 2)} kr/dag.` : 'Uden abonnement.');
             el.style.display = '';

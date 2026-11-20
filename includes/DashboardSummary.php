@@ -55,8 +55,10 @@ final class DashboardSummary
                 'restMtdKwh'   => $_rest ? $_rest['month_kwh'] : 0.0,
                 'hpProjKwh'    => $_hp['projected_kwh'] ?? $_lin($_hp['month_kwh']),
                 'restProjKwh'  => $_rest ? ($_rest['projected_kwh'] ?? $_lin($_rest['month_kwh'])) : 0.0,
-                'evMtdCost'    => $_ev['month_cost'],
-                'evProjCost'   => $_ev['projected_cost'] ?? $_ev['month_cost'],
+                // The electricity bill holds the home charging (it passes the house meter). Away charging is paid to the
+                // charging network, so it is not part of "Forventet elregning".
+                'evMtdCost'    => $_ev['home_cost'],
+                'evProjCost'   => $_ev['home_projected_cost'] ?? $_ev['home_cost'],
                 'dayOfMonth'   => $_dom,
                 'daysInMonth'  => $_dim,
                 'perDay'       => Config::subscriptionPerDay(),
