@@ -74,6 +74,29 @@ echo "\nJordvarme: a view switch must not re-render the old rows\n";
 check('the mode-button handler clears lastKwhData before fetchAndRender()',
     (bool) preg_match('/currentMode\s*=\s*this\.dataset\.mode;.*?lastKwhData\s*=\s*null;.*?fetchAndRender\(\)/s', $src['includes/jordvarme.js']));
 
+echo "\nAccessibility: landmarks, names, text alternatives\n";
+$index = file_get_contents("$root/index.php");
+$css   = file_get_contents("$root/includes/style.css");
+check('a skip link is the first thing after <body> and points at <main>', (bool) preg_match('~<body>\s*<a class="skip-link" href="#main">~', $index));
+check('there is one <main id="main"> around all five pages', substr_count($index, '<main id="main"') === 1 && substr_count($index, '</main>') === 1
+    && strpos($index, '<main id="main"') < strpos($index, 'id="oversigt-section"') && strpos($index, 'id="aarsrapport-section"') < strpos($index, '</main>'));
+foreach (['oversigt', 'elbil', 'jordvarme', 'hus', 'aarsrapport'] as $page) {
+    check("the $page page starts with a visually hidden h2 (the h3s of its cards no longer jump from the h1)",
+        (bool) preg_match('~<section id="' . $page . '-section" class="tab-section">\s*<h2 class="visually-hidden">~', $index));
+}
+check('the three menus have names (Hovedmenu, Elbil, Hus)', substr_count($index, '<nav class="header-nav" aria-label="Hovedmenu">') === 1
+    && substr_count($index, '<nav class="sub-nav" aria-label="Elbil">') === 1 && substr_count($index, '<nav class="sub-nav" aria-label="Hus">') === 1);
+check('the overview cards are headings (level 3)', substr_count($index, 'class="dash-title" role="heading" aria-level="3"') === 3);
+check('every group of view buttons (.hp-mode-nav) is a named group', preg_match_all('~class="hp-mode-nav[^"]*"[^>]*>~', $index, $groups) === 6
+    && count(array_filter($groups[0], fn($g) => str_contains($g, 'role="group" aria-label="'))) === 6, json_encode($groups[0] ?? []));
+check('the year chip bars are named groups', substr_count($index, 'role="group" aria-label="Vælg år" class="year-chip-bar') === 3);
+check('a11y.js is loaded after api.js and before the first module, so its chart plugin exists before any chart',
+    strpos($index, 'includes/a11y.js') !== false && strpos($index, 'includes/api.js') < strpos($index, 'includes/a11y.js') && strpos($index, 'includes/a11y.js') < strpos($index, 'includes/nav.js'));
+check('the skip link is hidden until it is focused, and <main> shows no outline when the skip link moves focus there',
+    str_contains($css, '.skip-link:focus { top: 12px;') && str_contains($css, 'main:focus { outline: none; }'));
+check('the chart plugin is registered once, in a11y.js', substr_count($src['includes/a11y.js'], "Chart.register({ id: 'a11yLabel'") === 1
+    && !array_filter($src, fn($s, $f) => $f !== 'includes/a11y.js' && str_contains($s, "id: 'a11yLabel'"), ARRAY_FILTER_USE_BOTH));
+
 echo "\nOne escape function\n";
 $bad = [];
 foreach ($src as $f => $s) {

@@ -51,6 +51,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
 
 </head>
 <body>
+  <a class="skip-link" href="#main">Spring til indhold</a>
   <!-- Toast notifications (aria-live region for app-wide feedback) -->
   <div id="toastContainer" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
@@ -66,7 +67,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     </div>
 
     <!-- Main Navigation Tabs -->
-    <nav class="header-nav">
+    <nav class="header-nav" aria-label="Hovedmenu">
       <button class="header-tab-button" data-target="oversigt-section">
         <i class="fas fa-gauge-high"></i> <span class="tab-label">Oversigt</span>
       </button>
@@ -149,7 +150,10 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <!-- Filter Drawer Backdrop -->
   <div id="filterBackdrop" class="filter-backdrop"></div>
 
+<main id="main" tabindex="-1">
+
 <section id="oversigt-section" class="tab-section">
+  <h2 class="visually-hidden">Oversigt</h2>
   <!-- Auto-refresh indicator (shown briefly while the dashboard reloads) -->
   <div id="dashRefreshIndicator" class="dash-refresh-indicator" role="status" aria-live="polite" style="display:none">
     <span class="dash-refresh-spinner" aria-hidden="true"></span>
@@ -176,7 +180,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-charging-station"></i></span>
         <div>
-          <div class="dash-title">Elbil</div>
+          <div class="dash-title" role="heading" aria-level="3">Elbil</div>
           <div class="dash-period"></div>
         </div>
       </div>
@@ -237,7 +241,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-fire"></i></span>
         <div>
-          <div class="dash-title">Jordvarme</div>
+          <div class="dash-title" role="heading" aria-level="3">Jordvarme</div>
           <div class="dash-period"></div>
         </div>
       </div>
@@ -272,7 +276,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
       <div class="dash-header">
         <span class="dash-icon"><i class="fas fa-house-chimney"></i></span>
         <div>
-          <div class="dash-title" title="Husets måler minus varmepumpe og hjemmeladning">Hus</div>
+          <div class="dash-title" role="heading" aria-level="3" title="Husets måler minus varmepumpe og hjemmeladning">Hus</div>
           <div class="dash-period"></div>
         </div>
       </div>
@@ -322,9 +326,10 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
 </section>
 
 <section id="elbil-section" class="tab-section">
+  <h2 class="visually-hidden">Elbil</h2>
 
   <!-- Sub-Navigation -->
-  <nav class="sub-nav">
+  <nav class="sub-nav" aria-label="Elbil">
     <button class="sub-nav-btn" data-sub="elbil-ladninger">
       <i class="fas fa-list"></i> Ladninger
     </button>
@@ -543,7 +548,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     <!-- Cost Analytics Card -->
     <div class="card p-4 mt-4">
       <h3>Omkostningsanalyse</h3>
-      <div class="hp-mode-nav mb-3">
+      <div class="hp-mode-nav mb-3" role="group" aria-label="Gruppér omkostninger">
         <button class="hp-mode-btn" data-grouping="day">Pr. dag</button>
         <button class="hp-mode-btn active" data-grouping="week">Pr. uge</button>
         <button class="hp-mode-btn" data-grouping="month">Pr. måned</button>
@@ -575,7 +580,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     <div class="card p-4 mt-4" id="touHeatmapCard">
       <h3>Elspot-tidsmønster</h3>
       <p class="text-muted small mb-2">Gennemsnitlig elpris (kr/kWh inkl. afgifter) og dine ladninger fordelt på time og ugedag.</p>
-      <div class="hp-mode-nav mb-3" id="touPeriodNav">
+      <div class="hp-mode-nav mb-3" id="touPeriodNav" role="group" aria-label="Periode">
         <button class="hp-mode-btn" data-tou-days="30">30 dage</button>
         <button class="hp-mode-btn active" data-tou-days="90">90 dage</button>
         <button class="hp-mode-btn" data-tou-days="180">6 mdr</button>
@@ -595,12 +600,12 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     <div class="card p-4 mb-4">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h3 class="mb-0">År-over-år forbrug</h3>
-        <div class="hp-mode-nav">
+        <div class="hp-mode-nav" role="group" aria-label="Vis i kWh eller kr">
           <button class="hp-mode-btn active" id="evCompareKwhBtn">kWh</button>
           <button class="hp-mode-btn" id="evCompareCostBtn">kr</button>
         </div>
       </div>
-      <div id="evYearToggleContainer" class="year-chip-bar mb-3" style="display:none"></div>
+      <div id="evYearToggleContainer" role="group" aria-label="Vælg år" class="year-chip-bar mb-3" style="display:none"></div>
       <div style="position:relative; min-height:220px">
         <canvas id="evYearCompareChart"></canvas>
         <div id="evYearCompareNoData" class="text-muted text-center py-4" style="display:none">Ingen data at vise.</div>
@@ -679,10 +684,11 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
 </section><!-- /#elbil-section -->
 
 <section id="jordvarme-section" class="tab-section">
+  <h2 class="visually-hidden">Jordvarme</h2>
 
   <div class="card p-4">
     <h3>Jordvarmeforbrug</h3>
-    <div class="hp-mode-nav mb-3">
+    <div class="hp-mode-nav mb-3" role="group" aria-label="Visning">
       <button class="hp-mode-btn active" data-mode="daily">Daglig</button>
       <button class="hp-mode-btn" data-mode="monthly">Månedlig</button>
       <button class="hp-mode-btn" data-mode="compare">Sammenligning</button>
@@ -690,7 +696,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     </div>
 
     <!-- Year toggle chips (compare mode only, populated by JS) -->
-    <div id="yearToggleContainer" class="year-chip-bar" style="display:none"></div>
+    <div id="yearToggleContainer" role="group" aria-label="Vælg år" class="year-chip-bar" style="display:none"></div>
 
     <div class="row">
       <div class="col-md-7">
@@ -716,9 +722,10 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
 </section><!-- /#jordvarme-section -->
 
 <section id="hus-section" class="tab-section">
+  <h2 class="visually-hidden">Hus</h2>
 
   <!-- Sub-Navigation -->
-  <nav class="sub-nav">
+  <nav class="sub-nav" aria-label="Hus">
     <button class="sub-nav-btn" data-sub="hus-forbrug">
       <i class="fas fa-bolt"></i> Forbrug
     </button>
@@ -731,7 +738,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <div id="hus-forbrug" class="sub-section active">
     <div class="card p-4">
       <h3>Husforbrug</h3>
-      <div class="hp-mode-nav mb-3">
+      <div class="hp-mode-nav mb-3" role="group" aria-label="Visning">
         <button class="hp-mode-btn active" data-mode="daily">Daglig</button>
         <button class="hp-mode-btn" data-mode="monthly">Månedlig</button>
         <button class="hp-mode-btn" data-mode="compare">Sammenligning</button>
@@ -739,7 +746,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
       </div>
 
       <!-- Year toggle chips (compare/ytd only, populated by JS) -->
-      <div id="husYearToggleContainer" class="year-chip-bar" style="display:none"></div>
+      <div id="husYearToggleContainer" role="group" aria-label="Vælg år" class="year-chip-bar" style="display:none"></div>
 
       <div class="row">
         <div class="col-md-7">
@@ -811,10 +818,11 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
 </section><!-- /#hus-section -->
 
 <section id="aarsrapport-section" class="tab-section">
+  <h2 class="visually-hidden">Årsrapport</h2>
   <div class="card p-4">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
       <h3 class="mb-0">Årsrapport</h3>
-      <div class="hp-mode-nav">
+      <div class="hp-mode-nav" role="group" aria-label="Vis i kWh eller kr">
         <button class="hp-mode-btn active" id="annualKwhBtn">kWh</button>
         <button class="hp-mode-btn" id="annualKrBtn">kr</button>
       </div>
@@ -832,6 +840,8 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     </div>
   </div>
 </section><!-- /#aarsrapport-section -->
+
+</main>
 
 <!-- ── Sync Status Modal ─────────────────────────────────────────────────── -->
 <div class="modal fade" id="syncModal" tabindex="-1" aria-hidden="true">
@@ -893,6 +903,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <script defer src="<?= asset('includes/actions.js') ?>"></script>
   <script defer src="<?= asset('includes/app.js') ?>"></script>
   <script defer src="<?= asset('includes/api.js') ?>"></script>
+  <script defer src="<?= asset('includes/a11y.js') ?>"></script>
 
   <!-- Module Scripts (defer: run in order after the deferred libraries above) -->
   <script defer src="<?= asset('includes/nav.js') ?>"></script>

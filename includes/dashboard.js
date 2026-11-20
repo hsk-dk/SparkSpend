@@ -261,7 +261,7 @@ function renderEvCard(ev) {
     // Charging comes in lumps, so the card draws the 7-day mean (kWh per day) rather than the single days
     const evSeries = Array.isArray(ev.sparkline_7d) && ev.sparkline_7d.length ? ev.sparkline_7d : null;
     _evSparkChart = _renderSparkline('ev-sparkline', evSeries || ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart,
-        evSeries ? { kind: 'line', unit: 'kWh/dag (7-dages snit)' } : {});
+        evSeries ? { kind: 'line', unit: 'kWh/dag (7-dages snit)', seriesLabel: '7-dages gennemsnit, kWh pr. dag' } : {});
     _renderSparklineTrend('ev-dashboard-card', evSeries || ev.sparkline,
         evSeries ? _evSparkCaption(evSeries) : _sparkCaption(ev.sparkline, 'kWh/dag'), evSeries ? _evSparkTitle(evSeries) : '');
 }
@@ -518,10 +518,10 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
     const unit = opts.unit || 'kWh';
     const avg = line ? null : _sparkStats(dataPoints).avg;
     const datasets = [line
-        ? { type: 'line', data: dataPoints, borderColor: color, backgroundColor: color + '33', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 3 }
-        : { data: dataPoints, backgroundColor: _sparkBarColors(dataPoints.length, color), borderColor: color, borderWidth: 1, borderRadius: 2 }];
+        ? { type: 'line', label: opts.seriesLabel || 'Værdi pr. dag', data: dataPoints, borderColor: color, backgroundColor: color + '33', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 3 }
+        : { label: opts.seriesLabel || 'kWh pr. dag', data: dataPoints, backgroundColor: _sparkBarColors(dataPoints.length, color), borderColor: color, borderWidth: 1, borderRadius: 2 }];
     if (avg !== null) {
-        datasets.push({ type: 'line', data: dataPoints.map(() => avg), borderColor: color, borderWidth: 1, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 0, fill: false });
+        datasets.push({ type: 'line', label: 'Gennemsnit', data: dataPoints.map(() => avg), borderColor: color, borderWidth: 1, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 0, fill: false });
     }
 
     return new Chart(canvas.getContext('2d'), {
