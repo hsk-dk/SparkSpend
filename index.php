@@ -203,15 +203,27 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
           <span class="dash-projected"></span>
         </div>
         <div class="dash-split-wrap" style="display:none">
-          <div class="dash-split-track">
-            <div class="dash-split-home-fill"></div>
-            <div class="dash-split-ext-fill"></div>
+          <div class="dash-split-row" data-basis="kwh">
+            <span class="dash-split-cap">kWh</span>
+            <div class="dash-split-track">
+              <div class="dash-split-home-fill"></div>
+              <div class="dash-split-ext-fill"></div>
+            </div>
+          </div>
+          <div class="dash-split-row" data-basis="kr">
+            <span class="dash-split-cap">kr</span>
+            <div class="dash-split-track">
+              <div class="dash-split-home-fill"></div>
+              <div class="dash-split-ext-fill"></div>
+            </div>
           </div>
           <div class="dash-split-labels">
             <span class="dash-split-home-lbl"></span>
             <span class="dash-split-ext-lbl"></span>
           </div>
+          <div class="dash-split-share"></div>
         </div>
+        <div class="dash-drive" style="display:none"></div>
         <div class="dash-trend"></div>
         <div class="dash-sparkline">
           <canvas id="ev-sparkline"></canvas>

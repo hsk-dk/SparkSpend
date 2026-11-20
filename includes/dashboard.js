@@ -123,6 +123,30 @@ async function loadDashboard(isRefresh = false) {
     }
 }
 
+/**
+ * The EV card's home/away split in whole percents, of kWh and of kr. Away charging is a small share of the kWh but a larger
+ * share of the kr (about 8 % and 16 % in November), which is what lifts the average price per kWh.
+ * @returns {{extKwhPct:number, extKrPct:number}|null} null without any kWh or kr to divide
+ */
+function _evSplitShares(ev) {
+    const kwh = _sharePercents([ev.home_kwh, ev.ext_kwh]);
+    const kr  = _sharePercents([ev.home_cost, ev.ext_cost]);
+    if (kwh[0] + kwh[1] === 0) return null;
+    return { extKwhPct: kwh[1], extKrPct: kr[1], hasKr: kr[0] + kr[1] > 0 };
+}
+
+/** "Kørsel, 30 dage: 0,44 kr/km · 3,9 km/kWh" for the EV card; null without a price per km. */
+function _evDriveLine(ev) {
+    if (ev.drive_kr_per_km_30d === null || ev.drive_kr_per_km_30d === undefined) return null;
+    const sure = ev.drive_confidence === 'høj';
+    const kmPerKwh = ev.drive_km_per_kwh_30d ? ` \u00b7 ${_fmt(ev.drive_km_per_kwh_30d, 1)} km/kWh` : '';
+    return {
+        text: `Kørsel, 30 dage: ${_fmt(ev.drive_kr_per_km_30d, 2)} kr/km${kmPerKwh}${sure ? '' : ' (usikkert)'}`,
+        title: `${_fmt(ev.drive_km_30d, 0)} km de seneste 30 dage, hjemme- og ude-ladning med. ` +
+               `Samme beregning som Effektivitet i Elbil. ${ev.drive_why || ''}`.trim(),
+    };
+}
+
 function renderEvCard(ev) {
     const card = document.getElementById('ev-dashboard-card');
     if (!card) return;
@@ -143,20 +167,35 @@ function renderEvCard(ev) {
     _setText(card, '.dash-projected', ev.projected_cost !== null ? `Forventet: ${_fmt(ev.projected_cost)} kr` : '');
     _setProjectionBasis(card, ev.projection_basis);
 
-    // Home / external split bar
+    // Home / external split bars: one by kWh, one by kr, so the difference in share is what you see
     const splitWrap = card.querySelector('.dash-split-wrap');
-    if (splitWrap && ev.month_kwh > 0) {
-        const homePct = ev.home_kwh / ev.month_kwh * 100;
-        const extPct  = ev.ext_kwh  / ev.month_kwh * 100;
-        const homeFill = splitWrap.querySelector('.dash-split-home-fill');
-        const extFill  = splitWrap.querySelector('.dash-split-ext-fill');
-        if (homeFill) homeFill.style.width = homePct.toFixed(1) + '%';
-        if (extFill)  extFill.style.width  = extPct.toFixed(1)  + '%';
+    const shares = _evSplitShares(ev);
+    if (splitWrap && shares) {
+        const setBar = (basis, home, ext, unit) => {
+            const row = splitWrap.querySelector(`.dash-split-row[data-basis="${basis}"]`);
+            if (!row) return;
+            const total = home + ext;
+            row.style.display = total > 0 ? '' : 'none';
+            if (!(total > 0)) return;
+            row.querySelector('.dash-split-home-fill').style.width = (home / total * 100).toFixed(1) + '%';
+            row.querySelector('.dash-split-ext-fill').style.width  = (ext  / total * 100).toFixed(1) + '%';
+            row.title = `Hjemme ${_fmt(home, 0)} ${unit} \u00b7 Ude ${_fmt(ext, 0)} ${unit}`;
+        };
+        setBar('kwh', ev.home_kwh, ev.ext_kwh, 'kWh');
+        setBar('kr', ev.home_cost, ev.ext_cost, 'kr');
         const homeLbl = splitWrap.querySelector('.dash-split-home-lbl');
         const extLbl  = splitWrap.querySelector('.dash-split-ext-lbl');
         if (homeLbl) homeLbl.textContent = 'Hjemme' + (ev.home_cpkwh !== null ? ' · ' + _fmt(ev.home_cpkwh, 2) + '\u00a0kr/kWh' : '');
         if (extLbl)  extLbl.textContent  = ev.ext_kwh > 0 ? 'Ude' + (ev.ext_cpkwh !== null ? ' · ' + _fmt(ev.ext_cpkwh, 2) + '\u00a0kr/kWh' : '') : '';
+        _setText(splitWrap, '.dash-split-share', ev.ext_kwh > 0 && shares.hasKr
+            ? `Ude: ${shares.extKwhPct}\u00a0% af kWh \u00b7 ${shares.extKrPct}\u00a0% af kr` : '');
         splitWrap.style.display = '';
+    }
+    const driveEl = card.querySelector('.dash-drive');
+    if (driveEl) {
+        const drive = _evDriveLine(ev);
+        driveEl.style.display = drive ? '' : 'none';
+        if (drive) { driveEl.textContent = drive.text; driveEl.title = drive.title; }
     }
 
     const showTrends = now.getDate() >= 5;
@@ -174,7 +213,7 @@ function renderEvCard(ev) {
             if (Math.abs(ppChange) >= 5) {
                 const up = ppChange > 0;
                 html += `<div class="trend-neutral">` +
-                        `Udeladning: ${curExtPct}% af kWh (${up ? '↑' : '↓'}${Math.abs(ppChange)}\u00a0pp) ` +
+                        `Udeladning: ${curExtPct}% af kWh${shares && shares.hasKr ? `, ${shares.extKrPct}% af kr` : ''} (${up ? '↑' : '↓'}${Math.abs(ppChange)}\u00a0pp) ` +
                         `— ${up ? 'trækker gennemsnitsprisen op' : 'trækker gennemsnitsprisen ned'}</div>`;
             }
         }

@@ -1271,6 +1271,14 @@ header {
 .dash-split-wrap {
   margin-bottom: 5px;
 }
+.dash-split-row { display: flex; align-items: center; gap: 6px; }
+.dash-split-row + .dash-split-row { margin-top: 3px; }
+.dash-split-row .dash-split-track { flex: 1; }
+.dash-split-cap { flex: 0 0 22px; font-size: 10px; color: var(--muted-strong, #4b5563); }
+.dash-split-labels { margin-top: 3px; }
+.dash-split-share { font-size: 11px; color: var(--muted-strong, #4b5563); margin-top: 2px; }
+.dash-split-share:empty { display: none; }
+.dash-drive { font-size: 11px; color: var(--muted-strong, #4b5563); margin: 4px 0; }
 .dash-split-track {
   height: 6px;
   border-radius: 3px;

@@ -49,42 +49,8 @@ return static function (Request $request): Response {
     $fromTs = $dateFilters ? strtotime($dateFilters['start'] . ' 00:00:00') : null;
     $toTs   = $dateFilters ? strtotime($dateFilters['end']   . ' 23:59:59') : null;
 
-    // ─── Data. ALL history is read (not just the selected range): a drive that ends
-    // inside the range may start before it, and needs the reading before the range. ──────
-    $vehicleSql = $vehicleFilter !== null ? ' AND vehicleId = ?' : '';
-    $vehicleArg = $vehicleFilter !== null ? [$vehicleFilter] : [];
-
-    $stmt = $db->prepare("
-        SELECT vehicleId, cablePluggedInAt, odometer FROM vehicle_charges
-        WHERE vehicleId IS NOT NULL AND odometer IS NOT NULL $vehicleSql
-        ORDER BY vehicleId, cablePluggedInAt
-    ");
-    $stmt->execute($vehicleArg);
-    $readingsByVehicle = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $ts = strtotime((string) $r['cablePluggedInAt']);
-        if ($ts === false) continue;
-        $readingsByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'odometer' => (float) $r['odometer']];
-    }
-
-    // Charges per vehicle, timed by when they ended. Ongoing sessions (no stoppedAt) are
-    // not counted until they are finished: their energy is still partial.
-    $stmt = $db->prepare("
-        SELECT vehicleId, stoppedAt AS datetime, consumedKwh AS kwh, cost AS pris FROM charges
-        WHERE vehicleId IS NOT NULL AND stoppedAt IS NOT NULL AND consumedKwh > 0 $vehicleSql
-    ");
-    $stmt->execute($vehicleArg);
-    $chargesByVehicle = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $ts = strtotime((string) $r['datetime']);
-        if ($ts === false) continue;
-        $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => $r['pris'] !== null ? (float) $r['pris'] : null];
-    }
-    foreach (ChargeRepository::getExternal($db, null, null, $vehicleFilter, false) as $r) {
-        $ts = strtotime((string) ($r['datetime'] ?? ''));
-        if ($ts === false || empty($r['vehicleId']) || (float) $r['kwh'] <= 0) continue;
-        $chargesByVehicle[(int) $r['vehicleId']][] = ['ts' => $ts, 'kwh' => (float) $r['kwh'], 'cost' => isset($r['pris']) ? (float) $r['pris'] : null];
-    }
+    // ─── Data (shared with the dashboard's EV card: includes/EfficiencyData.php) ──────────
+    [$readingsByVehicle, $chargesByVehicle] = EfficiencyData::load($db, $vehicleFilter);
 
     // ─── Per vehicle ──────────────────────────────────────────────────────────────────────
     $tz   = new DateTimeZone(date_default_timezone_get());

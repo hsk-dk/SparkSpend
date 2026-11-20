@@ -177,10 +177,23 @@ final class DashboardEv
             'extPrevFull' => ['kwh' => $extPrevFullKwh, 'cost' => $extPrevFullCost],
             'extLY'       => ['kwh' => $extLYKwh, 'cost' => $extLYCost],
             'extLYFull'   => ['kwh' => $extLYFullKwh, 'cost' => $extLYFullCost],
+            // km/kWh and kr/km of the last 30 days (the Effektivitet figures); the month so far has too few drives to say much
+            'drive'       => self::driveFigures($chargesDb, $p->now),
             'intByDay'    => $intByDay,
             'sparkline'   => $p->sparkline($evByDay),
             'chargingNow' => $evChargingNow,
         ];
+    }
+
+    /** @return array<string,mixed>|null the 30-day efficiency metrics, or null (no readings, or the tables are missing) */
+    private static function driveFigures(PDO $chargesDb, int $now): ?array
+    {
+        try {
+            return EfficiencyData::rollingAll($chargesDb, $now, 30);
+        } catch (\Throwable $e) {
+            error_log('dashboard EV drive figures: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /** The 'ev' block of the payload. */
@@ -267,6 +280,12 @@ final class DashboardEv
             'ext_cpkwh'            => $extCpKwh,
             'ext_cnt'              => intval($extMonth['cnt']),
             'prev_ext_kwh_pct'     => $prevExtPct,
+            // Driving, last 30 days: what a km costs. Same calculation as Effektivitet.
+            'drive_km_30d'         => $r['drive']['km'] ?? null,
+            'drive_kr_per_km_30d'  => $r['drive']['kr_per_km'] ?? null,
+            'drive_km_per_kwh_30d' => $r['drive']['km_per_kwh'] ?? null,
+            'drive_confidence'     => $r['drive']['confidence'] ?? null,
+            'drive_why'            => $r['drive']['confidence_why'] ?? null,
         ];
     }
 }

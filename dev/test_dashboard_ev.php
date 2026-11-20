@@ -27,9 +27,12 @@ function freshDb(string $kind): PDO {
     return $db;
 }
 /** @param array<int,array{0:string,1:float,2:float}> $home [day, kWh, kr]   @param array<int,array{0:string,1:float,2:float}> $away */
-function ev(array $home, array $away = []): array {
+function ev(array $home, array $away = [], array $readings = []): array {
     $c = freshDb('charges');
     $c->exec("INSERT INTO vehicles (id, vehicleName) VALUES (1, 'Enyaq')");
+    foreach ($readings as [$at, $odometer]) {      // odometer at plug-in
+        $c->prepare("INSERT INTO vehicle_charges (vehicleId, cablePluggedInAt, odometer) VALUES (1, ?, ?)")->execute([$at, $odometer]);
+    }
     $i = 0;
     foreach ($home as [$day, $kwh, $kr]) {
         $c->prepare("INSERT INTO charges (id, vehicleId, startedAt, stoppedAt, consumedKwh, cost, state, pairingSource) VALUES (?, 1, ?, ?, ?, ?, 'completed', 'matched')")
@@ -63,6 +66,26 @@ check('...and the home projection is the plain run-rate', abs($ev['home_projecte
 echo "\nno charging at all\n";
 $ev = ev([]);
 check('no figures are made up', ($ev['home_projected_cost'] ?? 0) == 0 && $ev['recent_home_cpkwh'] === null, json_encode([$ev['home_projected_cost'], $ev['recent_home_cpkwh']]));
+
+echo "\nWhat a km costs, last 30 days (the Effektivitet calculation)\n";
+// Three drives of 150 km, each followed by a 40 kWh charge at 2 kr/kWh; the third charge was away from home.
+$ev = ev([['2026-11-05', 40, 80], ['2026-11-11', 40, 80]], [['2026-11-17', 40, 80]],
+         [['2026-11-02T10:00:00Z', 1000], ['2026-11-08T10:00:00Z', 1150], ['2026-11-14T10:00:00Z', 1300], ['2026-11-20T08:00:00Z', 1450]]);
+check('km driven in the window', $ev['drive_km_30d'] == 450.0, json_encode($ev['drive_km_30d']));
+check('kr per km counts home and away charging (240 kr / 450 km)', $ev['drive_kr_per_km_30d'] == 0.53, json_encode($ev['drive_kr_per_km_30d']));
+check('km per kWh (450 km / 120 kWh)', $ev['drive_km_per_kwh_30d'] == 3.75, json_encode($ev['drive_km_per_kwh_30d']));
+check('120 kWh is "middel", and the reason is given', $ev['drive_confidence'] === 'middel' && is_string($ev['drive_why']), json_encode([$ev['drive_confidence'], $ev['drive_why']]));
+$same = EfficiencyCalc::metrics(EfficiencyCalc::rolling(EfficiencyCalc::intervals(
+    [['ts' => strtotime('2026-11-02T10:00:00Z'), 'odometer' => 1000.0], ['ts' => strtotime('2026-11-08T10:00:00Z'), 'odometer' => 1150.0],
+     ['ts' => strtotime('2026-11-14T10:00:00Z'), 'odometer' => 1300.0], ['ts' => strtotime('2026-11-20T08:00:00Z'), 'odometer' => 1450.0]],
+    [['ts' => strtotime('2026-11-05T11:00:00Z'), 'kwh' => 40.0, 'cost' => 80.0], ['ts' => strtotime('2026-11-11T11:00:00Z'), 'kwh' => 40.0, 'cost' => 80.0],
+     ['ts' => strtotime('2026-11-17 12:00:00'), 'kwh' => 40.0, 'cost' => 80.0]])['intervals'],
+    (new DateTimeImmutable('2026-11-20 12:00:00', new DateTimeZone('Europe/Copenhagen')))->getTimestamp(), 30));
+check('the card shows what EfficiencyCalc says for the same data', $same['kr_per_km'] == $ev['drive_kr_per_km_30d'] && $same['km_per_kwh'] == $ev['drive_km_per_kwh_30d']);
+$ev = ev([['2026-09-05', 40, 80]], [], [['2026-09-02T10:00:00Z', 1000], ['2026-09-08T10:00:00Z', 1150]]);
+check('drives older than 30 days are not counted', $ev['drive_kr_per_km_30d'] === null && $ev['drive_km_30d'] === null, json_encode($ev['drive_km_30d']));
+$ev = ev([['2026-11-05', 40, 80]]);
+check('no odometer readings: no figures, no error', $ev['drive_kr_per_km_30d'] === null && $ev['drive_confidence'] === null);
 
 echo "\nThe bill takes home charging only\n";
 $src = file_get_contents(__DIR__ . '/../includes/DashboardSummary.php');

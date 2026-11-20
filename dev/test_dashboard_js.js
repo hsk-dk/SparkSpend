@@ -80,5 +80,20 @@ const colors = spark._sparkBarColors(4, '#22c55e');
 check('only the last bar (today) is pale', colors.join() === '#22c55eaa,#22c55eaa,#22c55eaa,#22c55e33', colors.join());
 check('one bar: it is today, so pale', spark._sparkBarColors(1, '#fff')[0] === '#fff33' && spark._sparkBarColors(0, '#fff').length === 0);
 
+console.log('\n_evSplitShares / _evDriveLine (the EV card)');
+const evc = vm.createContext({ Number, Math });
+vm.runInContext(fn('_fmt') + '\n' + fn('_sharePercents') + '\n' + fn('_evSplitShares') + '\n' + fn('_evDriveLine'), evc);
+const ns = s => s.replace(/ /g, ' ');
+const sh = evc._evSplitShares({ home_kwh: 388.73, ext_kwh: 32.37, home_cost: 736.24, ext_cost: 142.03 });
+check('away charging: 8 % of the kWh but 16 % of the kr (November)', sh.extKwhPct === 8 && sh.extKrPct === 16 && sh.hasKr, JSON.stringify(sh));
+check('only home charging: 0 % away on both', (s => s.extKwhPct === 0 && s.extKrPct === 0)(evc._evSplitShares({ home_kwh: 50, ext_kwh: 0, home_cost: 90, ext_cost: 0 })));
+check('no kWh at all: no split', evc._evSplitShares({ home_kwh: 0, ext_kwh: 0, home_cost: 0, ext_cost: 0 }) === null);
+check('kWh but no prices: the kr share is not made up', evc._evSplitShares({ home_kwh: 10, ext_kwh: 5, home_cost: 0, ext_cost: 0 }).hasKr === false);
+const drive = evc._evDriveLine({ drive_kr_per_km_30d: 0.44, drive_km_per_kwh_30d: 3.93, drive_km_30d: 2790, drive_confidence: 'høj', drive_why: 'mindst 300 kWh' });
+check('drive line: kr/km and km/kWh, no caveat when sure', drive.text === 'Kørsel, 30 dage: 0,44 kr/km · 3,9 km/kWh', drive.text);
+check('its tooltip says how many km, and that it is the Effektivitet calculation', ns(drive.title).startsWith('2.790 km') && drive.title.includes('Effektivitet'), drive.title);
+check('not "høj": says it is uncertain', evc._evDriveLine({ drive_kr_per_km_30d: 0.5, drive_km_per_kwh_30d: 4, drive_km_30d: 80, drive_confidence: 'lav' }).text.endsWith('(usikkert)'));
+check('no price per km: no line', evc._evDriveLine({ drive_kr_per_km_30d: null }) === null && evc._evDriveLine({}) === null);
+
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);
