@@ -21,7 +21,7 @@ final class DashboardEv
     public static function collect(PDO $chargesDb, DashboardPeriods $p): array
     {
         $today = $p->today;
-        $sparkStart = $p->sparkStart; $sparkWindowStart = $p->sparkWindowStart;
+        $sparkStart = $p->sparkStart;
         $prevStart = $p->prevStart; $prevEnd = $p->prevEnd; $prevMonthEnd = $p->prevMonthEnd;
         $lastYearPeriodStart = $p->lastYearPeriodStart; $lastYearPeriodEnd = $p->lastYearPeriodEnd;
         $lastYearMonthStart = $p->lastYearMonthStart; $lastYearMonthEnd = $p->lastYearMonthEnd;
@@ -57,6 +57,7 @@ final class DashboardEv
         $evByDay      = [];
         $evChargingNow = false;   // an open session that Monta touched within the last 30 minutes
         $recentStart  = $p->todayDt->modify('-7 days')->format('Y-m-d');   // the last 8 days incl. today
+        $rollStart    = $p->todayDt->modify('-35 days')->format('Y-m-d');  // per-day maps: 30 days + the week behind the first
         $recentKwh = 0.0; $recentCost = 0.0;                               // priced home charging in that window
 
         foreach ($stmtInt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -71,7 +72,7 @@ final class DashboardEv
             $countedForMonth = false;
             $noCost = ((int)$row['noCost'] === 1);
             foreach ($splits as $day => $slice) {
-                if ($day >= $sparkWindowStart && $day <= $today) {
+                if ($day >= $rollStart && $day <= $today) {
                     $evByDay[$day] = ($evByDay[$day] ?? 0) + $slice['kwh'];
                 }
                 if ($day >= $recentStart && $day <= $today && !$noCost) {
@@ -153,7 +154,7 @@ final class DashboardEv
                 $extLYFullKwh  += floatval($row['kwh']);
                 $extLYFullCost += floatval($row['pris']);
             }
-            if ($day >= $sparkWindowStart && $day <= $today) {
+            if ($day >= $rollStart && $day <= $today) {
                 $extByDay[$day] = ($extByDay[$day] ?? 0) + floatval($row['kwh']);
             }
         }
@@ -181,8 +182,31 @@ final class DashboardEv
             'drive'       => self::driveFigures($chargesDb, $p->now),
             'intByDay'    => $intByDay,
             'sparkline'   => $p->sparkline($evByDay),
+            'sparkline7d' => self::rollingMean($evByDay, $p),
             'chargingNow' => $evChargingNow,
         ];
+    }
+
+    /**
+     * kWh per day, averaged over the 7 days that end on each of the last 30 days. Charging comes in lumps (a day with a
+     * charge, then days with none), so a single day says little about use; a week does. Today counts only the part of
+     * it that has passed, so a half-finished day does not pull the line down.
+     *
+     * @param array<string,float> $byDay [Y-m-d => kWh], reaching at least 6 days before the first of the 30
+     * @return list<float>
+     */
+    public static function rollingMean(array $byDay, DashboardPeriods $p): array
+    {
+        $out = [];
+        foreach ($p->last30Days as $day) {
+            $sum = 0.0;
+            for ($k = 0; $k < 7; $k++) {
+                $sum += $byDay[date('Y-m-d', strtotime("-{$k} days", strtotime($day)))] ?? 0.0;
+            }
+            $days = $day === $p->today ? 6 + $p->dayFraction : 7.0;
+            $out[] = round($sum / $days, 2);
+        }
+        return $out;
     }
 
     /** @return array<string,mixed>|null the 30-day efficiency metrics, or null (no readings, or the tables are missing) */
@@ -271,6 +295,7 @@ final class DashboardEv
             'pct_change_cost'      => $evPctChangeCost,
             'pct_change_year_cost' => $evPctChangeCostYear,
             'sparkline'            => $r['sparkline'],
+            'sparkline_7d'         => $r['sparkline7d'],   // kWh/day, 7-day mean ending on each of the 30 days
             // Home/external split
             'home_kwh'             => round($homeKwh, 2),
             'home_cost'            => round($homeCost, 2),

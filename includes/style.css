@@ -1796,17 +1796,28 @@ header {
 
 /* ===== SPARKLINE TREND MICRO TEXT ===== */
 
+.dash-spark-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+}
+.dash-spark-caption { font-size: 0.7rem; color: var(--muted-strong, #4b5563); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .dash-trend-micro {
   display: block;
   font-size: 0.7rem;
   color: #94a3b8;
-  margin-top: 4px;
   text-align: right;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
-.dash-trend-micro.trend-rising { color: #ef4444; }
-.dash-trend-micro.trend-falling { color: #22c55e; }
-.dash-trend-micro.trend-stable { color: #94a3b8; }
+/* The word describes consumption (kWh), so no red or green: red is for money only */
+.dash-trend-micro.trend-rising,
+.dash-trend-micro.trend-falling,
+.dash-trend-micro.trend-stable { color: var(--muted-strong, #4b5563); }
 
 /* ===== SEASON BADGE ===== */
 
@@ -1820,7 +1831,7 @@ header {
 }
 
 .dash-season-badge.season-normal { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
-.dash-season-badge.season-high { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+.dash-season-badge.season-high { background: rgba(100, 116, 139, 0.16); color: #334155; }   /* kWh, not money: not red */
 .dash-season-badge.season-low { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
 
 /* ===== TOAST NOTIFICATIONS ===== */
@@ -2224,8 +2235,8 @@ header {
 .dash-sync { color: var(--muted-strong); font-size: 11px; }
 .dash-sync.dash-sync-stale { color: var(--bad-strong); }
 
-.trend-down, .dash-trend-micro.trend-falling { color: var(--ok-strong); }
-.trend-up,   .dash-trend-micro.trend-rising  { color: var(--bad-strong); }
+.trend-down { color: var(--ok-strong); }
+.trend-up   { color: var(--bad-strong); }
 .dash-split-home-lbl { color: var(--accent-strong); }
 th.sort-active { color: var(--accent-strong); }
 

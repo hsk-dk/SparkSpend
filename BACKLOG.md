@@ -12,17 +12,12 @@ Hvert punkt har en størrelse: **S** = under en time, **M** = en aften, **L** = 
 ### Oversigten (fra visualiseringsgennemgangen 2026-11-20)
 
 Lavet samme dag: vejrkorrektion i hele procent, elregning uden ladning ude, EV-prognose på den seneste ladepris, stakkede
-kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines, kr-andel og kr/km på Elbil-kortet og fordelingsbjælke på Hus-kortet.
+kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines, kr-andel og kr/km på Elbil-kortet, fordelingsbjælke på Hus-kortet, sammenligninger med datoer, rød kun til penge, sparklines med skala og Elbils 7-dages kurve.
 
-- **Elbil-sparkline viser ladedage, ikke forbrug (M).** Dage uden ladning ser ud som "intet forbrug". Prøv ugesøjler, eller kr/kWh pr. ladning, som også ville have vist prisskiftet i november. `includes/dashboard.js`, `includes/DashboardEv.php`
-- **Sparklines uden akse eller værdier (S).** En tynd gennemsnitslinje og dagens værdi som tal gør dem aflæselige. `includes/dashboard.js`
-- **Samme sammenligningsgrundlag (S).** "Forventet: 275 kWh (forrige: 153)" bruger hele sidste måned, mens "forrige mdr ↑99 %" bruger de samme dage; ordene er næsten ens. Skriv grundlaget ("vs. 1.–20. okt.") eller brug samme begge steder. `includes/dashboard.js`
-- **Farver med én betydning (S).** Rød bruges både for dyrere (kr) og højere forbrug (kWh), men kWh-linjerne er neutrale. Hold rød til penge og grå til mængder. `includes/dashboard.js`, `includes/style.css`
 - **Vejrkorrektion mod forrige måned (M).** Den findes kun mod sidste år; Jordvarmes "+99 % mod forrige mdr" er mest vejr (mild oktober). `includes/dashboard.js`
 
 ### Drift og data
 
-- **Automatisk firmware-opdatering på gatewayen (S).** UCG Ultra opdaterede sig selv kl. 02:15 og tog loggeren ned i fire timer. Sæt et opdateringsvindue, der ikke rammer natten, eller et tidspunkt, hvor hullet er ligegyldigt. (Gøres i UniFi, ikke i koden.)
 - **Mobilvalidering af kortene under 400 px (S).** Overskriftsbåndet er set på smal skærm, men ikke kortenes statistikrækker, split-bar og sparkline. `includes/style.css`
 - **Elpriscachen ligger i systemets temp-mappe som standard (S).** `CACHE_DIR` kan sætte den, men standarden er `sys_get_temp_dir()`, som er flygtig på nogle hosts. `includes/Config.php`
 - **Integritetstjek af `charging_data.db` (M).** `dev/check_data_integrity.php` kontrollerer kun `powerlogjord`; `DataIntegrity.php` dækker mere, men tjek, om EV-databasen har en tilsvarende rutine, og saml dem.
@@ -50,6 +45,8 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines, kr-andel og
 
 ## Afsluttet
 
+- ✅ **2026-11-20 — Oversigten: de fire små punkter** — (1) Sammenligningerne nævner datoerne ("vs. 1.–20. okt.", "vs. 1.–20. nov. 2025"), prognosen siger "hele oktober: 153". (2) Rød kun til penge: vejrkorrektionen, tendensordet under sparklines og "over normalt" er neutrale. (3) Jordvarme/Hus-sparklines har stiplet gennemsnitslinje og "Gns. … · i dag hidtil …". (4) Elbil-sparklinen er et 7-dages snit (kWh/dag) fra serveren (`sparkline_7d`, `DashboardEv::rollingMean`) i stedet for ladedage. `includes/dashboard.js`, `DashboardEv.php`, `style.css`.
+- ✅ **2026-11-20 — Gatewayens automatiske opdatering tager ikke længere loggingen med** — HA har fået en overvågning, der genstarter logningen, når nettet er tilbage (ligger i HA, ikke i dette repo), så et hul i logningen bliver kun så langt som selve nedbruddet og ikke til nogen opdager det. Et opdateringsvindue i UniFi er stadig en mulighed, men ikke nødvendigt.
 - ✅ **2026-11-20 — Undersøgt: datahullet 11. nov. og prisskiftet i november** — *Hullet:* husmåler og jordvarmemåler mangler 02:00–06:00 den 11. nov. (4 timer); det er det eneste hul siden 20. sep. og kan ikke udfyldes, fordi kilden heller ikke har rækker. Målerne er akkumulerede (`kwh` stiger), så den første aflæsning efter hullet bærer hele forbruget: dags-, måneds- og årstal er rigtige (`lagDelta`), og de fire timer fordeles jævnt (`HourlyConsumption::fromReadings`), hvilket passer med ladningen den nat (39,7 kWh, cirka 10 kW). Intet at rette. *Prisskiftet:* Montas ladepris følger spotprisen: `kr/kWh ≈ 0,39 + 1,14 × spot`, R² = 0,94 over 38 ladninger siden 20. sep. (spot = middelværdi af DK2-kvarttimepriserne, mens ladningen stod på, fra EDS-cachen). Spot var i gennemsnit 1,72 kr/kWh under ladningerne 1.–11. nov. mod 0,96 den 12.–20. nov. (markedet som helhed 2,21 mod 1,41); afstanden til Montas pris er konstant cirka 0,5 kr (tariffer og afgifter). Ingen fejl i kostprisen, og ladningerne lægges til tider billigere end markedets gennemsnit. Forbehold: EV-prognosens "seneste 8 dage" er en antagelse om, at prisniveauet holder; spotprisen svinger fra uge til uge.
 - ✅ **2026-11-20 — Hus-kortet: fordelingsbjælke** — Tynd bjælke af hele husmåleren (EV hjemme / Jordvarme / Øvrigt) med andele og "Husmåler hidtil: 817 kWh"; kortets eget tal (Øvrigt) er fremhævet. `includes/dashboard.js`, `index.php`, `style.css`.
 - ✅ **2026-11-20 — Elbil-kortet: kr-andel og kr/km** — To tynde bjælker (kWh og kr) med hjemme/ude, linjen "Ude: 8 % af kWh · 16 % af kr" og "Kørsel, 30 dage: 0,44 kr/km · 3,9 km/kWh". Samme beregning som Effektivitet (`EfficiencyData` bruges af både ruten og dashboardet). `includes/EfficiencyData.php`, `DashboardEv.php`, `dashboard.js`, `index.php`, `style.css`.

@@ -87,6 +87,20 @@ check('drives older than 30 days are not counted', $ev['drive_kr_per_km_30d'] ==
 $ev = ev([['2026-11-05', 40, 80]]);
 check('no odometer readings: no figures, no error', $ev['drive_kr_per_km_30d'] === null && $ev['drive_confidence'] === null);
 
+echo "\n7-day mean for the EV sparkline (charging comes in lumps)\n";
+// Now = 20 Nov 12:00, so today is half over. One 70 kWh charge on the 14th, 14 kWh away on the 19th.
+$ev = ev([['2026-11-14', 70, 140]], [['2026-11-19', 14, 56]]);
+$s7 = $ev['sparkline_7d'];
+check('30 values, oldest first', count($s7) === 30, (string) count($s7));
+check('the day of the charge (14th) and the days after it carry it spread over a week (70 / 7 = 10)', $s7[23] == 10.0 && $s7[27] == 10.0, json_encode(array_slice($s7, 22, 7)));
+check('the day before the charge has nothing in its week', $s7[22] == 0.0, json_encode(array_slice($s7, 19, 4)));
+check('the away charge (14 kWh) joins on the 19th: (70 + 14) / 7 = 12', $s7[28] == 12.0, json_encode(array_slice($s7, 27, 3)));
+check('today counts only the part of the day that has passed: 84 / 6.5 = 12.92', $s7[29] == 12.92, (string) $s7[29]);
+$ev = ev([['2026-10-18', 70, 140]]);
+check('a charge 33 days ago (before the 30-day window) is in the week behind its first days', $ev['sparkline_7d'][0] == 10.0 && $ev['sparkline'][0] == 0.0, json_encode([$ev['sparkline_7d'][0], $ev['sparkline'][0]]));
+check('the plain daily sparkline is unchanged: the 14th holds the charge', ev([['2026-11-14', 70, 140]])['sparkline'][23] == 70.0);
+check('no charging: all zero', array_sum(ev([])['sparkline_7d']) == 0.0);
+
 echo "\nThe bill takes home charging only\n";
 $src = file_get_contents(__DIR__ . '/../includes/DashboardSummary.php');
 check('evMtdCost is the home cost', (bool) preg_match('/\'evMtdCost\'\s*=>\s*\$_ev\[\'home_cost\'\]/', $src));

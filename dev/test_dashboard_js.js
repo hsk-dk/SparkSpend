@@ -16,7 +16,8 @@ function check(name, ok, info = '') {
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'includes', 'dashboard.js'), 'utf8');
 function fn(name) {
-    const m = src.match(new RegExp('(?:^|\\n)((?:async )?function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n\\})\\n'));
+    // the parameter list may hold parentheses (a default like `now = new Date()`), so match to ") {" on the signature line
+    const m = src.match(new RegExp('(?:^|\\n)((?:async )?function ' + name + '\\(.*?\\) \\{[\\s\\S]*?\\n\\})\\n'));
     if (!m) throw new Error('function ' + name + ' not found in dashboard.js');
     return m[1];
 }
@@ -39,8 +40,8 @@ const arrow = /[↑↓]/;
 check('a value that rounds to zero is "uændret": neutral, no arrow, no "0,0"',
     line(0.3).includes('trend-neutral') && line(0.3).includes('uændret') && !line(0.3).includes('0,0') && !arrow.test(line(0.3)), line(0.3));
 check('-0.4 is also unchanged', line(-0.4).includes('uændret'), line(-0.4));
-check('a rise: up arrow, red class, whole percent', line(7.6).includes('trend-up') && line(7.6).includes('↑ 8 % vejrkorrigeret'), line(7.6));
-check('a fall: down arrow, green class, whole percent', line(-12.2).includes('trend-down') && line(-12.2).includes('↓ 12 % vejrkorrigeret'), line(-12.2));
+check('a rise: up arrow, neutral colour (it is kWh, not money), whole percent', line(7.6).includes('trend-neutral-dir') && !line(7.6).includes('trend-up') && line(7.6).includes('\u2191 8 % vejrkorrigeret'), line(7.6));
+check('a fall: down arrow, neutral colour, whole percent', line(-12.2).includes('trend-neutral-dir') && !line(-12.2).includes('trend-down') && line(-12.2).includes('\u2193 12 % vejrkorrigeret'), line(-12.2));
 check('no decimals on a rounded figure', !/\d,\d/.test(line(7.6)) && !/\d,\d/.test(line(-12.2)));
 check('not a number: no line', line(NaN) === '' && line(Infinity) === '');
 
@@ -110,6 +111,39 @@ check('screen readers get the whole picture', comp.label === 'Husmåler hidtil: 
 check('no house meter (hus null) or no rest: no bar', hc._husComposition(null, { month_kwh: 1 }) === null && hc._husComposition({ month_kwh: 5, ev_home_kwh: 1, hp_kwh: 1 }, null) === null);
 check('nothing used: no bar, no division by zero', hc._husComposition({ month_kwh: 0, ev_home_kwh: 0, hp_kwh: 0 }, { month_kwh: 0 }) === null);
 check('missing numbers count as 0', hc._husComposition({ month_kwh: 10, ev_home_kwh: undefined, hp_kwh: null }, { month_kwh: 10 }).legend.includes('Øvrigt <b>100&nbsp;%</b>'));
+
+console.log('\n_comparisonLabels / _trendLine (the dates compared, and red only for money)');
+const cl = vm.createContext({ Number, Math, Date });
+vm.runInContext(fn('_fmt') + '\n' + fn('_comparisonLabels') + '\n' + fn('_trendLine') + '\n' +
+    src.match(/const _MONTHS_SHORT = \[[^\]]*\];\nconst _MONTHS_LONG  = \[[^\]]*\];/)[0].replace(/^const /gm, 'var '), cl);
+const lab = d => cl._comparisonLabels(new Date(d));
+check('20 Nov 2026: the same days of October and of November 2025, and all of October',
+    lab('2026-11-20T12:00:00').prev === '1.–20. okt.' && lab('2026-11-20T12:00:00').year === '1.–20. nov. 2025' && lab('2026-11-20T12:00:00').prevMonth === 'oktober', JSON.stringify(lab('2026-11-20T12:00:00')));
+check('the 1st is one day, not "1.–1."', lab('2026-11-01T12:00:00').prev === '1. okt.' && lab('2026-11-01T12:00:00').year === '1. nov. 2025');
+check('31 Mar: February is cut at its 28th, as the server does', lab('2026-03-31T12:00:00').prev === '1.–28. feb.' && lab('2026-03-31T12:00:00').year === '1.–31. mar. 2025', JSON.stringify(lab('2026-03-31T12:00:00')));
+check('29 Feb 2028: last year (2027) has no 29th, so it is cut at the 28th', lab('2028-02-29T12:00:00').year === '1.–28. feb. 2027' && lab('2028-02-29T12:00:00').prev === '1.–29. jan.', JSON.stringify(lab('2028-02-29T12:00:00')));
+check('January looks back to December of the year before', lab('2027-01-15T12:00:00').prev === '1.–15. dec.' && lab('2027-01-15T12:00:00').prevMonth === 'december');
+check('May has no dot (it is not an abbreviation)', lab('2026-06-10T12:00:00').prev === '1.–10. maj' && lab('2026-06-10T12:00:00').prevMonth === 'maj');
+const tl = cl._trendLine('kWh', 99.4, 14.1, 'neutral', '', new Date('2026-11-20T12:00:00'));
+check('the trend line names the dates, not "forrige mdr"', tl.includes('vs. 1.–20. okt. ↑99 %') && tl.includes('vs. 1.–20. nov. 2025 ↑14 %') && !tl.includes('forrige mdr'), tl);
+check('kWh lines are neutral: no red, no green', !tl.includes('trend-up') && !tl.includes('trend-down') && tl.includes('trend-neutral-dir'));
+const money = cl._trendLine('Pris', 57.9, -3, 'cost', '', new Date('2026-11-20T12:00:00'));
+check('money lines: a rise is red, a fall is green', money.includes('trend-up') && money.includes('trend-down'), money);
+check('nothing to compare with: no line', cl._trendLine('kWh', null, undefined, 'neutral') === '');
+
+console.log('\n_sparkStats / _sparkCaption / _evSparkCaption (the scale of a sparkline)');
+const sp = vm.createContext({ Number, Math });
+vm.runInContext(fn('_fmt') + '\n' + fn('_sparkStats') + '\n' + fn('_sparkCaption') + '\n' + fn('_evSparkCaption') + '\n' + fn('_evSparkTitle'), sp);
+const st = sp._sparkStats([4, 6, 8, 5.3]);
+check('mean of the finished days, and today so far', st.avg === 6 && st.today === 5.3, JSON.stringify(st));
+check('a half-finished today does not pull the mean down', sp._sparkStats([10, 10, 10, 0.5]).avg === 10);
+check('one point only (today): no mean', sp._sparkStats([3]).avg === null && sp._sparkStats([]).avg === null && sp._sparkStats(null).avg === null);
+check('the caption gives mean and today in Danish format', sp._sparkCaption([9, 9.4, 9, 5.3], 'kWh/dag') === 'Gns. 9,1 kWh/dag · i dag hidtil 5,3', sp._sparkCaption([9, 9.4, 9, 5.3], 'kWh/dag'));
+check('no finished day: no caption', sp._sparkCaption([5], 'kWh/dag') === '');
+const ev30 = Array.from({ length: 30 }, (_, i) => i === 0 ? 6.1 : i === 29 ? 9.8 : 8);
+check('EV caption: the 7-day mean now, short enough to share the row with the trend word', sp._evSparkCaption(ev30) === '7-dages snit: 9,8 kWh/dag');
+check('EV caption tooltip: where it was 30 days ago', sp._evSparkTitle(ev30).startsWith('For 30 dage siden: 6,1 kWh/dag'), sp._evSparkTitle(ev30));
+check('EV caption: no series, no caption or tooltip', sp._evSparkCaption([]) === '' && sp._evSparkCaption(null) === '' && sp._evSparkTitle([]) === '');
 
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

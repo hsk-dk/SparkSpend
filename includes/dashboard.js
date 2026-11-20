@@ -29,19 +29,43 @@ function _fmt(n, decimals = 0) {
 }
 
 /** Non-destructive status line inside a card (keeps the stat elements and canvas intact). */
+const _MONTHS_SHORT = ['jan.', 'feb.', 'mar.', 'apr.', 'maj', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'];
+const _MONTHS_LONG  = ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'];
+
 /**
- * One compact comparison line: "kWh  vs. forrige mdr ↓77 % · vs. sidste år ↓37 %".
- * tone 'cost': a rise is red, a fall green. tone 'neutral' (consumption): the arrow only shows the
- * direction - less use is not automatically good (fewer drives), more is not automatically bad.
+ * The stretches the cards compare with, named by their dates: the same days of last month and of the same month last year
+ * ("1.–20. okt.", "1.–20. nov. 2025"), cut at the other month's last day, exactly as the server cuts them
+ * (DashboardPeriods). `prevMonth` is the whole of last month, which the "Forventet" lines set the forecast against.
  */
-function _trendLine(label, pctMonth, pctYear, tone, extra = '') {
+function _comparisonLabels(now) {
+    const d = now.getDate();
+    const range = (year, month) => {
+        const end = Math.min(d, new Date(year, month + 1, 0).getDate());
+        return (end === 1 ? '1.' : `1.–${end}.`) + ' ' + _MONTHS_SHORT[month];
+    };
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return {
+        prev: range(prev.getFullYear(), prev.getMonth()),
+        year: range(now.getFullYear() - 1, now.getMonth()) + ' ' + (now.getFullYear() - 1),
+        prevMonth: _MONTHS_LONG[prev.getMonth()],
+    };
+}
+
+/**
+ * One compact comparison line: "kWh  vs. 1.–20. okt. ↑99 % · vs. 1.–20. nov. 2025 ↑14 %". The labels are the dates compared,
+ * not "forrige mdr", so it is clear that a month so far is set against the same days (and the forecast against the whole month).
+ * tone 'cost': a rise is red, a fall green. tone 'neutral' (consumption): the arrow only shows the
+ * direction - less use is not automatically good (fewer drives), more is not automatically bad. Red is for money only.
+ */
+function _trendLine(label, pctMonth, pctYear, tone, extra = '', now = new Date()) {
+    const labels = _comparisonLabels(now);
     const part = (txt, pct) => {
         if (pct === null || pct === undefined) return '';
         const up = pct >= 0;
         const cls = tone === 'cost' ? (up ? 'trend-up' : 'trend-down') : 'trend-neutral-dir';
-        return `<span class="${cls}">${txt} ${up ? '↑' : '↓'}${_fmt(Math.abs(pct), 0)} %</span>`;
+        return `<span class="${cls}">${txt} ${up ? '↑' : '↓'}${_fmt(Math.abs(pct), 0)} %</span>`;
     };
-    const parts = [part('forrige mdr', pctMonth), part('sidste år', pctYear)].filter(Boolean);
+    const parts = [part('vs. ' + labels.prev, pctMonth), part('vs. ' + labels.year, pctYear)].filter(Boolean);
     if (!parts.length) return '';
     return `<div class="trend-line"><span class="trend-label">${label}</span>${parts.join('<span class="trend-sep">·</span>')}${extra}</div>`;
 }
@@ -147,6 +171,18 @@ function _evDriveLine(ev) {
     };
 }
 
+/** "7-dages snit: 9,8 kWh/dag": where the EV's use is now (short, it shares the row with the trend word). '' without a series. */
+function _evSparkCaption(series) {
+    if (!series || series.length === 0) return '';
+    return `7-dages snit: ${_fmt(series[series.length - 1], 1)} kWh/dag`;
+}
+
+/** The tooltip of that caption: where it was at the start of the 30 days. */
+function _evSparkTitle(series) {
+    if (!series || series.length === 0) return '';
+    return `For ${series.length} dage siden: ${_fmt(series[0], 1)} kWh/dag (gennemsnit over de 7 dage til og med den dag)`;
+}
+
 function renderEvCard(ev) {
     const card = document.getElementById('ev-dashboard-card');
     if (!card) return;
@@ -221,8 +257,12 @@ function renderEvCard(ev) {
     }
 
     const evSparkStart = new Date(); evSparkStart.setDate(evSparkStart.getDate() - 29); evSparkStart.setHours(0,0,0,0);
-    _evSparkChart = _renderSparkline('ev-sparkline', ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart);
-    _renderSparklineTrend('ev-dashboard-card', ev.sparkline);
+    // Charging comes in lumps, so the card draws the 7-day mean (kWh per day) rather than the single days
+    const evSeries = Array.isArray(ev.sparkline_7d) && ev.sparkline_7d.length ? ev.sparkline_7d : null;
+    _evSparkChart = _renderSparkline('ev-sparkline', evSeries || ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart,
+        evSeries ? { kind: 'line', unit: 'kWh/dag (7-dages snit)' } : {});
+    _renderSparklineTrend('ev-dashboard-card', evSeries || ev.sparkline,
+        evSeries ? _evSparkCaption(evSeries) : _sparkCaption(ev.sparkline, 'kWh/dag'), evSeries ? _evSparkTitle(evSeries) : '');
 }
 
 function renderHeatpumpCard(hp) {
@@ -235,7 +275,7 @@ function renderHeatpumpCard(hp) {
     _setText(card, '.dash-stat-kwh', _fmt(hp.month_kwh, 1));
     _setText(card, '.dash-stat-daily', hp.daily_avg_kwh !== null ? _fmt(hp.daily_avg_kwh, 1) : '—');
     _setText(card, '.dash-projected', hp.projected_kwh !== null
-        ? `Forventet: ${_fmt(hp.projected_kwh)} kWh (forrige: ${_fmt(hp.prev_month_full_kwh)})`
+        ? `Forventet: ${_fmt(hp.projected_kwh)} kWh (hele ${_comparisonLabels(now).prevMonth}: ${_fmt(hp.prev_month_full_kwh)})`
         : '');
     _setProjectionBasis(card, hp.projection_basis);
 
@@ -250,7 +290,7 @@ function renderHeatpumpCard(hp) {
 
     const hpSparkStart = new Date(); hpSparkStart.setDate(hpSparkStart.getDate() - 29); hpSparkStart.setHours(0,0,0,0);
     _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, hpSparkStart);
-    _renderSparklineTrend('hp-dashboard-card', hp.sparkline);
+    _renderSparklineTrend('hp-dashboard-card', hp.sparkline, _sparkCaption(hp.sparkline, 'kWh/dag'));
     _renderSeasonBadge(card, hp.pct_change_year);
 
     // Abort any in-flight weather enrichment from a previous render
@@ -299,7 +339,7 @@ function renderHusCard(rest, hus = null) {
     _setText(card, '.dash-stat-daily', rest.daily_avg_kwh !== null ? _fmt(rest.daily_avg_kwh, 1) : '—');
     const prevFull = rest.prev_month_full_kwh > 0 ? Math.round(rest.prev_month_full_kwh) : null;
     _setText(card, '.dash-projected', rest.projected_kwh !== null
-        ? `Forventet: ${_fmt(rest.projected_kwh)} kWh` + (prevFull ? ` (forrige: ${_fmt(prevFull)})` : '')
+        ? `Forventet: ${_fmt(rest.projected_kwh)} kWh` + (prevFull ? ` (hele ${_comparisonLabels(now).prevMonth}: ${_fmt(prevFull)})` : '')
         : '');
     _setProjectionBasis(card, rest.projection_basis);
 
@@ -332,7 +372,7 @@ function renderHusCard(rest, hus = null) {
 
     const husSparkStart = new Date(); husSparkStart.setDate(husSparkStart.getDate() - 29); husSparkStart.setHours(0,0,0,0);
     _husSparkChart = _renderSparkline('hus-sparkline', rest.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
-    _renderSparklineTrend('hus-dashboard-card', rest.sparkline);
+    _renderSparklineTrend('hus-dashboard-card', rest.sparkline, _sparkCaption(rest.sparkline, 'kWh/dag'));
     _renderSeasonBadge(card, rest.pct_change_year);
 }
 
@@ -353,16 +393,16 @@ function _hddExplanation(hddThis, hddLast) {
  * on a number that was already rounded ("0,0 %") claims precision it does not have. Zero gets no arrow and no
  * red/green, because "no change" is not a rise.
  */
-function _weatherCorrectedLine(normalizedPct) {
+function _weatherCorrectedLine(normalizedPct, against = 'samme måned sidste år') {
     const pct = Math.round(normalizedPct);
     if (!Number.isFinite(pct)) return '';
     const title = 'Justeret for graddage (HDD 17°C)';
     if (pct === 0) {
-        return `<div class="trend-neutral" title="${title}">→ uændret vejrkorrigeret vs. samme måned sidste år</div>`;
+        return `<div class="trend-neutral" title="${title}">→ uændret vejrkorrigeret vs. ${against}</div>`;
     }
     const up = pct > 0;
-    return `<div class="${up ? 'trend-up' : 'trend-down'}" title="${title}">` +
-        `${up ? '↑' : '↓'} ${_fmt(Math.abs(pct), 0)} % vejrkorrigeret vs. samme måned sidste år</div>`;
+    return `<div class="trend-neutral-dir" title="${title}">` +
+        `${up ? '\u2191' : '\u2193'} ${_fmt(Math.abs(pct), 0)} % vejrkorrigeret vs. ${against}</div>`;
 }
 
 async function _enrichHpWithWeather(card, hp) {
@@ -403,7 +443,7 @@ async function _enrichHpWithWeather(card, hp) {
 
         const trendEl = card.querySelector('.dash-trend');
         if (!trendEl) return;
-        trendEl.innerHTML += _weatherCorrectedLine(normalizedPct);
+        trendEl.innerHTML += _weatherCorrectedLine(normalizedPct, _comparisonLabels(now).year);
         const why = _hddExplanation(hddThis, hddLast);
         if (why) {
             trendEl.innerHTML += `<div class="trend-explain text-muted small" title="Gradedage (HDD 17°C) 1. til i dag, mod samme dage sidste år">${why}</div>`;
@@ -418,38 +458,62 @@ function _sparkBarColors(count, color) {
     return Array.from({ length: count }, (_, i) => color + (i === count - 1 ? '33' : 'aa'));
 }
 
-function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = null) {
+/** Mean of the finished days (all but the last point, today) and today's value so far; avg null without a finished day. */
+function _sparkStats(values) {
+    if (!values || values.length === 0) return { avg: null, today: null };
+    const done = values.slice(0, -1);
+    return {
+        avg: done.length ? done.reduce((s, v) => s + v, 0) / done.length : null,
+        today: values[values.length - 1],
+    };
+}
+
+/** "Gns. 9,2 kWh/dag · i dag hidtil 5,3": the scale of a sparkline that has no axis. '' when there is nothing to say. */
+function _sparkCaption(values, unit) {
+    const s = _sparkStats(values);
+    if (s.avg === null) return '';
+    return `Gns. ${_fmt(s.avg, 1)} ${unit} · i dag hidtil ${_fmt(s.today, 1)}`;
+}
+
+/**
+ * opts.kind 'line': a filled line instead of bars (the EV card draws a 7-day mean, which is not a per-day figure).
+ * Bars get a dashed line at the mean of the finished days. opts.unit names the unit in the tooltip.
+ */
+function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = null, opts = {}) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     if (existing) existing.destroy();
 
+    const line = opts.kind === 'line';
+    const unit = opts.unit || 'kWh';
+    const avg = line ? null : _sparkStats(dataPoints).avg;
+    const datasets = [line
+        ? { type: 'line', data: dataPoints, borderColor: color, backgroundColor: color + '33', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 3 }
+        : { data: dataPoints, backgroundColor: _sparkBarColors(dataPoints.length, color), borderColor: color, borderWidth: 1, borderRadius: 2 }];
+    if (avg !== null) {
+        datasets.push({ type: 'line', data: dataPoints.map(() => avg), borderColor: color, borderWidth: 1, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 0, fill: false });
+    }
+
     return new Chart(canvas.getContext('2d'), {
         type: 'bar',
-        data: {
-            labels: dataPoints.map((_, i) => i),
-            datasets: [{
-                data: dataPoints,
-                backgroundColor: _sparkBarColors(dataPoints.length, color),
-                borderColor:     color,
-                borderWidth: 1,
-                borderRadius: 2,
-            }]
-        },
+        data: { labels: dataPoints.map((_, i) => i), datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend:  { display: false },
                 tooltip: monthStart ? {
                     enabled: true,
+                    filter: (item) => item.datasetIndex === 0,   // not the dashed mean line
                     callbacks: {
                         title: (items) => {
                             const d = new Date(monthStart);
                             d.setDate(d.getDate() + items[0].dataIndex);
                             const day = d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
-                            return items[0].dataIndex === dataPoints.length - 1 ? `${day} (i dag, hidtil)` : day;
+                            return !line && items[0].dataIndex === dataPoints.length - 1 ? `${day} (i dag, hidtil)` : day;
                         },
-                        label: (item) => item.raw.toFixed(1) + ' kWh'
+                        label: (item) => item.raw.toFixed(1) + ' ' + unit
                     }
                 } : { enabled: false },
                 datalabels: { display: false }
@@ -1016,23 +1080,33 @@ function _sparklineTrend(sparkline) {
     return { label: '\u2192 Stabilt', cls: 'trend-stable' };
 }
 
-function _renderSparklineTrend(cardId, sparkline) {
+function _renderSparklineTrend(cardId, sparkline, caption = '', captionTitle = '') {
     const card = document.getElementById(cardId);
     if (!card) return;
     const container = card.querySelector('.dash-sparkline');
     if (!container) return;
 
-    // Remove existing trend text
-    const existing = container.querySelector('.dash-trend-micro');
+    // Remove the previous foot row
+    const existing = container.querySelector('.dash-spark-foot');
     if (existing) existing.remove();
 
     const trend = _sparklineTrend(sparkline);
-    if (!trend) return;
+    if (!trend && !caption) return;
 
-    const el = document.createElement('span');
-    el.className = 'dash-trend-micro ' + trend.cls;
-    el.textContent = trend.label;
-    container.appendChild(el);
+    const foot = document.createElement('div');
+    foot.className = 'dash-spark-foot';
+    const cap = document.createElement('span');
+    cap.className = 'dash-spark-caption';
+    cap.textContent = caption;
+    if (captionTitle) cap.title = captionTitle;
+    foot.appendChild(cap);
+    if (trend) {
+        const el = document.createElement('span');
+        el.className = 'dash-trend-micro ' + trend.cls;
+        el.textContent = trend.label;
+        foot.appendChild(el);
+    }
+    container.appendChild(foot);
 }
 
 // =============================================================================
