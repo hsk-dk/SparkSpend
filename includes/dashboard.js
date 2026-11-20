@@ -15,7 +15,7 @@ let _dashLoadSeq  = 0;      // guards against overlapping loads rendering out of
 let _dashLastLoad = 0;      // ms timestamp of last successful load
 let _forecastLoadedAt = 0;  // elspot forecast is only re-fetched when stale
 let _forecastDay      = '';
-let _hddCache  = null;      // { key, hddThis, hddLast }
+let _hddCache  = null;      // { key, this, prev, year }: the weather records of the three windows
 
 /** Local calendar date as YYYY-MM-DD. (toISOString() is UTC and is wrong 00-02 Danish time.) */
 function _ymd(d = new Date()) {
@@ -57,17 +57,18 @@ function _comparisonLabels(now) {
  * tone 'cost': a rise is red, a fall green. tone 'neutral' (consumption): the arrow only shows the
  * direction - less use is not automatically good (fewer drives), more is not automatically bad. Red is for money only.
  */
-function _trendLine(label, pctMonth, pctYear, tone, extra = '', now = new Date()) {
+function _trendLine(label, pctMonth, pctYear, tone, extra = '', now = new Date(), title = '') {
     const labels = _comparisonLabels(now);
     const part = (txt, pct) => {
         if (pct === null || pct === undefined) return '';
+        const flat = Math.round(pct) === 0;          // "↑0 %" would claim a rise of nothing
         const up = pct >= 0;
-        const cls = tone === 'cost' ? (up ? 'trend-up' : 'trend-down') : 'trend-neutral-dir';
-        return `<span class="${cls}">${txt} ${up ? '↑' : '↓'}${_fmt(Math.abs(pct), 0)} %</span>`;
+        const cls = tone === 'cost' && !flat ? (up ? 'trend-up' : 'trend-down') : 'trend-neutral-dir';
+        return `<span class="${cls}">${txt} ${flat ? '→' : up ? '↑' : '↓'}${_fmt(Math.abs(pct), 0)} %</span>`;
     };
     const parts = [part('vs. ' + labels.prev, pctMonth), part('vs. ' + labels.year, pctYear)].filter(Boolean);
     if (!parts.length) return '';
-    return `<div class="trend-line"><span class="trend-label">${label}</span>${parts.join('<span class="trend-sep">·</span>')}${extra}</div>`;
+    return `<div class="trend-line"${title ? ` title="${title}"` : ''}><span class="trend-label">${label}</span>${parts.join('<span class="trend-sep">·</span>')}${extra}</div>`;
 }
 
 function _setCardNote(cardId, text) {
@@ -377,76 +378,105 @@ function renderHusCard(rest, hus = null) {
 }
 
 /**
- * Why the raw year-on-year change and the weather-corrected one differ: the same days last year had another number of degree
- * days. Returns '' while the weather was about the same (under 10 %), so the line only appears when it explains something.
+ * Why a raw change and the weather-corrected one differ: the stretch it is set against had another number of degree days.
+ * `against` names that stretch ("samme periode sidste år", "1.–20. okt."). Returns '' while the weather was about the same
+ * (under 10 %), so the line only appears when it explains something.
  */
-function _hddExplanation(hddThis, hddLast) {
+function _hddExplanation(hddThis, hddLast, against = 'samme periode sidste år') {
     const diff = Math.round((hddThis / hddLast - 1) * 100);
     if (!Number.isFinite(diff) || Math.abs(diff) < 10) return '';
     const colder = diff > 0;
-    return `${colder ? 'Koldere' : 'Varmere'} vejr end samme periode sidste år: ` +
+    return `${colder ? 'Koldere' : 'Varmere'} vejr end ${against}: ` +
         `${_fmt(Math.abs(diff), 0)} % ${colder ? 'flere' : 'færre'} gradedage`;
 }
 
+/** The share of today that has passed, limited to 5-100 % exactly as the server does (DashboardPeriods::dayFraction). */
+function _dayFraction(now) {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const next  = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    return Math.max(0.05, Math.min(1, (now - start) / (next - start)));
+}
+
+/** The stretches the weather correction compares with: the same days of last month and of last year, cut like the server cuts them. */
+function _comparisonWindows(now) {
+    const d = now.getDate();
+    const win = (year, month) => {
+        const mm  = String(month + 1).padStart(2, '0');
+        const end = Math.min(d, new Date(year, month + 1, 0).getDate());
+        return { start: `${year}-${mm}-01`, end: `${year}-${mm}-${String(end).padStart(2, '0')}` };
+    };
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return { prev: win(prev.getFullYear(), prev.getMonth()), year: win(now.getFullYear() - 1, now.getMonth()) };
+}
+
 /**
- * The weather-corrected year-on-year line. The figure is rounded to whole percent first and shown as such: a decimal
- * on a number that was already rounded ("0,0 %") claims precision it does not have. Zero gets no arrow and no
- * red/green, because "no change" is not a rise.
+ * The degree days of a window. Its last day counts pro rata (`lastWeight`) when it is the date that is only part over (today,
+ * or the same date in another month): the kWh it is set against count that day pro rata too (DashboardPeriods), and a day's
+ * degree days are a whole day's worth even if the day is not over.
  */
-function _weatherCorrectedLine(normalizedPct, against = 'samme måned sidste år') {
-    const pct = Math.round(normalizedPct);
-    if (!Number.isFinite(pct)) return '';
-    const title = 'Justeret for graddage (HDD 17°C)';
-    if (pct === 0) {
-        return `<div class="trend-neutral" title="${title}">→ uændret vejrkorrigeret vs. ${against}</div>`;
-    }
-    const up = pct > 0;
-    return `<div class="trend-neutral-dir" title="${title}">` +
-        `${up ? '\u2191' : '\u2193'} ${_fmt(Math.abs(pct), 0)} % vejrkorrigeret vs. ${against}</div>`;
+function _hddSum(records, lastDay, lastWeight) {
+    return (records || []).reduce((s, r) => s + r.hdd * (r.date === lastDay ? lastWeight : 1), 0);
+}
+
+/** kWh per degree day now against then: the change in percent, or null without degree days or kWh to divide. */
+function _weatherCorrectedPct(kwhNow, hddNow, kwhThen, hddThen) {
+    if (!(hddNow > 0) || !(hddThen > 0) || !(kwhNow >= 0) || !(kwhThen > 0)) return null;
+    return ((kwhNow / hddNow) / (kwhThen / hddThen) - 1) * 100;
 }
 
 async function _enrichHpWithWeather(card, hp) {
     const lat = window.sparkConfig?.weatherLat || '';
     const lon = window.sparkConfig?.weatherLon || '';
     const lastYearKwh = hp.last_year_period_kwh ?? null;
-    if (!lat || !lon || hp.month_kwh === null || lastYearKwh === null || lastYearKwh <= 0) return;
+    const prevKwh     = hp.prev_month_kwh ?? null;
+    if (!lat || !lon || hp.month_kwh === null || !(lastYearKwh > 0 || prevKwh > 0)) return;
 
     const controller = new AbortController();
     _hpWeatherAbort  = controller;
 
-    const now       = new Date();
-    const thisYear  = now.getFullYear();
-    const thisMonth = now.getMonth() + 1;
-    const lastYear  = thisYear - 1;
-    const mm        = String(thisMonth).padStart(2, '0');
-    const today     = _ymd(now);
-    const ddNow     = String(now.getDate()).padStart(2, '0'); // same day last year → MTD comparison
+    const now   = new Date();
+    const mm    = String(now.getMonth() + 1).padStart(2, '0');
+    const today = _ymd(now);
+    const w     = _comparisonWindows(now);
 
     try {
-        // Degree days only change once a day — reuse them across 5-minute refreshes.
-        const hddKey = `${today}|${lat}|${lon}`;
-        let hddThis, hddLast;
-        if (_hddCache && _hddCache.key === hddKey) {
-            ({ hddThis, hddLast } = _hddCache);
+        // Degree days only change once a day — reuse the records across 5-minute refreshes (the weights depend on the time, so
+        // the records are kept, not the sums).
+        const key = `${today}|${lat}|${lon}`;
+        let rec;
+        if (_hddCache && _hddCache.key === key) {
+            rec = _hddCache;
         } else {
-            const [resThis, resLast] = await Promise.all([
-                Api.get('weather', { start: `${thisYear}-${mm}-01`, end: today, lat, lon }, { signal: controller.signal }),
-                Api.get('weather', { start: `${lastYear}-${mm}-01`, end: `${lastYear}-${mm}-${ddNow}`, lat, lon }, { signal: controller.signal }),
+            const get = (start, end) => Api.get('weather', { start, end, lat, lon }, { signal: controller.signal });
+            const [resThis, resPrev, resYear] = await Promise.all([
+                get(`${now.getFullYear()}-${mm}-01`, today), get(w.prev.start, w.prev.end), get(w.year.start, w.year.end),
             ]);
-            hddThis = (resThis.records || []).reduce((s, r) => s + r.hdd, 0);
-            hddLast = (resLast.records || []).reduce((s, r) => s + r.hdd, 0);
-            if (hddThis > 0 && hddLast > 0) _hddCache = { key: hddKey, hddThis, hddLast };
+            rec = { key, this: resThis.records || [], prev: resPrev.records || [], year: resYear.records || [] };
+            if (rec.this.length && rec.prev.length && rec.year.length) _hddCache = rec;
         }
-        if (hddThis <= 0 || hddLast <= 0) return;
 
-        const normalizedPct = ((hp.month_kwh / hddThis) / (lastYearKwh / hddLast) - 1) * 100;
+        const frac    = _dayFraction(now);
+        const d       = now.getDate();
+        const dayOf   = iso => Number(iso.slice(8, 10));
+        const hddThis = _hddSum(rec.this, today, frac);
+        const hddPrev = _hddSum(rec.prev, w.prev.end, dayOf(w.prev.end) === d ? frac : 1);
+        const hddYear = _hddSum(rec.year, w.year.end, dayOf(w.year.end) === d ? frac : 1);
+
+        const pctPrev = _weatherCorrectedPct(hp.month_kwh, hddThis, prevKwh, hddPrev);
+        const pctYear = _weatherCorrectedPct(hp.month_kwh, hddThis, lastYearKwh, hddYear);
+        if (pctPrev === null && pctYear === null) return;
 
         const trendEl = card.querySelector('.dash-trend');
         if (!trendEl) return;
-        trendEl.innerHTML += _weatherCorrectedLine(normalizedPct, _comparisonLabels(now).year);
-        const why = _hddExplanation(hddThis, hddLast);
-        if (why) {
-            trendEl.innerHTML += `<div class="trend-explain text-muted small" title="Gradedage (HDD 17°C) 1. til i dag, mod samme dage sidste år">${why}</div>`;
+        const labels = _comparisonLabels(now);
+        trendEl.innerHTML += _trendLine('Vejrkorr.', pctPrev, pctYear, 'neutral', '', now,
+            'Justeret for gradedage (HDD 17°C): kWh pr. gradedag, mod det samme for de to sammenligningsperioder');
+        for (const [pct, hddThen, against] of [[pctPrev, hddPrev, labels.prev], [pctYear, hddYear, labels.year]]) {
+            if (pct === null) continue;   // nothing was compared with that stretch, so there is nothing to explain
+            const why = _hddExplanation(hddThis, hddThen, against);
+            if (why) {
+                trendEl.innerHTML += `<div class="trend-explain text-muted small" title="Gradedage (HDD 17°C), 1. til i dag, mod samme dage i sammenligningsperioden">${why}</div>`;
+            }
         }
     } catch (e) {
         if (e.name !== 'AbortError') console.warn('_enrichHpWithWeather:', e);

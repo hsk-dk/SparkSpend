@@ -9,14 +9,6 @@ Hvert punkt har en størrelse: **S** = under en time, **M** = en aften, **L** = 
 
 ## Åbent
 
-### Oversigten (fra visualiseringsgennemgangen 2026-11-20)
-
-Lavet samme dag: vejrkorrektion i hele procent, elregning uden ladning ude, EV-prognose på den seneste ladepris, stakkede
-kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines, kr-andel og kr/km på Elbil-kortet, fordelingsbjælke på Hus-kortet, sammenligninger med datoer, rød kun til penge, sparklines med skala og Elbils 7-dages kurve.
-
-- **Vejrkorrektion mod forrige måned (M).** Den findes kun mod sidste år; Jordvarmes "+99 % mod forrige mdr" er mest vejr (mild oktober). `includes/dashboard.js`
-
-
 ### Features (ingen af dem findes i koden)
 
 - **CSV/Excel-eksport af opladningshistorik og Jordvarme-måneder (M).** Ingen eksport findes nogen steder.
@@ -40,6 +32,7 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines, kr-andel og
 
 ## Afsluttet
 
+- ✅ **2026-11-20 — Vejrkorrektion mod forrige måned** — Rækken "Vejrkorr." på Jordvarme-kortet viser kWh pr. gradedag mod både 1.–20. okt. og 1.–20. nov. 2025, med en forklaringslinje pr. sammenligning, når gradedagene afviger 10 % eller mere. Vinduerne afkortes som serverens, og den halve dag vægtes pro rata i gradedagene (det rettede også en lille skævhed i tallet mod sidste år). Alle trendlinjer skriver "→0 %" i stedet for "↑0 %". `includes/dashboard.js` (`_comparisonWindows`, `_hddSum`, `_dayFraction`, `_weatherCorrectedPct`).
 - ✅ **2026-11-20 — Drift og data: de tre små punkter** — (1) *Mobilvalidering:* kortene er målt ved 320, 360, 375 og 390 px med worst-case-tal (fire cifre i kWh, fem i kr, tre i procent, alle bjælker og billedtekster): ingen overløb, ingen afklippet tekst, ingen statistiktal der ombrydes, ingen sidebredde-overløb. Intet at rette. (2) *Cache:* standarden er `data/cache/` (oprettes ved første brug), `CACHE_DIR` vinder, temp er kun nødløsning; nginx-reglen dækker `data/`. `Config::defaultCacheDir()`. (3) *Integritet:* `charging_data.db` var allerede dækket af type- og orphan-tjekket og af `dev/check_data_integrity.php`; det, der manglede, var tjek af indholdet: `DataIntegrity::content()` (seneste 90 dage) er nu med i `php doctor.php` og i scriptet. Produktion er ren; de fem gamle rækker fra nov. 2025 er harmløse.
 - ✅ **2026-11-20 — Oversigten: de fire små punkter** — (1) Sammenligningerne nævner datoerne ("vs. 1.–20. okt.", "vs. 1.–20. nov. 2025"), prognosen siger "hele oktober: 153". (2) Rød kun til penge: vejrkorrektionen, tendensordet under sparklines og "over normalt" er neutrale. (3) Jordvarme/Hus-sparklines har stiplet gennemsnitslinje og "Gns. … · i dag hidtil …". (4) Elbil-sparklinen er et 7-dages snit (kWh/dag) fra serveren (`sparkline_7d`, `DashboardEv::rollingMean`) i stedet for ladedage. `includes/dashboard.js`, `DashboardEv.php`, `style.css`.
 - ✅ **2026-11-20 — Gatewayens automatiske opdatering tager ikke længere loggingen med** — HA har fået en overvågning, der genstarter logningen, når nettet er tilbage (ligger i HA, ikke i dette repo), så et hul i logningen bliver kun så langt som selve nedbruddet og ikke til nogen opdager det. Et opdateringsvindue i UniFi er stadig en mulighed, men ikke nødvendigt.

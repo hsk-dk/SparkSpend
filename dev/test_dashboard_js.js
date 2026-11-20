@@ -21,12 +21,12 @@ function fn(name) {
     if (!m) throw new Error('function ' + name + ' not found in dashboard.js');
     return m[1];
 }
-const sandbox = vm.createContext({ Number, Math });
-vm.runInContext(fn('_fmt') + '\n' + fn('_hddExplanation') + '\n' + fn('_weatherCorrectedLine'), sandbox);
+const sandbox = vm.createContext({ Number, Math, Date });
+vm.runInContext(['_fmt', '_hddExplanation', '_dayFraction', '_comparisonWindows', '_hddSum', '_weatherCorrectedPct', '_comparisonLabels', '_trendLine'].map(fn).join('\n') + '\n' +
+    src.match(/const _MONTHS_SHORT = \[[^\]]*\];\nconst _MONTHS_LONG  = \[[^\]]*\];/)[0].replace(/^const /gm, 'var '), sandbox);
 const why = sandbox._hddExplanation;
-const line = sandbox._weatherCorrectedLine;
 
-console.log('_hddExplanation(hddThis, hddLast)');
+console.log('_hddExplanation(hddThis, hddLast, against)');
 check('colder this year: says so, with the percentage (134.7 vs 97.6 = +38 %)',
     why(134.7, 97.6) === 'Koldere vejr end samme periode sidste år: 38 % flere gradedage', why(134.7, 97.6));
 check('warmer this year: says so', why(70, 97.6) === 'Varmere vejr end samme periode sidste år: 28 % færre gradedage', why(70, 97.6));
@@ -34,16 +34,35 @@ check('about the same weather (under 10 %): no line', why(100, 97.6) === '' && w
 check('exactly 10 % is explained, 9 % is not', why(110, 100) !== '' && why(109, 100) === '');
 check('no degree days last year (division by zero): no line, no exception', why(10, 0) === '' && why(0, 0) === '');
 check('the percentage uses the Danish number format (2150 -> "2.150")', why(2250, 100).includes('2.150 %'), why(2250, 100));
+check('it can name the stretch it compares with (last month by its dates)', why(200, 100, '1.–20. okt.') === 'Koldere vejr end 1.–20. okt.: 100 % flere gradedage', why(200, 100, '1.–20. okt.'));
 
-console.log('\n_weatherCorrectedLine(pct)');
-const arrow = /[↑↓]/;
-check('a value that rounds to zero is "uændret": neutral, no arrow, no "0,0"',
-    line(0.3).includes('trend-neutral') && line(0.3).includes('uændret') && !line(0.3).includes('0,0') && !arrow.test(line(0.3)), line(0.3));
-check('-0.4 is also unchanged', line(-0.4).includes('uændret'), line(-0.4));
-check('a rise: up arrow, neutral colour (it is kWh, not money), whole percent', line(7.6).includes('trend-neutral-dir') && !line(7.6).includes('trend-up') && line(7.6).includes('\u2191 8 % vejrkorrigeret'), line(7.6));
-check('a fall: down arrow, neutral colour, whole percent', line(-12.2).includes('trend-neutral-dir') && !line(-12.2).includes('trend-down') && line(-12.2).includes('\u2193 12 % vejrkorrigeret'), line(-12.2));
-check('no decimals on a rounded figure', !/\d,\d/.test(line(7.6)) && !/\d,\d/.test(line(-12.2)));
-check('not a number: no line', line(NaN) === '' && line(Infinity) === '');
+console.log('\n_weatherCorrectedPct (kWh per degree day, now against then)');
+const wc = sandbox._weatherCorrectedPct;
+check('the same use in a colder stretch: use per degree day fell (kWh 100 and 100, degree days 150 and 100: -33 %)', Math.abs(wc(100, 150, 100, 100) - -33.3333) < 0.01, String(wc(100, 150, 100, 100)));
+check('Jordvarme, 20 Nov: +99 % kWh against the mild October, double the degree days: about 0 % when the weather explains it', Math.abs(wc(178.4, 200, 89.48, 100.3)) < 1, String(wc(178.4, 200, 89.48, 100.3)));
+check('the same use in the same weather: 0 %', wc(80, 100, 80, 100) === 0);
+check('no degree days now or then, or nothing to divide: null, no exception', wc(80, 0, 80, 100) === null && wc(80, 100, 80, 0) === null && wc(80, 100, 0, 100) === null && wc(80, 100, null, 100) === null && wc(-1, 100, 80, 100) === null);
+check('zero use now is a real answer (-100 %), not "no data"', wc(0, 100, 80, 100) === -100);
+
+console.log('\n_comparisonWindows / _hddSum / _dayFraction (the weather matches how the server counts kWh)');
+const win = d => sandbox._comparisonWindows(new Date(d));
+const wv = win('2026-11-20T12:00:00');
+check('20 Nov: 1.-20. Oct and 1.-20. Nov of last year', wv.prev.start === '2026-10-01' && wv.prev.end === '2026-10-20' && wv.year.start === '2025-11-01' && wv.year.end === '2025-11-20', JSON.stringify(wv));
+check('31 Mar: February is cut at its 28th', win('2026-03-31T12:00:00').prev.end === '2026-02-28' && win('2026-03-31T12:00:00').year.end === '2025-03-31');
+check('29 Feb 2028: last year has no 29th, so it is cut at the 28th (an unknown date is not asked for)', win('2028-02-29T12:00:00').year.end === '2027-02-28' && win('2028-02-29T12:00:00').prev.end === '2028-01-29');
+check('January looks back to December of the year before', win('2027-01-15T12:00:00').prev.start === '2026-12-01' && win('2027-01-15T12:00:00').prev.end === '2026-12-15');
+const recs = [{ date: '2026-11-18', hdd: 10 }, { date: '2026-11-19', hdd: 8 }, { date: '2026-11-20', hdd: 12 }];
+check('the last day counts pro rata when it is only part over (10 + 8 + 12 x 0.5 = 24)', sandbox._hddSum(recs, '2026-11-20', 0.5) === 24);
+check('a complete last day counts in full (the other month was shorter)', sandbox._hddSum(recs, '2026-11-20', 1) === 30);
+check('no records: 0', sandbox._hddSum([], 'x', 0.5) === 0 && sandbox._hddSum(null, 'x', 0.5) === 0);
+check('the share of the day is 5-100 %, like the server (midnight -> 5 %, noon -> 50 %, 23:59 -> about 100 %)',
+    sandbox._dayFraction(new Date(2026, 10, 20, 0, 0)) === 0.05 && Math.abs(sandbox._dayFraction(new Date(2026, 10, 20, 12, 0)) - 0.5) < 1e-9 && sandbox._dayFraction(new Date(2026, 10, 20, 23, 59)) > 0.99);
+
+console.log('\n_trendLine: nothing is not a rise');
+const tlf = (a, b, tone) => sandbox._trendLine('kWh', a, b, tone, '', new Date('2026-11-20T12:00:00'));
+check('a change that rounds to zero reads "→0 %", neutral, also for money lines', tlf(0.3, -0.4, 'cost').includes('→0 %') && !tlf(0.3, -0.4, 'cost').includes('trend-up') && !tlf(0.3, -0.4, 'cost').includes('trend-down') && !/[↑↓]/.test(tlf(0.3, -0.4, 'cost')), tlf(0.3, -0.4, 'cost'));
+check('a real change keeps its arrow', tlf(7.6, -12.2, 'neutral').includes('↑8 %') && tlf(7.6, -12.2, 'neutral').includes('↓12 %'));
+check('the row can carry a tooltip', sandbox._trendLine('Vejrkorr.', 5, 5, 'neutral', '', new Date('2026-11-20T12:00:00'), 'Justeret').includes('title="Justeret"'));
 
 console.log('\n_sharePercents / _costShareBars');
 const shares = vm.createContext({ Number, Math });
