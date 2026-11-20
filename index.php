@@ -294,6 +294,11 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
         <div class="dash-meta">
           <span class="dash-projected"></span>
         </div>
+        <div class="dash-comp" style="display:none">
+          <div class="dash-comp-cap"></div>
+          <div class="dash-split-track dash-comp-track" role="img"></div>
+          <div class="dash-comp-legend"></div>
+        </div>
         <div class="dash-trend"></div>
         <div class="dash-sparkline">
           <canvas id="hus-sparkline"></canvas>

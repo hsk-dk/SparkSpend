@@ -1323,6 +1323,15 @@ header {
   font-size: 10px;
   margin-top: 3px;
 }
+/* Hus card: what the house meter was spent on */
+.dash-comp { margin: 4px 0 6px; }
+.dash-comp-cap { font-size: 11px; color: var(--muted-strong, #4b5563); margin-bottom: 3px; }
+.dash-comp-seg { height: 100%; flex-shrink: 0; transition: width 0.4s ease; }
+.dash-comp-seg + .dash-comp-seg { border-left: 1px solid rgba(255, 255, 255, 0.85); }
+.dash-comp-legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 11px; color: var(--muted-strong, #4b5563); margin-top: 3px; }
+.dash-comp-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.dash-comp-this { color: inherit; }
+.dash-comp-this b { font-weight: 700; }
 .dash-split-home-lbl { color: #4e87e8; }
 .dash-split-ext-lbl  { color: #d97706; }
 .dash-split-ev-lbl   { color: #4e87e8; }

@@ -95,5 +95,21 @@ check('its tooltip says how many km, and that it is the Effektivitet calculation
 check('not "høj": says it is uncertain', evc._evDriveLine({ drive_kr_per_km_30d: 0.5, drive_km_per_kwh_30d: 4, drive_km_30d: 80, drive_confidence: 'lav' }).text.endsWith('(usikkert)'));
 check('no price per km: no line', evc._evDriveLine({ drive_kr_per_km_30d: null }) === null && evc._evDriveLine({}) === null);
 
+console.log('\n_husComposition (the Hus card\'s bar)');
+const hc = vm.createContext({ Number, Math });
+vm.runInContext(fn('_fmt') + '\n' + fn('_sharePercents') + '\n' + fn('_husComposition') + '\n' +
+    src.match(/const _SHARE_PARTS = \[[\s\S]*?\];\nconst _SHARE_SUB_COLOR = '[^']+';/)[0].replace(/^const /gm, 'var '), hc);
+const comp = hc._husComposition({ month_kwh: 816.91, ev_home_kwh: 388.73, hp_kwh: 178.4 }, { month_kwh: 249.78 });
+check('the three shares of the meter: 48 / 22 / 30 %, adding up to 100', comp.legend.includes('EV hjemme <b>48&nbsp;%</b>') && comp.legend.includes('Jordvarme <b>22&nbsp;%</b>') && comp.legend.includes('Øvrigt <b>30&nbsp;%</b>'), comp.legend);
+check('the caption is the house meter\'s kWh so far', comp.caption === 'Husmåler hidtil: 817 kWh', comp.caption);
+check('segment widths add up to 100 %', Math.abs([...comp.track.matchAll(/width:([\d.]+)%/g)].reduce((s, m) => s + +m[1], 0) - 100) < 0.05, comp.track);
+check('the segments carry the card colours (blue, green, amber)', comp.track.includes('#6BA3FF') && comp.track.includes('#22c55e') && comp.track.includes('#f59e0b'));
+check('each segment has a tooltip with kWh and share', comp.track.includes('title="Øvrigt: 250 kWh (30 %)"'), comp.track);
+check('the card\'s own part (Øvrigt) is marked, the others are not', comp.legend.includes('dash-comp-key dash-comp-this"><i class="dash-comp-dot" style="background:#f59e0b">') && (comp.legend.match(/dash-comp-this/g) || []).length === 1);
+check('screen readers get the whole picture', comp.label === 'Husmåler hidtil: 817 kWh: EV hjemme 48 %, Jordvarme 22 %, Øvrigt 30 %', comp.label);
+check('no house meter (hus null) or no rest: no bar', hc._husComposition(null, { month_kwh: 1 }) === null && hc._husComposition({ month_kwh: 5, ev_home_kwh: 1, hp_kwh: 1 }, null) === null);
+check('nothing used: no bar, no division by zero', hc._husComposition({ month_kwh: 0, ev_home_kwh: 0, hp_kwh: 0 }, { month_kwh: 0 }) === null);
+check('missing numbers count as 0', hc._husComposition({ month_kwh: 10, ev_home_kwh: undefined, hp_kwh: null }, { month_kwh: 10 }).legend.includes('Øvrigt <b>100&nbsp;%</b>'));
+
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

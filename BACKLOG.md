@@ -14,7 +14,6 @@ Hvert punkt har en størrelse: **S** = under en time, **M** = en aften, **L** = 
 Lavet samme dag: vejrkorrektion i hele procent, elregning uden ladning ude, EV-prognose på den seneste ladepris, stakkede
 kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines.
 
-- **Hus-kortet: fordelingsbjælke af hele husmåleren (S).** Kortet viser kun "Øvrigt" (250 kWh), men husmåleren er 817 kWh. En bjælke EV hjemme / Jordvarme / Øvrigt giver kortet sammenhæng. (En tidligere version blev fjernet, fordi tallene gentog sig; denne gang som ren bjælke uden ekstra tal.) `includes/dashboard.js`
 - **Elbil-sparkline viser ladedage, ikke forbrug (M).** Dage uden ladning ser ud som "intet forbrug". Prøv ugesøjler, eller kr/kWh pr. ladning, som også ville have vist prisskiftet i november. `includes/dashboard.js`, `includes/DashboardEv.php`
 - **Sparklines uden akse eller værdier (S).** En tynd gennemsnitslinje og dagens værdi som tal gør dem aflæselige. `includes/dashboard.js`
 - **Samme sammenligningsgrundlag (S).** "Forventet: 275 kWh (forrige: 153)" bruger hele sidste måned, mens "forrige mdr ↑99 %" bruger de samme dage; ordene er næsten ens. Skriv grundlaget ("vs. 1.–20. okt.") eller brug samme begge steder. `includes/dashboard.js`
@@ -53,6 +52,7 @@ kWh/kr-bjælker i båndet, dagens halve søjle mærket i sparklines.
 
 ## Afsluttet
 
+- ✅ **2026-11-20 — Hus-kortet: fordelingsbjælke** — Tynd bjælke af hele husmåleren (EV hjemme / Jordvarme / Øvrigt) med andele og "Husmåler hidtil: 817 kWh"; kortets eget tal (Øvrigt) er fremhævet. `includes/dashboard.js`, `index.php`, `style.css`.
 - ✅ **2026-11-20 — Elbil-kortet: kr-andel og kr/km** — To tynde bjælker (kWh og kr) med hjemme/ude, linjen "Ude: 8 % af kWh · 16 % af kr" og "Kørsel, 30 dage: 0,44 kr/km · 3,9 km/kWh". Samme beregning som Effektivitet (`EfficiencyData` bruges af både ruten og dashboardet). `includes/EfficiencyData.php`, `DashboardEv.php`, `dashboard.js`, `index.php`, `style.css`.
 - ✅ **2026-11-20 — Oversigten: visualiseringsgennemgang, første runde** — Vejrkorrektionen vises i hele procent (og "uændret" ved nul i stedet for rød "↑ 0,0 %"); "Forventet elregning" tæller kun hjemmeladning med (ladning ude betales til ladeoperatøren); EV-prognosen prissætter resten af måneden til hjemmeprisen de seneste 8 dage; to stakkede bjælker i båndet (kWh hidtil / kr forventet, med andel af kWh ved siden af andel af kr); dagens halve søjle er lys i sparklines og udeladt af "Stigende/Stabilt/Faldende". `includes/dashboard.js`, `DashboardEv.php`, `DashboardSummary.php`, `style.css`, `dev/test_dashboard_ev.php`, `dev/test_dashboard_js.js`.
 - ✅ **2026-11-12 — Frontend: ét request-lag og én escape-funktion** — `includes/api.js` (`Api.get/post`) erstatter 45 håndskrevne `fetch()`-kald; `appUtils.escapeHtml` er den eneste escape-funktion. Samme periode: datalabels registreres én gang i `app.js`, Jordvarme tømmer `lastKwhData` ved tilstandsskift, synk-modalens systemlog sender CSRF-token igen.

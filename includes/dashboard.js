@@ -85,7 +85,7 @@ async function loadDashboard(isRefresh = false) {
             ['ev-dashboard-card',  () => renderEvCard(data.ev)],
             ['hp-dashboard-card',  () => renderHeatpumpCard(data.heatpump)],
             ['hus-dashboard-card', () => data.rest
-                ? renderHusCard(data.rest)
+                ? renderHusCard(data.rest, data.hus || null)
                 : _setCardNote('hus-dashboard-card', 'Hus-data ikke synkroniseret endnu')],
         ];
         for (const [id, render] of renderers) {
@@ -259,9 +259,36 @@ function renderHeatpumpCard(hp) {
     _enrichHpWithWeather(card, hp);
 }
 
+/**
+ * What the house meter was spent on so far: home EV charging, heat pump and the rest, in the colours of their cards.
+ * The Hus card itself shows only the rest (an amber third of the meter); this bar puts that number in its place.
+ * @param {object|null} hus  the payload's `hus` block (house meter total, ev_home_kwh, hp_kwh)
+ * @param {object|null} rest the payload's `rest` block
+ * @returns {{caption:string, label:string, track:string, legend:string}|null} null without a house meter or any kWh
+ */
+function _husComposition(hus, rest) {
+    if (!hus || !rest) return null;
+    const vals = [hus.ev_home_kwh, hus.hp_kwh, rest.month_kwh].map(v => (Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0));
+    const total = vals.reduce((s, v) => s + v, 0);
+    if (!(total > 0)) return null;
+    const pct = _sharePercents(vals);
+    const parts = _SHARE_PARTS.map((x, i) => ({ ...x, value: vals[i], pct: pct[i] }));
+    const caption = `Husmåler hidtil: ${_fmt(hus.month_kwh, 0)} kWh`;
+    return {
+        caption,
+        label: `${caption}: ${parts.map(x => `${x.label} ${x.pct} %`).join(', ')}`,
+        track: parts.map(x =>
+            `<span class="dash-comp-seg" style="width:${(x.value / total * 100).toFixed(2)}%;background:${x.color}" ` +
+            `title="${x.label}: ${_fmt(x.value, 0)} kWh (${x.pct} %)"></span>`).join(''),
+        legend: parts.map(x =>
+            `<span class="dash-comp-key${x.key === 'rest' ? ' dash-comp-this' : ''}"><i class="dash-comp-dot" style="background:${x.color}"></i>` +
+            `${x.label} <b>${x.pct}&nbsp;%</b></span>`).join(''),
+    };
+}
+
 // The Hus card shows ONLY "Rest": the house meter minus the heat pump and EV home
 // charging (computed by the server). EV and heat pump have their own cards.
-function renderHusCard(rest) {
+function renderHusCard(rest, hus = null) {
     const card = document.getElementById('hus-dashboard-card');
     if (!card) return;
 
@@ -275,6 +302,19 @@ function renderHusCard(rest) {
         ? `Forventet: ${_fmt(rest.projected_kwh)} kWh` + (prevFull ? ` (forrige: ${_fmt(prevFull)})` : '')
         : '');
     _setProjectionBasis(card, rest.projection_basis);
+
+    const comp = _husComposition(hus, rest);
+    const compEl = card.querySelector('.dash-comp');
+    if (compEl) {
+        compEl.style.display = comp ? '' : 'none';
+        if (comp) {
+            compEl.querySelector('.dash-comp-cap').textContent = comp.caption;
+            const track = compEl.querySelector('.dash-comp-track');
+            track.innerHTML = comp.track;
+            track.setAttribute('aria-label', comp.label);
+            compEl.querySelector('.dash-comp-legend').innerHTML = comp.legend;
+        }
+    }
 
     const showTrends = now.getDate() >= 5;
     const trendEl = card.querySelector('.dash-trend');
