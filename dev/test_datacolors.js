@@ -83,5 +83,17 @@ for (const f of ['includes/annual.js', 'includes/hus.js', 'includes/regning.js']
 }
 check('annual.js, hus.js and regning.js carry none of the old blue, green and amber', stray.length === 0, stray.join('; '));
 
+console.log('\nthe six year colours (year comparisons on Hus, Jordvarme and Elbil)');
+const YEARS = ['#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'];
+const list = YEARS.map(c => `'${c}'`).join(', ');
+for (const [f, name] of [['includes/hus.js', 'YEAR_COLORS'], ['includes/jordvarme.js', 'YEAR_COLORS'], ['includes/elbil/yearly.js', 'EV_YEAR_COLORS']]) {
+    has(f, new RegExp(`${name} = \\[${list.replace(/[#]/g, '#')}\\]`, 'i'), `${f} uses the same six year colours`);
+}
+check('each year colour is at least 3:1 on white (a line or a bar)', YEARS.every(c => ratio(c, '#ffffff') >= 3), YEARS.map(c => ratio(c, '#ffffff').toFixed(2)).join(' '));
+let yearWorst = 99;
+for (let i = 0; i < YEARS.length; i++) for (let j = i + 1; j < YEARS.length; j++) yearWorst = Math.min(yearWorst, ...Object.keys(M).map(k => dE(YEARS[i], YEARS[j], k)));
+check(`any two of the six differ by delta E 30 or more for every kind of colour vision (the old palette: blue/violet 7; worst now ${yearWorst.toFixed(0)})`, yearWorst >= 30);
+check('the old year palette (blue, green, orange, violet, red, pink) is gone', !['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#ec4899'].some(c => ['includes/hus.js', 'includes/jordvarme.js', 'includes/elbil/yearly.js'].some(f => read(f).toLowerCase().includes(c))));
+
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

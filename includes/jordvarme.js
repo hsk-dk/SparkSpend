@@ -12,7 +12,7 @@ const jordvarmeApp = (() => {
         if (initialized) return;
         initialized = true;
 
-        const YEAR_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#ec4899'];
+        const YEAR_COLORS = ['#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'];
         const MONTH_NAMES  = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
         // State

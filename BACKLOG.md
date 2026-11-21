@@ -23,11 +23,11 @@ SparkSpend har **ikke** taget det i brug (repoets README: "SparkSpend og clean.u
 
 **Forslag opstrøms til `useful-design` (ikke sendt; det er et udgående indlæg, så det afgør ejeren):** (1) datapaletten med lysstyrke-trin og seks kategorifarver, (2) pointer-bevidst knapstørrelse (D21), (3) en opskrift på tekstalternativer til diagrammer og "spring til indhold" (SparkSpends `includes/a11y.js`), (4) at domænefarver må være ens i hele en app, så længe de består kontrasten.
 
-**Valgt 2026-11-21: datapaletten med lysstyrke-trin, og den er lavet** (`--data-ev` `#224B81`, `--data-hp` `#0EA495`, `--data-rest` `#9E5F00`; se Afsluttet). Det, der mangler af D12: de seks farver til år-sammenligningerne (`YEAR_COLORS` i `hus.js`, `jordvarme.js`, `elbil/yearly.js`: blå, grøn, orange, violet, rød, pink; de er stadig de gamle).
+**Valgt 2026-11-21: datapaletten med lysstyrke-trin, og den er lavet** (`--data-ev` `#224B81`, `--data-hp` `#0EA495`, `--data-rest` `#9E5F00`; se Afsluttet). De seks farver til år-sammenligningerne er lavet 2026-11-21 (se Afsluttet).
 
-**Trin 1-4 er lavet 2026-11-21** (se Afsluttet); næste er trin 5 (årsfarverne) og 6 (knapstørrelser).
+**Trin 1-5 er lavet 2026-11-21** (se Afsluttet); næste er trin 6 (pointer-bevidste knapper, hører sammen med mobil-punktet) og 7 (halvt mørkt tema).
 
-**Rækkefølge (hvert trin måles):** (1) kopiér `dist/useful.css` ind, fastlåst på v0.3.0, og indlæs den før `style.css` uden at ændre klasser; (2) peg mine farvevariabler på tokens og lad `dev/test_contrast.js` læse tokens; (3) skift `--fs-*` til skalaens navne (28 → 24) og `tabular-nums` på tal; (4) header, primær knap, kortradier og uigennemsigtige kort (D1, D2, D6); (5) ~~datafarver~~ (lavet for de tre domæner; mangler årsfarverne); (6) pointer-bevidste knapper og evt. bundtabbar på telefon (hører sammen med mobil-punktet nedenfor); (7) fjern det halve mørke tema (D18); (8) senere: ikoner som SVG og skrift.
+**Rækkefølge (hvert trin måles):** (1) kopiér `dist/useful.css` ind, fastlåst på v0.3.0, og indlæs den før `style.css` uden at ændre klasser; (2) peg mine farvevariabler på tokens og lad `dev/test_contrast.js` læse tokens; (3) skift `--fs-*` til skalaens navne (28 → 24) og `tabular-nums` på tal; (4) header, primær knap, kortradier og uigennemsigtige kort (D1, D2, D6); (5) ~~datafarver~~ (lavet, også årsfarverne); (6) pointer-bevidste knapper og evt. bundtabbar på telefon (hører sammen med mobil-punktet nedenfor); (7) fjern det halve mørke tema (D18); (8) senere: ikoner som SVG og skrift.
 
 ### Design, UX og datavisualisering (ekspertpanelets gennemgang 2026-11-20)
 
@@ -63,6 +63,7 @@ Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen p�
 
 ## Afsluttet
 
+- ✅ **2026-11-21 — Seks årsfarver** — `#303091`, `#F95706`, `#63212C`, `#27A1B9`, `#CB7462`, `#9406F9` i `hus.js`, `jordvarme.js` og `elbil/yearly.js` (fundet ved søgning: mindst 3:1 mod hvid, ΔE mindst 35 for alle fire synstyper; før: par ned til ΔE 7). Seed-data har kun ét år, så det er ikke set på et diagram med flere år; brug produktionskopien næste gang. `dev/test_datacolors.js` (29).
 - ✅ **2026-11-21 — Useful-designsystemet, trin 4 (D1, D2, D6)** — header i systemets blå gradient, flad primærknap `#446EA8` (før 2,5:1), uigennemsigtige kort med systemets radius og skygge, inaktive header-faner 94 % hvide (før 70 %, 3,5:1). `includes/style.css`, `dev/test_useful_css.js` (19).
 - ✅ **2026-11-21 — Useful-designsystemet, trin 1-3** — `includes/useful.css` fastlåst på v0.3.0 (hash i testen), indlæst før `style.css`; mine stærke tekstfarver er aliasser af tokens; skriftskalaen er systemets `--text-*` (største trin 24 px, ikke 28); `tabular-nums` på tabeller og kortenes tal; `.text-success`/`.text-danger` på godt/dårligt-tokens (Bootstrap-grønt var 4,3:1). Målt på alle sider: ingen tekst under 4,5:1. `dev/test_useful_css.js` (13).
 - ✅ **2026-11-21 — Datafarver med lysstyrke-trin** — `--data-ev` `#224B81`, `--data-hp` `#0EA495`, `--data-rest` `#9E5F00` på ikoner, sparklines, bjælker, de stablede diagrammer (Hus, Årsrapport), omkostningskort, Jordvarme-søjler og EV-heatmap; Hus-kortets ikon er nu rav ("Øvrigt") i stedet for blå som elbil. Mindst 3:1 mod hvid (før: grøn 2,28, gul 2,15), ΔE mindst 34 for alle synstyper (Useful's palette: 7–9), uigennemsigtige udfyldninger. `dev/test_datacolors.js` (23). `includes/style.css`, `annual.js`, `hus.js`, `regning.js`, `dashboard.js`, `jordvarme.js`, `elbil/tou.js`.
