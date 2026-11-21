@@ -54,5 +54,15 @@ check('--link-strong stays SparkSpend\'s own (links straight on its darker page 
 console.log('\nfigures');
 check('tables and the cards\' figures have equal-width digits (D10, Useful\'s .u-num)', /table,[^{}]*\.dash-stat-value[^{}]*\{\s*font-variant-numeric:\s*tabular-nums;/.test(style));
 
+console.log('\nheader, primary button and cards (D1, D2, D6)');
+const esc = s => s.replace(/[.\[\]]/g, '\\$&');
+const rule = sel => { const m = style.match(new RegExp('(?:^|\\n)' + esc(sel) + '\\s*\\{([^}]*)\\}')); return m ? m[1] : ''; };
+check('the header is the system\'s blue gradient (D1), not the marine --brand-dark', /background:\s*var\(--header-gradient\)/.test(rule('header')) && tokens.has('--header-gradient'));
+check('the primary button is flat #446EA8 with white text, hover darker (D2; the old #6BA3FF was 2.5:1)', /background:\s*var\(--color-action-strong\)/.test(rule('.btn-primary')) && /background:\s*var\(--color-action-hover\)/.test(rule('.btn-primary:hover')));
+check('the other filled blue controls with white text (active page, sub-tab, ticked box) use it too', ['.pagination span.active', '.sub-nav-btn.active', '.form-check-input:checked'].every(s => /background:\s*var\(--color-action-strong\)/.test(rule(s))));
+check('cards are opaque (D6): no translucent white background and no backdrop blur on them', ['.dashboard-card', '.card', '#summaryBox', '#costStatsBox', '.chart-container', '.filter-drawer', '.pagination-section', '.anomaly-panel', '.total-cost-card'].every(s => !/background:\s*rgba\(255,\s*255,\s*255/.test(rule(s))) && !/backdrop-filter:\s*saturate/.test(style));
+check('the dashboard cards use the system\'s radius and card shadow', /var\(--radius-large\)/.test(rule('.dashboard-card')) && /var\(--shadow-card\)/.test(rule('.dashboard-card')));
+check('the inactive header tabs are white at 94 % or more (70 % was 3.5:1 on the gradient)', /color:\s*rgba\(255, 255, 255, 0\.9[4-9]\)/.test(rule('.header-tab-button')));
+
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);
