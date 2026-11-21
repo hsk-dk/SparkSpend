@@ -6,6 +6,14 @@
   --fs-md: 16px;   /* titles of cards, inputs, small headings */
   --fs-lg: 20px;   /* figures on the cards, h2 on small screens */
   --fs-xl: 28px;   /* the page heading and the biggest numbers */
+  /* The three things the house meter is split into, the same colour on every card and chart (dev/test_datacolors.js).
+     Same hues as the Useful palette, but stepped in LIGHTNESS: Useful's four data colours all have the same lightness
+     (5.2:1 on white), so neighbours differ by hue only (delta E 7-9 for colour-blind eyes). These differ by at least 34 for all
+     four kinds of colour vision, every one is at least 3:1 on white (WCAG 1.4.11, graphics) and neighbours are 1.65-2.8:1 apart.
+     The teal is 3.1:1, so it is for fills and icons, not for text. Fills are opaque: a translucent fill would fall below 3:1. */
+  --data-ev:   #224b81;   /* elbil */
+  --data-hp:   #0ea495;   /* jordvarme */
+  --data-rest: #9e5f00;   /* øvrigt: the house meter minus the heat pump and the EV at home */
   color-scheme: light;   /* the UI is light-only (white cards); see CHANGELOG */
   --brand-bg: #C9CFD8;
   --brand-ink: #243140;
@@ -1198,9 +1206,9 @@ header {
   flex-shrink: 0;
 }
 
-#hp-dashboard-card .dash-icon {
-  background: #22c55e;
-}
+#ev-dashboard-card .dash-icon  { background: var(--data-ev); }
+#hp-dashboard-card .dash-icon  { background: var(--data-hp); }
+#hus-dashboard-card .dash-icon { background: var(--data-rest); }
 
 .dash-title {
   font-size: var(--fs-md);
@@ -1294,32 +1302,32 @@ header {
 }
 .dash-split-home-fill {
   height: 100%;
-  background: #6BA3FF;
+  background: var(--data-ev);
   transition: width 0.4s ease;
   flex-shrink: 0;
 }
 .dash-split-ext-fill {
   height: 100%;
-  background: #f59e0b;
+  background: var(--data-rest);   /* charging away: amber, as before */
   transition: width 0.4s ease;
   flex-shrink: 0;
 }
 /* Hus composition segments */
 .dash-split-ev-fill {
   height: 100%;
-  background: #6BA3FF;
+  background: var(--data-ev);
   transition: width 0.4s ease;
   flex-shrink: 0;
 }
 .dash-split-hp-fill {
   height: 100%;
-  background: #22c55e;
+  background: var(--data-hp);
   transition: width 0.4s ease;
   flex-shrink: 0;
 }
 .dash-split-rest-fill {
   height: 100%;
-  background: #f59e0b;
+  background: var(--data-rest);
   transition: width 0.4s ease;
   flex-shrink: 0;
 }
@@ -2289,7 +2297,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 
 .trend-down { color: var(--ok-strong); }
 .trend-up   { color: var(--bad-strong); }
-.dash-split-home-lbl { color: var(--accent-strong); }
+.dash-split-home-lbl { color: var(--data-ev); }   /* the EV colour as text: 8.8:1 */
 .dash-split-ext-lbl  { color: var(--warn-strong); }
 th.sort-active { color: var(--accent-strong); }
 

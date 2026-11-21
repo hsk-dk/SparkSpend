@@ -97,7 +97,7 @@
             if (S.allCharges.length > 0) {
                 new ApexCharts(
                     document.getElementById('touChargeChart'),
-                    heatmapOpts(chargeSeries, 'Antal ladninger pr. time/ugedag', '#6BA3FF',
+                    heatmapOpts(chargeSeries, 'Antal ladninger pr. time/ugedag', '#224b81',   // the EV colour
                         v => v + ' ladning' + (v === 1 ? '' : 'er'))
                 ).render();
             }

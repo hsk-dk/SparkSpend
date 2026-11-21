@@ -205,9 +205,10 @@ const fordelingApp = (() => {
     let _donutChart = null;
 
     // Colours consistent with the rest of the app
-    const C_EV   = 'rgba(59, 130, 246, 0.85)';   // blue
-    const C_HP   = 'rgba(34, 197, 94,  0.85)';   // green
-    const C_REST = 'rgba(245, 158, 11, 0.85)';   // amber
+    // the --data-* tokens of style.css, opaque (dev/test_datacolors.js)
+    const C_EV   = '#224b81';   // navy
+    const C_HP   = '#0ea495';   // teal
+    const C_REST = '#9e5f00';   // amber
 
     function init() {
         if (initialized) return;
@@ -309,10 +310,10 @@ const fordelingApp = (() => {
             : new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(v) + ' kWh';
 
         const cards = [
-            { label: 'El-bil', val: totEv,   colour: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
-            { label: 'Varmepumpe', val: totHp, colour: '#22c55e', bg: 'rgba(34,197,94,0.08)' },
+            { label: 'El-bil', val: totEv,   colour: '#224b81', bg: 'rgba(34,75,129,0.08)' },
+            { label: 'Varmepumpe', val: totHp, colour: '#0ea495', bg: 'rgba(14,164,149,0.08)' },
         ];
-        if (hasHus) cards.push({ label: 'Restforbrug', val: totRest, colour: '#f59e0b', bg: 'rgba(245,158,11,0.08)' });
+        if (hasHus) cards.push({ label: 'Restforbrug', val: totRest, colour: '#9e5f00', bg: 'rgba(158,95,0,0.08)' });
 
         el.innerHTML = cards.map(c => `
             <div class="col">

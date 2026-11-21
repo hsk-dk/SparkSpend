@@ -112,7 +112,7 @@ const annualApp = (() => {
     // ── Chart ─────────────────────────────────────────────────────────────────
     // Stacked: what the house meter went to, year by year (heat pump, EV at home, the rest), so the bar is the house.
     // Beside each other, "Hus total" looked like a fourth thing and a year with an EV looked like a year of doubled use.
-    const _COLOURS = { vp: 'rgba(34, 197, 94, 0.8)', ev: 'rgba(59, 130, 246, 0.8)', rest: 'rgba(245, 158, 11, 0.8)' };
+    const _COLOURS = { vp: '#0ea495', ev: '#224b81', rest: '#9e5f00' };   // the --data-* tokens, opaque (dev/test_datacolors.js)
 
     function _renderChart(data) {
         const canvas = document.getElementById('annualChart');

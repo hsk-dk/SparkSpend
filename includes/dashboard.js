@@ -260,7 +260,7 @@ function renderEvCard(ev) {
     const evSparkStart = new Date(); evSparkStart.setDate(evSparkStart.getDate() - 29); evSparkStart.setHours(0,0,0,0);
     // Charging comes in lumps, so the card draws the 7-day mean (kWh per day) rather than the single days
     const evSeries = Array.isArray(ev.sparkline_7d) && ev.sparkline_7d.length ? ev.sparkline_7d : null;
-    _evSparkChart = _renderSparkline('ev-sparkline', evSeries || ev.sparkline, '#6BA3FF', _evSparkChart, evSparkStart,
+    _evSparkChart = _renderSparkline('ev-sparkline', evSeries || ev.sparkline, '#224b81', _evSparkChart, evSparkStart,
         evSeries ? { kind: 'line', unit: 'kWh/dag (7-dages snit)', seriesLabel: '7-dages gennemsnit, kWh pr. dag' } : {});
     _renderSparklineTrend('ev-dashboard-card', evSeries || ev.sparkline,
         evSeries ? _evSparkCaption(evSeries) : _sparkCaption(ev.sparkline, 'kWh/dag'), evSeries ? _evSparkTitle(evSeries) : '');
@@ -290,7 +290,7 @@ function renderHeatpumpCard(hp) {
     }
 
     const hpSparkStart = new Date(); hpSparkStart.setDate(hpSparkStart.getDate() - 29); hpSparkStart.setHours(0,0,0,0);
-    _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#22c55e', _hpSparkChart, hpSparkStart);
+    _hpSparkChart = _renderSparkline('hp-sparkline', hp.sparkline, '#0ea495', _hpSparkChart, hpSparkStart);
     _renderSparklineTrend('hp-dashboard-card', hp.sparkline, _sparkCaption(hp.sparkline, 'kWh/dag'));
     _renderSeasonBadge(card, hp.pct_change_year);
 
@@ -372,7 +372,7 @@ function renderHusCard(rest, hus = null) {
     }
 
     const husSparkStart = new Date(); husSparkStart.setDate(husSparkStart.getDate() - 29); husSparkStart.setHours(0,0,0,0);
-    _husSparkChart = _renderSparkline('hus-sparkline', rest.sparkline, '#f59e0b', _husSparkChart, husSparkStart);
+    _husSparkChart = _renderSparkline('hus-sparkline', rest.sparkline, '#9e5f00', _husSparkChart, husSparkStart);
     _renderSparklineTrend('hus-dashboard-card', rest.sparkline, _sparkCaption(rest.sparkline, 'kWh/dag'));
     _renderSeasonBadge(card, rest.pct_change_year);
 }
@@ -483,9 +483,9 @@ async function _enrichHpWithWeather(card, hp) {
     }
 }
 
-/** Bar fills of a sparkline: full colour for the finished days, a pale one for the last bar, today, which is only part over. */
+/** Bar fills of a sparkline: the full (opaque) colour for the finished days, a pale one for the last bar, today, which is only part over. */
 function _sparkBarColors(count, color) {
-    return Array.from({ length: count }, (_, i) => color + (i === count - 1 ? '33' : 'aa'));
+    return Array.from({ length: count }, (_, i) => (i === count - 1 ? color + '40' : color));
 }
 
 /** Mean of the finished days (all but the last point, today) and today's value so far; avg null without a finished day. */
@@ -713,9 +713,9 @@ function _showForecastProblem(card, text) {
 // The three consumers of the house meter, in the colours of their cards. "Øvrigt" is the Hus card's name for what
 // is left of the house meter after the heat pump and home EV charging.
 const _SHARE_PARTS = [
-    { key: 'ev',   label: 'EV hjemme', color: '#6BA3FF' },
-    { key: 'hp',   label: 'Jordvarme', color: '#22c55e' },
-    { key: 'rest', label: 'Øvrigt',    color: '#f59e0b' },
+    { key: 'ev',   label: 'EV hjemme', color: '#224b81' },
+    { key: 'hp',   label: 'Jordvarme', color: '#0ea495' },
+    { key: 'rest', label: 'Øvrigt',    color: '#9e5f00' },
 ];
 const _SHARE_SUB_COLOR = '#94a3b8';
 

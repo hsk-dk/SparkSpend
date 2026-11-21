@@ -438,8 +438,8 @@ const jordvarmeApp = (() => {
             const datasets = [{
                 label: "Forbrug (kWh)",
                 data: values,
-                backgroundColor: "rgba(34, 197, 94, 0.65)",
-                borderColor: "rgba(34, 197, 94, 1)",
+                backgroundColor: "#0ea495",   // --data-hp, opaque
+                borderColor: "#0ea495",
                 borderWidth: 1,
                 borderRadius: 4,
                 yAxisID: 'y',

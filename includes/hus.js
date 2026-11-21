@@ -23,10 +23,10 @@ const husApp = (() => {
         const YEAR_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#ec4899'];
         const MONTH_NAMES  = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
-        // Dataset colours — match dashboard card sparkline colors for consistency
-        const COLOR_HP   = '#22c55e'; // green  — Jordvarme (matches Jordvarme dashboard card)
-        const COLOR_EV   = '#6BA3FF'; // blue   — El-bil    (matches Elbil dashboard card)
-        const COLOR_REST = '#f59e0b'; // amber  — Restforbrug (matches Hus dashboard card)
+        // Dataset colours: the --data-* tokens of style.css, the same as the dashboard cards (dev/test_datacolors.js)
+        const COLOR_HP   = '#0ea495'; // teal   — Jordvarme
+        const COLOR_EV   = '#224b81'; // navy   — El-bil
+        const COLOR_REST = '#9e5f00'; // amber  — Restforbrug / Øvrigt
 
         // State
         let currentMode  = 'daily';
