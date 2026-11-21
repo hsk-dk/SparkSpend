@@ -1,11 +1,7 @@
 /* CSS Variables for Theming */
 :root {
-  /* Type scale: five steps for all text. Nothing is smaller than --fs-xs (12 px): the 10-11 px labels were the information read fastest. */
-  --fs-xs: 12px;   /* labels, captions, badges, fine print */
-  --fs-sm: 14px;   /* body text, tables, buttons */
-  --fs-md: 16px;   /* titles of cards, inputs, small headings */
-  --fs-lg: 20px;   /* figures on the cards, h2 on small screens */
-  --fs-xl: 28px;   /* the page heading and the biggest numbers */
+  /* Type scale: the Useful design system's (includes/useful.css: --text-xs 12, -sm 14, -md 16, -lg 20, -xl 24, -2xl 32, -3xl 40 px in rem).
+     Every font-size below is one of those tokens, and nothing is smaller than --text-xs: dev/test_typescale.js. */
   /* The three things the house meter is split into, the same colour on every card and chart (dev/test_datacolors.js).
      Same hues as the Useful palette, but stepped in LIGHTNESS: Useful's four data colours all have the same lightness
      (5.2:1 on white), so neighbours differ by hue only (delta E 7-9 for colour-blind eyes). These differ by at least 34 for all
@@ -26,11 +22,6 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
   --color-increase: #ef4444;
   --color-decrease: #22c55e;
-  --text-sm: 12px;
-  --text-base: 14px;
-  --text-lg: 16px;
-  --text-xl: 20px;
-  --text-2xl: 24px;
 
   /* Background photo, served from this app (it used to be hot-linked from the
      Authentik server, which can fail on iOS and ties the app to that host) */
@@ -89,7 +80,7 @@ body {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
 }
 
 /* Background photo. It lives on a fixed full-screen layer instead of
@@ -140,7 +131,7 @@ header {
 
 header h1 {
   margin-left: 15px;
-  font-size: var(--fs-xl);
+  font-size: var(--text-xl);
   font-weight: 800;
   letter-spacing: -0.5px;
 }
@@ -169,7 +160,7 @@ header button:hover {
 
 .header-left h1 {
   margin: 0;
-  font-size: var(--fs-lg);
+  font-size: var(--text-lg);
   font-weight: 800;
   letter-spacing: -0.5px;
   color: var(--white);
@@ -193,7 +184,7 @@ header button:hover {
   border-radius: 0;
   cursor: pointer;
   font-weight: 500;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   transition: all 0.3s ease;
   white-space: nowrap;
   display: flex;
@@ -280,7 +271,7 @@ section {
 /* Main Content Areas (legacy containers — removed) */
 
 h2 {
-  font-size: var(--fs-xl);
+  font-size: var(--text-xl);
   font-weight: 800;
   letter-spacing: -0.5px;
   color: var(--brand-ink);
@@ -289,7 +280,7 @@ h2 {
 }
 
 h3 {
-  font-size: var(--fs-md);
+  font-size: var(--text-md);
   font-weight: 700;
   letter-spacing: -0.2px;
   color: var(--brand-ink);
@@ -340,7 +331,7 @@ label {
   margin-top: 15px;
   margin-bottom: 8px;
   font-weight: 600;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   color: var(--brand-ink);
   letter-spacing: 0.3px;
 }
@@ -358,7 +349,7 @@ textarea {
   background: #ffffff;
   color: #1f2937;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   transition: all 0.2s ease;
   margin-bottom: 12px;
 }
@@ -394,7 +385,7 @@ button {
   border: none;
   border-radius: 10px;
   font-weight: 600;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   cursor: pointer;
   transition: all 0.3s ease;
   letter-spacing: 0.3px;
@@ -534,7 +525,7 @@ tr:last-child td {
   max-width: 200px;
   margin: 0;
   padding: 8px 12px;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
 }
 
 /* Filter Controls - Global filters for all tabs */
@@ -557,7 +548,7 @@ tr:last-child td {
   align-items: center;
   gap: 6px;
   font-weight: 400;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   margin: 0;
   white-space: nowrap;
 }
@@ -569,7 +560,7 @@ tr:last-child td {
   padding: 5px 9px;
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   background: rgba(255, 255, 255, 0.95);
   color: var(--brand-ink);
 }
@@ -597,7 +588,7 @@ tr:last-child td {
   }
 
   .filter-controls label {
-    font-size: var(--fs-xs);
+    font-size: var(--text-xs);
   }
 
   .filter-controls select,
@@ -616,7 +607,7 @@ tr:last-child td {
   padding: 15px;
   background: rgba(255, 255, 255, 0.5);
   border-radius: 10px;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
 }
 
 .pagination {
@@ -638,7 +629,7 @@ tr:last-child td {
   border-radius: 6px;
   color: var(--brand-accent);
   text-decoration: none;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   transition: all 0.3s ease;
   cursor: pointer;
 }
@@ -810,11 +801,11 @@ tr:last-child td {
   }
 
   h2 {
-    font-size: var(--fs-lg);
+    font-size: var(--text-lg);
   }
 
   table {
-    font-size: var(--fs-sm);
+    font-size: var(--text-sm);
   }
 
   th, td {
@@ -826,7 +817,7 @@ tr:last-child td {
   input[type="email"],
   input[type="password"],
   select {
-    font-size: var(--fs-md); /* Prevents zoom on iOS */
+    font-size: var(--text-md); /* Prevents zoom on iOS */
   }
 
   #summaryBox {
@@ -849,7 +840,7 @@ tr:last-child td {
   }
 
   h2 {
-    font-size: var(--fs-md);
+    font-size: var(--text-md);
   }
 
   button {
@@ -971,7 +962,7 @@ tr:last-child td {
 
 .filter-drawer-header h3 {
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--brand-ink);
 }
@@ -979,7 +970,7 @@ tr:last-child td {
 .btn-close-drawer {
   background: none;
   border: none;
-  font-size: var(--fs-lg);
+  font-size: var(--text-lg);
   color: var(--brand-ink);
   cursor: pointer;
   padding: 0;
@@ -1013,7 +1004,7 @@ tr:last-child td {
 
 .filter-group label {
   font-weight: 500;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   color: var(--brand-ink);
   margin: 0;
   display: flex;
@@ -1027,7 +1018,7 @@ tr:last-child td {
   padding: 8px 10px;
   border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 6px;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   background: rgba(255, 255, 255, 0.9);
   color: var(--brand-ink);
 }
@@ -1094,7 +1085,7 @@ header {
 
   .header-tab-button {
     padding: 8px 10px;
-    font-size: var(--fs-xs);
+    font-size: var(--text-xs);
   }
 
   /* Chart min-height on tablet/mobile */
@@ -1123,7 +1114,7 @@ header {
   padding: 40px 30px;
   text-align: center;
   color: #425061;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   position: relative;
   z-index: 10;
   margin-top: auto;
@@ -1202,7 +1193,7 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--fs-lg);
+  font-size: var(--text-lg);
   flex-shrink: 0;
 }
 
@@ -1211,13 +1202,13 @@ header {
 #hus-dashboard-card .dash-icon { background: var(--data-rest); }
 
 .dash-title {
-  font-size: var(--fs-md);
+  font-size: var(--text-md);
   font-weight: 700;
   color: var(--brand-ink);
 }
 
 .dash-period {
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   color: var(--muted-strong, #4b5563);
   margin-top: 2px;
 }
@@ -1241,21 +1232,21 @@ header {
 }
 
 .dash-stat-value {
-  font-size: var(--fs-lg);
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--brand-ink);
   line-height: 1.2;
 }
 
 .dash-stat-label {
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   color: var(--muted-strong, #4b5563);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .dash-trend {
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
@@ -1276,7 +1267,7 @@ header {
 .dash-meta {
   display: flex;
   justify-content: space-between;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   color: var(--muted-strong, #4b5563);
   margin-bottom: 4px;
 }
@@ -1288,11 +1279,11 @@ header {
 .dash-split-row { display: flex; align-items: center; gap: 6px; }
 .dash-split-row + .dash-split-row { margin-top: 3px; }
 .dash-split-row .dash-split-track { flex: 1; }
-.dash-split-cap { flex: 0 0 22px; font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); }
+.dash-split-cap { flex: 0 0 22px; font-size: var(--text-xs); color: var(--muted-strong, #4b5563); }
 .dash-split-labels { margin-top: 3px; }
-.dash-split-share { font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); margin-top: 2px; }
+.dash-split-share { font-size: var(--text-xs); color: var(--muted-strong, #4b5563); margin-top: 2px; }
 .dash-split-share:empty { display: none; }
-.dash-drive { font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); margin: 4px 0; }
+.dash-drive { font-size: var(--text-xs); color: var(--muted-strong, #4b5563); margin: 4px 0; }
 .dash-split-track {
   height: 6px;
   border-radius: 3px;
@@ -1334,15 +1325,15 @@ header {
 .dash-split-labels {
   display: flex;
   justify-content: space-between;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   margin-top: 3px;
 }
 /* Hus card: what the house meter was spent on */
 .dash-comp { margin: 4px 0 6px; }
-.dash-comp-cap { font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); margin-bottom: 3px; }
+.dash-comp-cap { font-size: var(--text-xs); color: var(--muted-strong, #4b5563); margin-bottom: 3px; }
 .dash-comp-seg { height: 100%; flex-shrink: 0; transition: width 0.4s ease; }
 .dash-comp-seg + .dash-comp-seg { border-left: 1px solid rgba(255, 255, 255, 0.85); }
-.dash-comp-legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); margin-top: 3px; }
+.dash-comp-legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: var(--text-xs); color: var(--muted-strong, #4b5563); margin-top: 3px; }
 .dash-comp-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .dash-comp-this { color: inherit; }
 .dash-comp-this b { font-weight: 700; }
@@ -1405,7 +1396,7 @@ header {
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 8px;
   padding: 8px 18px;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--brand-ink);
   cursor: pointer;
@@ -1448,7 +1439,7 @@ header {
   padding: 5px 12px;
   border-radius: 6px;
   color: var(--muted-strong, #4b5563);
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
@@ -1496,7 +1487,7 @@ header {
   background: #fff;
   background: color-mix(in srgb, var(--chip-color, #6b7280) 16%, #fff);
   color: #1f2937;   /* dark text: the series colour sits on the border and the dot, not behind the letters */
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
@@ -1555,7 +1546,7 @@ header {
   grid-template-columns: auto 1fr;
   gap: 4px 12px;
   margin: 0;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
 }
 .stat-list dt { font-weight: 500; display: flex; align-items: center; }
 .stat-list dd { margin: 0; text-align: right; }
@@ -1588,7 +1579,7 @@ header {
 }
 
 .dash-sync {
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   color: #9ca3af;
   text-align: right;
   margin-top: 4px;
@@ -1607,7 +1598,7 @@ header {
   background: rgba(245, 158, 11, 0.08);
   border-bottom: 1px solid rgba(245, 158, 11, 0.2);
   font-weight: 600;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   color: #92400e;
 }
 
@@ -1638,7 +1629,7 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   flex-shrink: 0;
 }
 .anomaly-item-icon.critical { background: #fee2e2; color: #dc2626; }
@@ -1651,11 +1642,11 @@ header {
 }
 .anomaly-item-title {
   font-weight: 600;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   color: #1f2937;
 }
 .anomaly-item-msg {
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   color: var(--muted-strong, #4b5563);
   margin-top: 2px;
 }
@@ -1663,7 +1654,7 @@ header {
 .anomaly-cause {
   display: inline-block;
   margin-top: 4px;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   padding: 1px 7px;
   border-radius: 10px;
   font-weight: 500;
@@ -1679,7 +1670,7 @@ header {
 
 .anomaly-item-action {
   flex-shrink: 0;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   padding: 4px 10px;
   border-radius: 6px;
   background: transparent;
@@ -1696,7 +1687,7 @@ header {
 
 .dashboard-card::after {
   content: 'Se detaljer \2192';
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   color: var(--brand-accent);
   opacity: 0;
   transition: opacity 0.18s ease;
@@ -1732,7 +1723,7 @@ header {
   }
 
   .dash-stat-value {
-    font-size: var(--fs-md);
+    font-size: var(--text-md);
   }
 
   .dash-sparkline canvas {
@@ -1758,7 +1749,7 @@ header {
 
   .sub-nav-btn {
     padding: 6px 10px;
-    font-size: var(--fs-xs);
+    font-size: var(--text-xs);
   }
 }
 
@@ -1772,7 +1763,7 @@ header {
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 6px;
   color: #475569;   /* was #64748b: 3.9:1 */
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -1782,13 +1773,18 @@ header {
   color: #334155;
 }
 
-.text-xs { font-size: var(--fs-xs); }   /* small notes inside the tables the scripts write */
-.small, small { font-size: var(--fs-xs); }   /* Bootstrap's .small is 87.5 % of the parent (12.25 px here): on the scale instead */
+.text-xs { font-size: var(--text-xs); }
+/* D10: figures have equal-width digits (Useful's .u-num), so columns and numbers that change line up */
+table, .dash-stat-value, .total-cost-amount, .total-cost-breakdown, .trend-line, .dash-projected, .dash-split-share, .dash-drive,
+.dash-spark-caption, .dash-comp-legend, .dash-comp-cap, .tc-label, .tc-legend, #heatpumpStatsContent, .baseload-now {
+  font-variant-numeric: tabular-nums;
+}   /* small notes inside the tables the scripts write */
+.small, small { font-size: var(--text-xs); }   /* Bootstrap's .small is 87.5 % of the parent (12.25 px here): on the scale instead */
 /* Bootstrap's other size helpers, on the scale too: .fs-4 was 24 px, a badge 10.5 px (0.75em) */
-.fs-4, .fs-5 { font-size: var(--fs-lg) !important; }
-.fs-6 { font-size: var(--fs-md) !important; }
-.badge { --bs-badge-font-size: var(--fs-xs); }
-.material-symbols-outlined { font-size: var(--fs-lg); }   /* the icon font sets 24 px itself; 20 px like the other icons */
+.fs-4, .fs-5 { font-size: var(--text-lg) !important; }
+.fs-6 { font-size: var(--text-md) !important; }
+.badge { --bs-badge-font-size: var(--text-xs); }
+.material-symbols-outlined { font-size: var(--text-lg); }   /* the icon font sets 24 px itself; 20 px like the other icons */
 
 /* ===== SKIP LINK ===== */
 
@@ -1819,18 +1815,18 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
 }
 
 .total-cost-card { flex-direction: column; align-items: stretch; gap: 10px; }
 .total-cost-card .total-cost-top { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .total-cost-bars { display: flex; flex-direction: column; gap: 6px; }
 .total-cost-bars .tc-row { display: flex; align-items: center; gap: 10px; }
-.total-cost-bars .tc-label { flex: 0 0 150px; font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); }
+.total-cost-bars .tc-label { flex: 0 0 150px; font-size: var(--text-xs); color: var(--muted-strong, #4b5563); }
 .total-cost-bars .tc-track { flex: 1; display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: #e5e7eb; }
 .total-cost-bars .tc-seg { height: 100%; flex-shrink: 0; transition: width 0.4s ease; }
 .total-cost-bars .tc-seg + .tc-seg { border-left: 1px solid rgba(255, 255, 255, 0.85); }
-.total-cost-bars .tc-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-left: 160px; font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); }
+.total-cost-bars .tc-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-left: 160px; font-size: var(--text-xs); color: var(--muted-strong, #4b5563); }
 .total-cost-bars .tc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 @media (max-width: 640px) {
   .total-cost-bars .tc-row { flex-direction: column; align-items: stretch; gap: 3px; }
@@ -1840,17 +1836,17 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 }
 
 .total-cost-card .total-cost-icon {
-  font-size: var(--fs-lg);
+  font-size: var(--text-lg);
 }
 
 .total-cost-card .total-cost-amount {
   font-weight: 600;
-  font-size: var(--fs-md);
+  font-size: var(--text-md);
 }
 
 .total-cost-card .total-cost-breakdown {
   color: #64748b;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
 }
 
 /* ===== SPARKLINE TREND MICRO TEXT ===== */
@@ -1862,11 +1858,11 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   gap: 8px;
   margin-top: 4px;
 }
-.dash-spark-caption { font-size: var(--fs-xs); color: var(--muted-strong, #4b5563); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-spark-caption { font-size: var(--text-xs); color: var(--muted-strong, #4b5563); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .dash-trend-micro {
   display: block;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   color: #94a3b8;
   text-align: right;
   margin-left: auto;
@@ -1882,7 +1878,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 
 .dash-season-badge {
   display: inline-block;
-  font-size: var(--fs-xs);
+  font-size: var(--text-xs);
   padding: 1px 6px;
   border-radius: 4px;
   margin-left: 6px;
@@ -1919,7 +1915,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-left: 4px solid #94a3b8;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   line-height: 1.35;
   opacity: 0;
   transform: translateY(12px);
@@ -1939,7 +1935,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 .spark-toast-icon {
   flex: 0 0 auto;
   margin-top: 1px;
-  font-size: var(--fs-md);
+  font-size: var(--text-md);
 }
 
 .spark-toast-msg {
@@ -1955,7 +1951,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   opacity: 0.5;
   cursor: pointer;
   padding: 0 2px;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   line-height: 1;
 }
 
@@ -2019,12 +2015,12 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 }
 
 .spark-error-icon {
-  font-size: var(--fs-lg);
+  font-size: var(--text-lg);
   color: #ef4444;
 }
 
 .spark-error-msg {
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   max-width: 42ch;
   word-break: break-word;
 }
@@ -2150,12 +2146,12 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 }
 
 .spark-empty-icon {
-  font-size: var(--fs-xl);
+  font-size: var(--text-xl);
   opacity: 0.5;
 }
 
 .spark-empty-msg {
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   max-width: 44ch;
 }
 
@@ -2171,7 +2167,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   justify-content: center;
   gap: 8px;
   margin-top: 12px;
-  font-size: var(--fs-sm);
+  font-size: var(--text-sm);
   color: #64748b;
 }
 
@@ -2220,10 +2216,10 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   .header-left > .d-flex { gap: 8px !important; min-width: 0; }
   .header-left > .d-flex > div { width: 30px !important; height: 30px !important; flex: 0 0 30px; }
   .header-left img { width: 30px; height: 30px; }
-  .header-left h1  { font-size: var(--fs-md); margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-left h1  { font-size: var(--text-md); margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* the generic "button { width: 100%; padding: 14px }" must not apply in the header */
-  header button { width: auto; padding: 6px 10px; border-radius: 8px; font-size: var(--fs-sm); }
+  header button { width: auto; padding: 6px 10px; border-radius: 8px; font-size: var(--text-sm); }
   #filterToggleBtn { min-width: 36px; padding: 6px 10px; }
   .button-create-charge { gap: 0; padding: 6px 11px; }
   .button-create-charge span { display: none; }
@@ -2235,11 +2231,11 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
     justify-content: center;
     gap: 2px;
     padding: 7px 2px 6px;
-    font-size: var(--fs-xs);
+    font-size: var(--text-xs);
     line-height: 1.1;
     border-bottom-width: 3px;
   }
-  .header-tab-button i  { font-size: var(--fs-md); }
+  .header-tab-button i  { font-size: var(--text-md); }
   .tab-label { display: inline; }
   .anomaly-tab-badge { top: 3px; right: 18%; }
 
@@ -2263,14 +2259,14 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
     width: auto;
     white-space: nowrap;
     padding: 7px 14px;
-    font-size: var(--fs-sm);
+    font-size: var(--text-sm);
   }
   .sub-nav-btn.ms-auto { margin-left: auto !important; }
 }
 
 @media (max-width: 360px) {
-  .header-left h1 { font-size: var(--fs-md); }
-  .header-tab-button { font-size: var(--fs-xs); }
+  .header-left h1 { font-size: var(--text-md); }
+  .header-tab-button { font-size: var(--text-xs); }
 }
 
 /* ===== READABLE CONTRAST (WCAG AA, 4.5:1) =====
@@ -2278,21 +2274,23 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
    translucent cards fell to 1.6-3.4:1. Strong variants for TEXT; the bright brand
    colours stay for fills and borders. */
 :root {
-  --accent-strong: #1d4ed8;   /* 6.7:1 on white */
-  --link-strong:   #1e3a8a;   /* links straight on the page background (no card behind) */
-  --ok-strong:     #166534;
-  --bad-strong:    #b91c1c;
-  --muted-strong:  #4b5563;   /* 7.5:1 on white */
-  --warn-strong:   #92400e;   /* 8:1 on white: amber as TEXT (the bright amber stays for fills) */
+  --accent-strong: var(--color-action-strong);   /* #446EA8, D4: handling blue as text, icons and buttons (was #1d4ed8) */
+  --link-strong:   #1e3a8a;   /* links straight on SparkSpend's own darker page background (#C9CFD8), where #446EA8 is only 3.9:1: no token for that */
+  --ok-strong:     var(--text-good);   /* #15803D, D13 (was #166534) */
+  --bad-strong:    var(--text-bad);    /* #B52B27, D13 (was #b91c1c) */
+  --muted-strong:  var(--color-text-muted);   /* #425061, D3 (was #4b5563) */
+  --warn-strong:   var(--text-warn);   /* #92400E, D22 */
 }
 
 .dashboard-card { background: rgba(255, 255, 255, 0.92); }
 
 .text-muted { color: var(--muted-strong) !important; }
+.text-success { color: var(--ok-strong) !important; }   /* Bootstrap's #198754 is 4.3:1 on white; the system's good text is 5.0:1 */
+.text-danger { color: var(--bad-strong) !important; }
 .dash-period, .dash-stat-label, .dash-projected, .trend-neutral,
 .dash-trend-micro, .dash-trend-micro.trend-stable, .hp-mode-btn,
 .total-cost-card .total-cost-breakdown, .dash-refresh-indicator { color: var(--muted-strong); }
-.dash-sync { color: var(--muted-strong); font-size: var(--fs-xs); }
+.dash-sync { color: var(--muted-strong); font-size: var(--text-xs); }
 .dash-sync.dash-sync-stale { color: var(--bad-strong); }
 
 .trend-down { color: var(--ok-strong); }
@@ -2326,16 +2324,16 @@ th.sort-active { color: var(--accent-strong); }
 /* Explanation on a section for the dot in its tab (see _renderSectionAnomalies) and notes about inconsistent data */
 .section-anomalies { margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
 .section-anomaly { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px;
-  background: rgba(255,255,255,.92); border-left: 4px solid #f59e0b; font-size: var(--fs-sm); color: #1e293b; }
+  background: rgba(255,255,255,.92); border-left: 4px solid #f59e0b; font-size: var(--text-sm); color: #1e293b; }
 .section-anomaly.critical { border-left-color: #ef4444; }
 .section-anomaly i { margin-top: 3px; color: #b45309; }
 .section-anomaly.critical i { color: #b91c1c; }
-.data-note { font-size: var(--fs-xs); color: #475569; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+.data-note { font-size: var(--text-xs); color: #475569; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
   padding: 6px 10px; margin: 8px 0; }
 .data-note i { color: #b45309; margin-right: 4px; }
 
 /* Compact comparison lines on the overview cards (see _trendLine) */
-.trend-line { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; font-size: var(--fs-sm); line-height: 1.5; }
+.trend-line { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; font-size: var(--text-sm); line-height: 1.5; }
 .trend-label { font-weight: 600; color: #475569; min-width: 2.6em; }
 .trend-sep { color: #94a3b8; }
 .trend-neutral-dir { color: #334155; }
@@ -2353,7 +2351,7 @@ th.sort-active { color: var(--accent-strong); }
   .anomaly-item-action { margin-left: 50px; }
   /* sub-navigation: three pills must fit without cutting the last one */
   .sub-nav { gap: 4px; flex-wrap: nowrap; }
-  .sub-nav-btn { flex: 1 1 auto; padding: 8px 6px; font-size: var(--fs-xs); white-space: nowrap; text-align: center; }
+  .sub-nav-btn { flex: 1 1 auto; padding: 8px 6px; font-size: var(--text-xs); white-space: nowrap; text-align: center; }
   .sub-nav-btn i { display: none; }
   .sub-nav-btn.ms-auto { flex: 0 0 auto; padding: 8px 10px; }
   .sub-nav-btn.ms-auto i { display: inline; }
@@ -2399,4 +2397,4 @@ th.sort-active { color: var(--accent-strong); }
   .stat-list dd { text-align: left; }
 }
 
-.baseload-now { font-size: var(--fs-xl); font-weight: 700; color: #92400e; }
+.baseload-now { font-size: var(--text-xl); font-weight: 700; color: #92400e; }

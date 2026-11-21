@@ -16,6 +16,7 @@ function check(name, ok, info = '') {
 
 const root = path.join(__dirname, '..', 'includes');
 const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+const usefulCss = fs.readFileSync(path.join(root, 'useful.css'), 'utf8');   // the design system's tokens (--text-good, --color-text-muted ...)
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 
 // ---- colour maths -------------------------------------------------------------------------------------------------
@@ -39,7 +40,18 @@ for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}@][^{}]*)\{(
     rules.push({ selectors: m[1].split(',').map(s => s.trim()), body: m[2] });
 }
 const vars = {};
-for (const r of rules) if (r.selectors.includes(':root')) for (const d of r.body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) vars[d[1]] = d[2].trim();
+// Tokens first (useful.css loads first), then SparkSpend's own: the later definition wins, as in the page
+for (const source of [usefulCss, css]) {
+    for (const m of source.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}@][^{}]*)\{([^{}]*)\}/g)) {
+        if (!m[1].split(',').map(s => s.trim()).includes(':root')) continue;
+        for (const d of m[2].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) vars[d[1]] = d[2].trim();
+    }
+}
+/** var(--a) that points at var(--b) ... down to a value (up to five levels). */
+function resolve(value) {
+    for (let i = 0; i < 5 && /var\(/.test(value); i++) value = value.replace(/var\((--[\w-]+)(?:,\s*([^)]+))?\)/g, (_, v, fb) => vars[v] || fb);
+    return value;
+}
 function prop(selector, name) {
     let value = null;
     for (const r of rules) {
@@ -48,7 +60,7 @@ function prop(selector, name) {
         if (m) value = m[1].trim();
     }
     if (value === null) throw new Error(selector + ' has no ' + name);
-    return value.replace(/var\((--[\w-]+)(?:,\s*([^)]+))?\)/g, (_, v, fb) => vars[v] || fb);
+    return resolve(value);
 }
 
 const WHITE = [255, 255, 255, 1], GREY = [128, 128, 128, 1];
@@ -83,9 +95,9 @@ atLeast('badge "under normalt" (inside a card)', worst(parseColor(prop('.dash-se
 atLeast('badge "over normalt" (inside a card)', worst(parseColor(prop('.dash-season-badge.season-high', 'color')), card, bgOf('.dash-season-badge.season-high')));
 atLeast('EV card "Hjemme" label', worst(parseColor(prop('.dash-split-home-lbl', 'color')), card));
 atLeast('EV card "Ude" label', worst(parseColor(prop('.dash-split-ext-lbl', 'color')), card));
-atLeast('muted text on the cards', worst(parseColor(vars['--muted-strong']), card));
-atLeast('red (money) on the cards', worst(parseColor(vars['--bad-strong']), card));
-atLeast('green (cheaper) on the cards', worst(parseColor(vars['--ok-strong']), card));
+atLeast('muted text on the cards', worst(parseColor(resolve(vars['--muted-strong'])), card));
+atLeast('red (money) on the cards', worst(parseColor(resolve(vars['--bad-strong'])), card));
+atLeast('green (cheaper) on the cards', worst(parseColor(resolve(vars['--ok-strong'])), card));
 
 console.log('\nthe cost figures of Hus -> Fordeling');
 const regning = read('regning.js');
