@@ -1,6 +1,6 @@
 /**
  * The shared Useful design system (hsk-dk/useful-design) as SparkSpend uses it: includes/useful.css is a PINNED copy of
- * dist/useful.css at tag v0.3.0 (commit 483f3da), never edited here; it loads before style.css; SparkSpend's own variables for the
+ * dist/useful.css at tag v0.4.0 (commit e2e1d4c), never edited here; it loads before style.css; SparkSpend's own variables for the
  * strong text colours are aliases of its tokens; and style.css never redefines a token (it would silently change the meaning of
  * everything that reads it).
  * Upgrading is a deliberate act: copy the new dist/useful.css in, change VERSION and SHA256 below, and read its CHANGELOG.
@@ -17,8 +17,8 @@ function check(name, ok, info = '') {
     fails++; console.log('  FAIL ' + name + ' ' + info);
 }
 
-const VERSION = '0.3.0';
-const SHA256 = 'bd5571d5201b45edd842ad8aa5e5a8f75729432cf0dfb787a03af98b7b86f735';   // dist/useful.css at v0.3.0, LF line endings
+const VERSION = '0.4.0';
+const SHA256 = '981174f34d0c1a4e73e92a7870197395eeed6434656e478a373c67ffb5395296';   // dist/useful.css at v0.4.0, LF line endings
 
 const root = path.join(__dirname, '..');
 const raw = f => fs.readFileSync(path.join(root, f), 'utf8').split('\r\n').join('\n');
@@ -70,10 +70,10 @@ check('the page says so: color-scheme light in the stylesheet and in the meta ta
 
 console.log('\ntouch targets (D21, pointer-aware)');
 const raw2 = raw('includes/style.css');
-const tail = raw2.slice(raw2.lastIndexOf('D21, pointer-aware'));
+const tail = raw2.slice(raw2.lastIndexOf('D25, pointer-aware'));
 const coarse = tail.slice(tail.indexOf('@media (pointer: coarse)'));
-check('every control is at least 36 px high by default (mouse)', /\.btn, \.btn-sm, button[^{]*\{\s*min-height: 36px;/.test(tail));
-check('and at least 44 px under pointer: coarse (finger), buttons, tabs, chips, selects and text fields', /min-height: 44px;/.test(coarse) && /\.header-tab-button/.test(coarse) && /\.year-chip/.test(coarse) && /select/.test(coarse) && /input\[type="text"\]/.test(coarse));
+check('every control is at least 36 px high by default (mouse)', /\.btn, \.btn-sm, button[^{]*\{\s*min-height: var\(--target-size-fine\);/.test(tail));
+check('and at least 44 px under pointer: coarse (finger), buttons, tabs, chips, selects and text fields', /min-height: var\(--target-size\);/.test(coarse) && /\.header-tab-button/.test(coarse) && /\.year-chip/.test(coarse) && /select/.test(coarse) && /input\[type="text"\]/.test(coarse));
 check('the small ones the audit found are named: Gå til, Afvis, close drawer, skip link, and Rediger (.btn-sm)', ['.anomaly-item-action', '.anomaly-dismiss-btn', '.btn-close-drawer', '.skip-link', '.btn-sm'].every(s => coarse.includes(s)));
 
 console.log('\n' + n + ' checks, ' + fails + ' failed');

@@ -75,7 +75,7 @@ const AA = 4.5;
 const atLeast = (name, value, min = AA) => check(`${name}: ${value.toFixed(1)}:1 (needs ${min}:1)`, value >= min);
 
 console.log('year chips (dark text, the series colour on the border and the dot)');
-const palette = [...read('elbil/yearly.js').match(/EV_YEAR_COLORS = \[([^\]]*)\]/)[1].matchAll(/'(#[0-9a-f]{6})'/gi)].map(m => m[1]).concat('#94a3b8');
+const palette = [...read('app.js').match(/SERIES_FALLBACK = \[([^\]]*)\]/)[1].matchAll(/'(#[0-9a-f]{6})'/gi)].map(m => m[1]).concat('#94a3b8');
 const chipText = parseColor(prop('.year-chip', 'color'));
 for (const c of palette) {
     const col = parseColor(c);

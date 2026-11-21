@@ -604,8 +604,20 @@ const confirmDialog = (opts = {}) => {
   });
 };
 
+// The Useful design system's series colours (--series-1...6, D23) for charts with many series (one line per year), and the marker
+// shape that goes with each (a cue that does not depend on colour). The tokens are read from the pinned useful.css; the fallback is
+// the same six values (dev/test_datacolors.js checks they are equal), for a page where the stylesheet has not loaded.
+const SERIES_FALLBACK = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];
+const SERIES_POINTS = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];
+const seriesColors = () => {
+  const style = typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement) : null;
+  return SERIES_FALLBACK.map((fallback, i) => (style && style.getPropertyValue('--series-' + (i + 1)).trim()) || fallback);
+};
+
 // Export for use in index.php inline scripts
 window.appUtils = {
+  seriesColors,
+  SERIES_POINTS,
   debounce,
   initializeTooltips,
   formatCurrency,

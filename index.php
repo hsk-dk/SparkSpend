@@ -38,7 +38,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.js" integrity="sha384-MH1axGwz/uQzfIcjFdjEfsM0xlf5mmWfAwwggaOh5IPFvgKFGbJ2PZ4VBbgSYBQN" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js" integrity="sha384-y49Zu59jZHJL/PLKgZPv3k2WI9c0Yp3pWB76V8OBVCb0QBKS8l4Ff3YslzHVX76Y" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" integrity="sha384-cVMg8E3QFwTvGCDuK+ET4PD341jF3W8nO1auiXfuZNQkzbUUiBGLsIQUE+b1mxws" crossorigin="anonymous"></script>
-  <!-- The shared Useful design system (hsk-dk/useful-design), pinned to v0.3.0: tokens and u- classes; do not edit, see includes/useful.css -->
+  <!-- The shared Useful design system (hsk-dk/useful-design), pinned to v0.4.0: tokens and u- classes; do not edit, see includes/useful.css -->
   <link rel="stylesheet" href="<?= asset('includes/useful.css') ?>">
   <link rel="stylesheet" href="<?= asset('includes/icons.css') ?>">
   <link rel="stylesheet" href="<?= asset('includes/style.css') ?>">

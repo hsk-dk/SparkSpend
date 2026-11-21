@@ -12,8 +12,8 @@ const jordvarmeApp = (() => {
         if (initialized) return;
         initialized = true;
 
-        const YEAR_COLORS = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];   // lightness-tiered, see dev/test_datacolors.js
-        const YEAR_POINTS = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];   // a second cue besides colour
+        const YEAR_COLORS = appUtils.seriesColors();   // the system's --series-1...6 (D23), see dev/test_datacolors.js
+        const YEAR_POINTS = appUtils.SERIES_POINTS;   // a second cue besides colour
         const MONTH_NAMES  = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
         // State

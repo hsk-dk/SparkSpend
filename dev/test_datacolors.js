@@ -88,9 +88,16 @@ console.log('\nthe six year colours (year comparisons on Hus, Jordvarme and Elbi
 // every pair differs for every kind of colour vision, and each year has its own marker shape as a second cue. The first set (found on hue
 // distance alone) put navy and maroon at the same lightness: on real data (Hus -> Sammenligning) the two thin lines were hard to tell apart.
 const YEARS = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];
-const list = YEARS.map(c => `'${c}'`).join(', ');
+// The colours are the Useful design system's --series-1...6 (v0.4.0, D23): read from the pinned useful.css at run time, with the same six
+// values as a fallback in app.js. The three charts take them from appUtils.seriesColors(), so there is one definition.
+const usefulCss = read('includes/useful.css');
+const tokenSeries = [1, 2, 3, 4, 5, 6].map(i => (usefulCss.match(new RegExp(`--series-${i}:\\s*(#[0-9a-fA-F]{6})`)) || [])[1]);
+check('the pinned useful.css has --series-1...6 and they are the six year colours', tokenSeries.join() === YEARS.join(), tokenSeries.join());
+const appSrc = read('includes/app.js');
+const fallback = (appSrc.match(/SERIES_FALLBACK = \[([^\]]*)\]/) || [, ''])[1].match(/#[0-9a-f]{6}/gi) || [];
+check('app.js has the same six as a fallback (a page where the stylesheet did not load)', fallback.join() === YEARS.join(), fallback.join());
 for (const [f, name] of [['includes/hus.js', 'YEAR_COLORS'], ['includes/jordvarme.js', 'YEAR_COLORS'], ['includes/elbil/yearly.js', 'EV_YEAR_COLORS']]) {
-    has(f, new RegExp(`${name} = \\[${list}\\]`, 'i'), `${f} uses the same six year colours`);
+    has(f, new RegExp(`${name} = appUtils\\.seriesColors\\(\\)`), `${f} takes the year colours from the system's tokens`);
 }
 const Ls = c => lab(c, 'normal')[0];
 check('each year colour is at least 3:1 on white (a line or a bar)', YEARS.every(c => ratio(c, '#ffffff') >= 3), YEARS.map(c => ratio(c, '#ffffff').toFixed(2)).join(' '));
@@ -101,9 +108,10 @@ const dl = (i, j) => Math.abs(Ls(YEARS[i]) - Ls(YEARS[j]));
 check(`the first three (a three-year chart) differ in lightness by at least 14 L* each (${dl(0, 1).toFixed(0)}, ${dl(0, 2).toFixed(0)}, ${dl(1, 2).toFixed(0)}); the first set had 3`, dl(0, 1) >= 14 && dl(0, 2) >= 14 && dl(1, 2) >= 14);
 check('neighbouring years never have the same lightness (at least 8 L* between index i and i+1)', YEARS.slice(1).every((_, i) => dl(i, i + 1) >= 8));
 check('the old year palettes are gone', !['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#ec4899', '#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'].some(c => ['includes/hus.js', 'includes/jordvarme.js', 'includes/elbil/yearly.js'].some(f => read(f).toLowerCase().includes(c))));
+check('app.js: six different marker shapes (a cue that does not depend on colour)', /SERIES_POINTS = \['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'\]/.test(appSrc));
 for (const [f, pfx] of [['includes/hus.js', 'YEAR_POINTS'], ['includes/jordvarme.js', 'YEAR_POINTS'], ['includes/elbil/yearly.js', 'EV_YEAR_POINTS']]) {
     const src = read(f);
-    check(`${f}: six different marker shapes, used on the year lines (a cue that does not depend on colour)`, new RegExp(`${pfx} = \\['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'\\]`).test(src) && new RegExp(`pointStyle: ${pfx}\\[i % ${pfx}\\.length\\]`).test(src));
+    check(`${f}: the markers come from appUtils.SERIES_POINTS and are used on the year lines`, new RegExp(`${pfx} = appUtils\\.SERIES_POINTS`).test(src) && new RegExp(`pointStyle: ${pfx}\\[i % ${pfx}\\.length\\]`).test(src));
 }
 
 console.log('\n' + n + ' checks, ' + fails + ' failed');

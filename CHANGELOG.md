@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (design system v0.4.0)
+- **The pinned Useful design system is v0.4.0** (the release that took in SparkSpend's proposals, hsk-dk/useful-design PR #1 and #2). The year colours and markers on Hus, Jordvarme and Elbil are now the system's `--series-1…6`, read once by `appUtils.seriesColors()` (with the same six as a fallback, and a test that they are equal), and the pointer-aware control sizes read `--target-size-fine` (36 px) and `--target-size` (44 px). Nothing changes on screen.
+
 ### Changed (phones)
 - **Hus → Regning is a third as long on a phone.** On real data it was 8,295 px at 375 px (about 60 month cards of nine rows each). A card now keeps the house and the three kr (Hus kWh, El-bil kr, VP kr*, Restforbrug kr*) and leaves out the kWh behind each (they are still in the table on a wide screen), and only the newest twelve months are shown, with "Vis ældre måneder (n)" for the rest. On seed data (24 months) the page went from about 7,900 to 3,317 px. Nothing changes on a wide screen: eight columns, every row.
 - **The cost band on Oversigt folds its legend on a phone.** The four lines of "EV hjemme 47 % af kWh · 54 % af kr" under the two bars were about a sixth of the screen before the first card; they are behind "Fordeling i procent" now (the band went from 288 to 243 px; the bars' own titles and spoken labels have the figures). On a wide screen the legend is open and as before; turning the phone sideways opens or folds it.
