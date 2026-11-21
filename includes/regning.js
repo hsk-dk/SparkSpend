@@ -67,6 +67,19 @@ const regningApp = (() => {
         let totEvKwh = 0, totEvCost = 0, totHpKwh = 0, totHpCost = 0,
             totHusKwh = 0, totResidualCost = 0, negMonths = 0;
 
+        // In-cell bars in the three kr columns (a wall of numbers becomes something to read across): each column's bar is the month's
+        // share of that column's largest month. The number stays in the cell, so the bar is only a second way to read it.
+        const colMax = { ev: 0, hp: 0, rest: 0 };
+        months.forEach(m => {
+            const c = hasCosts && billData.cost[m];
+            colMax.ev = Math.max(colMax.ev, (ev[m] && ev[m].cost) || 0);
+            if (c) {
+                colMax.hp = Math.max(colMax.hp, c.vp || 0);
+                if (hasResidual && hus[m] && hus[m].kwh > 0) colMax.rest = Math.max(colMax.rest, c.rest || 0);
+            }
+        });
+        const _bar = (value, max) => (value > 0 && max > 0 ? ` style="--bar:${Math.round(value / max * 100)}%"` : '');
+
         const MOBILE_MONTHS = 12;   // phones show the newest twelve month cards, the rest behind a button (CSS: .reg-old, .reg-all)
         const rows = months.map((m, idx) => {
             const evRow  = ev[m]  || { kwh: 0, cost: 0 };
@@ -97,11 +110,11 @@ const regningApp = (() => {
                 <td class="text-nowrap" data-label="Måned">${_monthLabel(m)}</td>
                 ${hasHus ? `<td class="text-end" data-label="Hus kWh">${husRow.kwh > 0 ? appUtils.num(husRow.kwh, 1) : '—'}</td>` : ''}
                 <td class="text-end${evRow.cost > 0 ? ' m-extra' : ''}" data-label="El-bil kWh">${evRow.kwh > 0 ? appUtils.num(evRow.kwh, 1) : '—'}</td>
-                <td class="text-end" data-label="El-bil kr">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
+                <td class="text-end reg-bar reg-bar-ev"${_bar(evRow.cost, colMax.ev)} data-label="El-bil kr">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
                 <td class="text-end${hasCosts ? ' m-extra' : ''}" data-label="VP kWh">${hpRow.kwh > 0 ? appUtils.num(hpRow.kwh, 1) : '—'}</td>
-                ${hasCosts ? `<td class="text-end" data-label="VP kr*">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
+                ${hasCosts ? `<td class="text-end reg-bar reg-bar-hp"${_bar(hpCost, colMax.hp)} data-label="VP kr*">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
                 ${hasHus ? `<td data-label="Restforbrug kWh" class="text-end fw-semibold${hasResidual ? ' m-extra' : ''}${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + appUtils.num(residualKwh, 1) : '\u2014'}</td>` : ''}
-                ${hasResidual ? `<td class="text-end fw-semibold" data-label="Restforbrug kr*">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
+                ${hasResidual ? `<td class="text-end fw-semibold reg-bar reg-bar-rest"${_bar(residualCost, colMax.rest)} data-label="Restforbrug kr*">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
                 ${hasSkur ? `<td class="text-end text-muted m-extra" data-label="heraf Varme - Skur kWh">${skur[m] > 0 ? appUtils.num(skur[m], 1) : '—'}</td>` : ''}
             </tr>`;
         }).join('');

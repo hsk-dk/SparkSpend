@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (Hus → Regning, wide screens)
+- **A bar behind each kr figure.** The table was 24 rows × 9 columns of numbers and nothing else. El-bil kr, VP kr* and Restforbrug kr* now have a bar behind the figure, as long as the month's share of that column's largest month, in the domain colour at 24 % (dark text on it is above 4.5:1, measured). The figure stays in the cell, so the bar is a second way to read it; the Total row has none, and a phone keeps its cards without bars. `includes/regning.js`, `includes/style.css`, `dev/test_regning_bars.js` (15).
+
 ### Changed (Hus → Forbrug)
 - **The car no longer hides the steady parts.** On real data the blue charges dwarfed the stacked bars, so Jordvarme and Restforbrug could hardly be read. They now sit at the bottom of the stack, where they share a baseline, with El-bil on top, and a "Skjul El-bil" button (also the legend entry) takes the car out so the axis rescales to the steady parts (seed data, a day view: top 50 → 30 kWh). The tooltip total then says "Uden El-bil" and leaves out the kr, which include the car. Daily and monthly view; `includes/hus.js`, `index.php`, `dev/test_hus_forbrug.js`.
 

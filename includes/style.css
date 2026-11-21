@@ -2357,9 +2357,22 @@ th.sort-active { color: var(--accent-strong); }
 }
 
 .reg-more { display: none; }   /* "Vis ældre måneder": phones only, see below */
+
+/* Hus -> Regning on a wide screen: a bar behind each kr figure, its length the month's share of the column's largest month (set as --bar
+   by regning.js). The tint is the domain colour at 24 %, dark text on it stays well above 4.5:1 (dev/test_regning_bars.js). The number is
+   always in the cell, so the bar is a second way to read it, never the only one. Phones show cards, without bars. */
+.reg-bar {
+  --bar-color: transparent;
+  background-image: linear-gradient(to right, var(--bar-color) var(--bar, 0%), transparent var(--bar, 0%));
+  background-repeat: no-repeat;
+}
+.reg-bar-ev   { --bar-color: color-mix(in srgb, var(--data-ev) 24%, transparent); }
+.reg-bar-hp   { --bar-color: color-mix(in srgb, var(--data-hp) 24%, transparent); }
+.reg-bar-rest { --bar-color: color-mix(in srgb, var(--data-rest) 24%, transparent); }
 /* Phones: Regning as one card per month (eight columns do not fit), and a scroll hint on the other wide tables */
 @media (max-width: 600px) {
   #regningTableWrapper .table-responsive { overflow-x: visible; }
+  #regningTableWrapper .reg-bar { background-image: none; }
   #regningTableWrapper table, #regningTableWrapper thead, #regningTableWrapper tbody,
   #regningTableWrapper tfoot, #regningTableWrapper tr, #regningTableWrapper td { display: block; }
   #regningTableWrapper thead { position: absolute; left: -9999px; top: -9999px; }
