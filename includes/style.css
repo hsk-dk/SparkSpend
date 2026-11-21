@@ -2395,3 +2395,21 @@ th.sort-active { color: var(--accent-strong); }
 }
 
 .baseload-now { font-size: var(--text-xl); font-weight: 700; color: #92400e; }
+
+/* D21, pointer-aware: a control is at least 44 px where a finger presses it, 36 px where a mouse does (the system's 24 px is
+   the WCAG 2.2 AA floor; its own text recommends 44). min-height only: the look of a control is still its own. */
+.btn, .btn-sm, button, .header-tab-button, .sub-nav-btn, .hp-mode-btn, .year-chip,
+.anomaly-item-action, .anomaly-dismiss-btn, .btn-close-drawer, .skip-link, select, summary {
+  min-height: 36px;
+}
+.btn-close-drawer { min-width: 36px; }
+.site-footer a { display: inline-block; padding: 8px 4px; }
+@media (pointer: coarse) {
+  .btn, .btn-sm, button, .header-tab-button, .sub-nav-btn, .hp-mode-btn, .year-chip,
+  .anomaly-item-action, .anomaly-dismiss-btn, .btn-close-drawer, .skip-link, select, summary,
+  input[type="text"], input[type="number"], input[type="date"], input[type="month"], input[type="email"], input[type="password"] {
+    min-height: 44px;
+  }
+  .btn-close-drawer { min-width: 44px; }
+  .site-footer a { padding: 14px 8px; }
+}

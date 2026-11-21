@@ -64,5 +64,13 @@ check('cards are opaque (D6): no translucent white background and no backdrop bl
 check('the dashboard cards use the system\'s radius and card shadow', /var\(--radius-large\)/.test(rule('.dashboard-card')) && /var\(--shadow-card\)/.test(rule('.dashboard-card')));
 check('the inactive header tabs are white at 94 % or more (70 % was 3.5:1 on the gradient)', /color:\s*rgba\(255, 255, 255, 0\.9[4-9]\)/.test(rule('.header-tab-button')));
 
+console.log('\ntouch targets (D21, pointer-aware)');
+const raw2 = raw('includes/style.css');
+const tail = raw2.slice(raw2.lastIndexOf('D21, pointer-aware'));
+const coarse = tail.slice(tail.indexOf('@media (pointer: coarse)'));
+check('every control is at least 36 px high by default (mouse)', /\.btn, \.btn-sm, button[^{]*\{\s*min-height: 36px;/.test(tail));
+check('and at least 44 px under pointer: coarse (finger), buttons, tabs, chips, selects and text fields', /min-height: 44px;/.test(coarse) && /\.header-tab-button/.test(coarse) && /\.year-chip/.test(coarse) && /select/.test(coarse) && /input\[type="text"\]/.test(coarse));
+check('the small ones the audit found are named: Gå til, Afvis, close drawer, skip link, and Rediger (.btn-sm)', ['.anomaly-item-action', '.anomaly-dismiss-btn', '.btn-close-drawer', '.skip-link', '.btn-sm'].every(s => coarse.includes(s)));
+
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);
