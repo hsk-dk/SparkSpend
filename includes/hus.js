@@ -35,6 +35,7 @@ const husApp = (() => {
         let currentYear  = String(new Date().getFullYear());     // YYYY
         let husChart     = null;
         let lastData     = null;
+        let hideEv       = false;   // "Skjul El-bil": the car's charges dwarf the steady parts, so they can be taken out of the stack
 
         // ── Electricity cost ─────────────────────────────────────────────────
         // The elvarme model (rates, allowance, split) runs on the server
@@ -52,6 +53,7 @@ const husApp = (() => {
         const statsContent  = document.getElementById('husStatsContent');
         const syncStatusEl  = document.getElementById('husSyncStatus');
         const yearContainer = document.getElementById('husYearToggleContainer');
+        const evToggle      = document.getElementById('husEvToggle');
 
         if (!canvas || !prevBtn || !nextBtn || !periodNav || !statsContent) return;
 
@@ -69,6 +71,20 @@ const husApp = (() => {
                 fetchAndRender();
             });
         });
+
+        // ── El-bil on/off (the stacked views) ────────────────────────────────
+        function syncEvToggle() {
+            if (!evToggle) return;
+            evToggle.textContent = hideEv ? 'Vis El-bil' : 'Skjul El-bil';
+            evToggle.setAttribute('aria-pressed', hideEv ? 'true' : 'false');
+        }
+        if (evToggle) {
+            evToggle.addEventListener('click', () => {
+                hideEv = !hideEv;
+                syncEvToggle();
+                if (lastData) renderChart(lastData);
+            });
+        }
 
         // ── Period navigation ────────────────────────────────────────────────
         prevBtn.addEventListener('click', () => shiftPeriod(-1));
@@ -201,7 +217,8 @@ const husApp = (() => {
 
             const datasets = [];
 
-            // Bottom: Jordvarme
+            // The steady parts at the bottom, where they share a baseline (Jordvarme, then Restforbrug), and the car on top: its charges
+            // are the spikes, and with real data they dwarf the rest. "Skjul El-bil" takes them out of the stack altogether.
             datasets.push({
                 label: 'Jordvarme',
                 data: hpVals,
@@ -212,18 +229,7 @@ const husApp = (() => {
                 stack: 'a',
             });
 
-            // Middle: El-bil
-            datasets.push({
-                label: 'El-bil',
-                data: evVals,
-                backgroundColor: COLOR_EV,
-                borderColor: COLOR_EV,
-                borderWidth: 0,
-                borderRadius: 0,
-                stack: 'a',
-            });
-
-            // Top: Restforbrug (only if house meter data available)
+            // Restforbrug (only if house meter data available)
             if (hasHus) {
                 datasets.push({
                     label: 'Restforbrug',
@@ -231,18 +237,29 @@ const husApp = (() => {
                     backgroundColor: COLOR_REST,
                     borderColor: COLOR_REST,
                     borderWidth: 0,
-                    borderRadius: 4,
+                    borderRadius: 0,
                     stack: 'a',
                 });
             }
+
+            datasets.push({
+                label: 'El-bil',
+                data: evVals,
+                backgroundColor: COLOR_EV,
+                borderColor: COLOR_EV,
+                borderWidth: 0,
+                borderRadius: 4,
+                stack: 'a',
+                hidden: hideEv,
+            });
 
             // Tooltip footer: total kWh + estimated kr (when rates available)
             const footerFn = items => {
                 const idx = items[0]?.dataIndex;
                 if (idx === undefined) return '';
-                const total = hpVals[idx] + evVals[idx] + (hasHus ? restVals[idx] : 0);
-                const lines = [`Total: ${appUtils.num(total, 1)} kWh`];
-                if (costVals && costVals[idx] > 0) {
+                const total = hpVals[idx] + (hideEv ? 0 : evVals[idx]) + (hasHus ? restVals[idx] : 0);
+                const lines = [`${hideEv ? 'Uden El-bil' : 'Total'}: ${appUtils.num(total, 1)} kWh`];
+                if (!hideEv && costVals && costVals[idx] > 0) {
                     lines.push(`ca. ${appUtils.formatCurrency(costVals[idx])}`);
                 }
                 return lines;
@@ -264,7 +281,14 @@ const husApp = (() => {
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { display: true, position: 'top' },
+                        legend: {
+                            display: true, position: 'top',
+                            onClick: (e, item, legend) => {   // the default toggle, then keep the button in step when it was El-bil
+                                Chart.defaults.plugins.legend.onClick.call(legend, e, item, legend);
+                                const ev = legend.chart.data.datasets.findIndex(d => d.label === 'El-bil');
+                                if (ev >= 0) { hideEv = !legend.chart.isDatasetVisible(ev); syncEvToggle(); }
+                            },
+                        },
                         datalabels: { display: false },
                         tooltip: {
                             callbacks: {

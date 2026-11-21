@@ -750,6 +750,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
             <button class="btn btn-sm btn-secondary me-2" id="husPrev">&laquo; Forrige</button>
             <span id="husPeriodLabel" class="fw-bold"></span>
             <button class="btn btn-sm btn-secondary ms-2" id="husNext">Næste &raquo;</button>
+            <button class="btn btn-sm btn-outline-secondary ms-auto" id="husEvToggle" type="button" aria-pressed="false">Skjul El-bil</button>
           </div>
           <canvas id="husChart"></canvas>
           <div id="husNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
