@@ -864,7 +864,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
           </button>
           <div id="syncLogPanel" style="display:none">
             <div id="syncLogContent"
-                 style="font-family:monospace;font-size:11px;line-height:1.5;
+                 style="font-family:monospace;font-size:var(--fs-xs);line-height:1.5;
                         max-height:260px;overflow-y:auto;
                         background:#0f172a;color:#94a3b8;
                         padding:10px 12px;white-space:pre-wrap;word-break:break-all">

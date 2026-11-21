@@ -270,7 +270,7 @@ function _handleAuthExpiry() {
         'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:99999',
         'background:#1e293b', 'color:#f8fafc',
         'padding:.75rem 1.25rem',
-        'font-size:.9rem', 'text-align:center',
+        'font-size:var(--fs-sm)', 'text-align:center',
         'box-shadow:0 2px 8px rgba(0,0,0,.4)',
     ].join(';');
     banner.textContent = 'Din session er udløbet — du videresendes til login…';

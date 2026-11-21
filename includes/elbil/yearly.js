@@ -206,11 +206,11 @@
             const months  = yearCnt.get(year);
             const cpkwh   = kwh > 0 ? cost / kwh : 0;
             return `<tr>
-                <td><span class="year-dot" style="background:${color}"></span>${year}${appUtils.runningMonthIndex(year) !== null ? ' <span class="text-muted" style="font-size:11px">til dato</span>' : ''}</td>
+                <td><span class="year-dot" style="background:${color}"></span>${year}${appUtils.runningMonthIndex(year) !== null ? ' <span class="text-muted text-xs">til dato</span>' : ''}</td>
                 <td class="text-end fw-bold">${kwh.toFixed(1)} kWh</td>
                 <td class="text-end">${cost.toFixed(0)} kr</td>
-                <td class="text-end text-muted" style="font-size:11px">${cpkwh.toFixed(2)} kr/kWh</td>
-                <td class="text-end text-muted" style="font-size:11px">${months} mdr.</td>
+                <td class="text-end text-muted text-xs">${cpkwh.toFixed(2)} kr/kWh</td>
+                <td class="text-end text-muted text-xs">${months} mdr.</td>
             </tr>`;
         }).join('');
 

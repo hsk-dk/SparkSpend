@@ -816,7 +816,7 @@ const jordvarmeApp = (() => {
                         const netLabel = (c.nettarif_records === 0)
                             ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
                             : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
-                        breakdown = `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">` +
+                        breakdown = `<tr><td colspan="2" class="text-muted text-xs" style="line-height:1.4">` +
                             `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</td></tr>`;
                     }
                     costRows = `<tr><td>Estimeret elomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>${breakdown}`;
@@ -825,7 +825,7 @@ const jordvarmeApp = (() => {
                     costRows =
                         `<tr><td>Estimeret elomkostning</td>` +
                         `<td class="text-end text-muted"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span></td></tr>` +
-                        `<tr><td colspan="2" class="text-muted" style="font-size:10px;line-height:1.4">&nbsp;</td></tr>`;
+                        `<tr><td colspan="2" class="text-muted text-xs" style="line-height:1.4">&nbsp;</td></tr>`;
                 }
             }
 
@@ -950,16 +950,16 @@ const jordvarmeApp = (() => {
                 const total   = yearTotals.get(year);
                 const months  = yearCounts.get(year);
                 const costCell = hasCosts && yearCosts.get(year) > 0
-                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(yearCosts.get(year))}</td>`
+                    ? `<td class="text-end text-muted text-xs">${appUtils.formatCurrency(yearCosts.get(year))}</td>`
                     : (hasCosts ? '<td></td>' : '');
                 const cop    = yearCops.get(year);
                 const copCell = hasCop
-                    ? `<td class="text-end text-muted" style="font-size:11px">${cop != null ? 'COP ' + cop.toFixed(1) : '—'}</td>`
+                    ? `<td class="text-end text-muted text-xs">${cop != null ? 'COP ' + cop.toFixed(1) : '—'}</td>`
                     : '';
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
                     <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
-                    <td class="text-end text-muted" style="font-size:11px">${months} mdr.</td>
+                    <td class="text-end text-muted text-xs">${months} mdr.</td>
                     ${costCell}${copCell}
                 </tr>`;
             }).join("");
@@ -1089,7 +1089,7 @@ const jordvarmeApp = (() => {
                     });
                 }
                 const costCell = hasCosts && estCost > 0
-                    ? `<td class="text-end text-muted" style="font-size:11px">${appUtils.formatCurrency(estCost)}</td>`
+                    ? `<td class="text-end text-muted text-xs">${appUtils.formatCurrency(estCost)}</td>`
                     : (hasCosts ? '<td></td>' : '');
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>

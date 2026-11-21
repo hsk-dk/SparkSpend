@@ -525,13 +525,13 @@ const husApp = (() => {
                             const netLabel = (c.nettarif_records === 0)
                                 ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
                                 : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
-                            breakdown = `<div class="text-muted" style="font-size:10px;line-height:1.4;margin-top:2px">` +
+                            breakdown = `<div class="text-muted text-xs" style="line-height:1.4;margin-top:2px">` +
                                 `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · ` +
                                 `Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</div>`;
                         }
                         html += `<div class="hus-cost-summary" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08)">` +
                             `<strong>Estimeret elomkostning: ${kr(costHus)}</strong>` +
-                            `<div class="text-muted" style="font-size:10px">Estimeret ud fra spotpris, nettarif, systemtarif, elafgift og moms. Elvarme: første ≈333 kWh/md af VP+Rest til fuld elafgift, resten til reduceret elvarmesats.</div>` +
+                            `<div class="text-muted text-xs">Estimeret ud fra spotpris, nettarif, systemtarif, elafgift og moms. Elvarme: første ≈333 kWh/md af VP+Rest til fuld elafgift, resten til reduceret elvarmesats.</div>` +
                             breakdown +
                             `</div>`;
                     }
