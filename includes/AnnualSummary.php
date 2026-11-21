@@ -86,6 +86,22 @@ final class AnnualSummary
         $startYear  = $meterStart ? substr($meterStart, 0, 4) : null;
         $startMonth = $meterStart ? (int) substr($meterStart, 5, 2) : 1;
 
+        // Each meter's own first reading. The "rest" of the house is the house meter minus the heat pump and the EV: it is only that
+        // when the heat pump meter covers every day the house meter does. In the year the house meter starts before the heat pump
+        // meter, the heat pump's missing months would be counted as "rest" (real data: house from 2021-03-09, heat pump from 2021-10-25).
+        $firstReading = [];
+        foreach (['powerloghus' => 'hus', 'powerlogjord' => 'hp'] as $_tbl => $_key) {
+            try {
+                $_f = $powerlogDb->query("SELECT MIN(logdate) FROM $_tbl")->fetchColumn();
+                $firstReading[$_key] = $_f ? substr((string) $_f, 0, 10) : null;
+            } catch (\Throwable $e) { $firstReading[$_key] = null; }
+        }
+        $splitOk = function (string $year) use ($firstReading): bool {
+            if ($firstReading['hus'] === null || $firstReading['hp'] === null) return false;
+            $coverageStart = max($year . '-01-01', $firstReading['hus']);   // the first day of this year the house meter covers
+            return $firstReading['hp'] <= $coverageStart;
+        };
+
         // =========================================================================
         // Merge all year keys and assemble response
         // =========================================================================
@@ -105,6 +121,7 @@ final class AnnualSummary
 
             $years[] = [
                 'year'     => $year,
+                'split_ok' => $splitOk((string) $year),   // false: the house meter covers days the heat pump meter does not, so "rest" cannot be derived
                 'data_months' => ($startYear !== null && (string) $year === $startYear) ? 13 - $startMonth : 12,   // months the meters cover (12 = complete year)
                 'ev'       => [
                     'charges' => $int['cnt'] + $ext['cnt'],
@@ -138,6 +155,6 @@ final class AnnualSummary
             $_costsComplete = false;
         }
 
-        return ['payload' => ['years' => $years], 'complete' => $_costsComplete];
+        return ['payload' => ['years' => $years, 'meters' => ['hus_from' => $firstReading['hus'], 'hp_from' => $firstReading['hp']]], 'complete' => $_costsComplete];
     }
 }

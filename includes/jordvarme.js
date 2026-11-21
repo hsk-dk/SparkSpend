@@ -12,7 +12,8 @@ const jordvarmeApp = (() => {
         if (initialized) return;
         initialized = true;
 
-        const YEAR_COLORS = ['#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'];
+        const YEAR_COLORS = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];   // lightness-tiered, see dev/test_datacolors.js
+        const YEAR_POINTS = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];   // a second cue besides colour
         const MONTH_NAMES  = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
         // State
@@ -488,7 +489,7 @@ const jordvarmeApp = (() => {
                             callbacks: {
                                 label: c => {
                                     const kwh = c.parsed.y;
-                                    const lines = [`${kwh.toFixed(2)} kWh`];
+                                    const lines = [`${appUtils.num(kwh, 2)} kWh`];
                                     if (Object.keys(activeCostMap).length > 0) {
                                         let rate = 0;
                                         if (currentMode === 'daily') {
@@ -523,7 +524,7 @@ const jordvarmeApp = (() => {
                                             }
                                         }
                                         if (hdd !== null && hdd > 0)
-                                            lines.push(`${hdd.toFixed(1)} GD · ${(kwh / hdd).toFixed(2)} kWh/GD`);
+                                            lines.push(`${appUtils.num(hdd, 1)} GD · ${appUtils.num(kwh / hdd, 2)} kWh/GD`);
                                     }
                                     return lines;
                                 }
@@ -590,6 +591,7 @@ const jordvarmeApp = (() => {
                     backgroundColor: color + "20",
                     borderWidth: 2,
                     pointRadius: 4,
+                    pointStyle: YEAR_POINTS[i % YEAR_POINTS.length],
                     pointHoverRadius: 6,
                     ...appUtils.monthLineStyle(year, color),
                     spanGaps: false
@@ -631,7 +633,7 @@ const jordvarmeApp = (() => {
                             callbacks: {
                                 label: c => {
                                     if (c.parsed.y === null) return `${c.dataset.label}: ingen data`;
-                                    return `${c.dataset.label}: ${c.parsed.y.toFixed(normalizing ? 2 : 1)} ${yLabel}`;
+                                    return `${c.dataset.label}: ${appUtils.num(c.parsed.y, normalizing ? 2 : 1)} ${yLabel}`;
                                 }
                             }
                         }
@@ -815,9 +817,9 @@ const jordvarmeApp = (() => {
                     if (c) {
                         const netLabel = (c.nettarif_records === 0)
                             ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
-                            : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
+                            : `Net ${appUtils.num(c.nettarif_kr_kwh, 3)}`;
                         breakdown = `<tr><td colspan="2" class="text-muted text-xs" style="line-height:1.4">` +
-                            `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</td></tr>`;
+                            `Spot ${appUtils.num(c.spot_avg_kr_kwh, 3)} · Sys ${appUtils.num(c.systemtarif_kr_kwh, 3)} · Ela ${appUtils.num(c.elafgift_kr_kwh, 3)} · ${netLabel} kr/kWh (ekskl. moms)</td></tr>`;
                     }
                     costRows = `<tr><td>Estimeret elomkostning</td><td class="text-end fw-bold">${appUtils.formatCurrency(totalCost)}</td></tr>${breakdown}`;
                 } else {
@@ -846,8 +848,8 @@ const jordvarmeApp = (() => {
                     }
                     const kwhPerHdd = totalHDD > 0 ? total / totalHDD : 0;
                     weatherRows =
-                        `<tr><td>Gradedage (HDD 17°C)</td><td class="text-end">${totalHDD.toFixed(1)}</td></tr>` +
-                        `<tr><td>Forbrug / graddag</td><td class="text-end">${kwhPerHdd.toFixed(2)} kWh/GD</td></tr>`;
+                        `<tr><td>Gradedage (HDD 17°C)</td><td class="text-end">${appUtils.num(totalHDD, 1)}</td></tr>` +
+                        `<tr><td>Forbrug / graddag</td><td class="text-end">${appUtils.num(kwhPerHdd, 2)} kWh/GD</td></tr>`;
 
                     // Expected vs. actual — only when a baseline has been computed from compare mode
                     if (baselineKwhPerHdd !== null && totalHDD > 0) {
@@ -857,8 +859,8 @@ const jordvarmeApp = (() => {
                         const diffClass   = diffPct >  5 ? 'text-danger'
                                           : diffPct < -5 ? 'text-success' : '';
                         weatherRows +=
-                            `<tr><td>Forventet (vejrbaseret)</td><td class="text-end">${expectedKwh.toFixed(1)} kWh</td></tr>` +
-                            `<tr><td>Faktisk vs. forventet</td><td class="text-end ${diffClass}">${sign}${diffPct.toFixed(1)}%</td></tr>`;
+                            `<tr><td>Forventet (vejrbaseret)</td><td class="text-end">${appUtils.num(expectedKwh, 1)} kWh</td></tr>` +
+                            `<tr><td>Faktisk vs. forventet</td><td class="text-end ${diffClass}">${sign}${appUtils.num(diffPct, 1)}%</td></tr>`;
                     }
                 } else {
                     weatherRows =
@@ -870,9 +872,9 @@ const jordvarmeApp = (() => {
 
             statsContent.innerHTML = `
                 <table class="table table-sm mb-0">
-                    <tr><td>Total</td><td class="text-end fw-bold">${total.toFixed(1)} kWh</td></tr>
-                    <tr><td>Gennemsnit</td><td class="text-end">${avg.toFixed(1)} kWh</td></tr>
-                    <tr><td>Højeste</td><td class="text-end">${max.toFixed(1)} kWh (${maxLabel})</td></tr>
+                    <tr><td>Total</td><td class="text-end fw-bold">${appUtils.num(total, 1)} kWh</td></tr>
+                    <tr><td>Gennemsnit</td><td class="text-end">${appUtils.num(avg, 1)} kWh</td></tr>
+                    <tr><td>Højeste</td><td class="text-end">${appUtils.num(max, 1)} kWh (${maxLabel})</td></tr>
                     <tr><td>Perioder</td><td class="text-end">${data.length}</td></tr>
                     ${costRows}
                     ${weatherRows}
@@ -897,7 +899,7 @@ const jordvarmeApp = (() => {
             if (cop === null) return '';
             const deliveredKwh = totalKwh * cop;
             const fmt = v => new Intl.NumberFormat('da-DK', { maximumFractionDigits: 1 }).format(v);
-            return `<tr><td>Estimeret COP</td><td class="text-end">${cop.toFixed(1)}</td></tr>` +
+            return `<tr><td>Estimeret COP</td><td class="text-end">${appUtils.num(cop, 1)}</td></tr>` +
                    `<tr><td>Estimeret leveret varme</td><td class="text-end">${fmt(deliveredKwh)}\u00a0kWh</td></tr>`;
         }
 
@@ -954,11 +956,11 @@ const jordvarmeApp = (() => {
                     : (hasCosts ? '<td></td>' : '');
                 const cop    = yearCops.get(year);
                 const copCell = hasCop
-                    ? `<td class="text-end text-muted text-xs">${cop != null ? 'COP ' + cop.toFixed(1) : '—'}</td>`
+                    ? `<td class="text-end text-muted text-xs">${cop != null ? 'COP ' + appUtils.num(cop, 1) : '—'}</td>`
                     : '';
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
-                    <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
+                    <td class="text-end fw-bold">${appUtils.num(total, 1)} kWh</td>
                     <td class="text-end text-muted text-xs">${months} mdr.</td>
                     ${costCell}${copCell}
                 </tr>`;
@@ -972,7 +974,8 @@ const jordvarmeApp = (() => {
                         <th>År</th><th class="text-end">Total</th><th class="text-end">Mdr.</th>${costHeader}${copHeader}
                     </tr></thead>
                     <tbody>${rows}</tbody>
-                </table>`;
+                </table>` + (years.some(y => yearCounts.get(y) < 12 && String(y) !== String(new Date().getFullYear()))
+                    ? '<p class="text-muted text-xs mt-2 mb-0">Totalen er summen af de måneder, der har daglige målinger (Mdr.). Hullerne tæller ikke med her; Årsrapporten bruger tællerdifferenser og viser hele året.</p>' : '');
 
             // Compute baseline kWh/GD from compare data for use in expected-vs-actual (daily/monthly stats)
             if (weatherSettingsReady() && Object.keys(activeWeatherMap).length > 0) {
@@ -1049,7 +1052,7 @@ const jordvarmeApp = (() => {
                                     const [m, d] = md.split("-").map(Number);
                                     return MONTH_NAMES[m - 1] + " " + d;
                                 },
-                                label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} kWh`
+                                label: c => `${c.dataset.label}: ${appUtils.num(c.parsed.y, 1)} kWh`
                             }
                         }
                     },
@@ -1093,7 +1096,7 @@ const jordvarmeApp = (() => {
                     : (hasCosts ? '<td></td>' : '');
                 return `<tr>
                     <td><span class="year-dot" style="background:${color}"></span>${year}</td>
-                    <td class="text-end fw-bold">${total.toFixed(1)} kWh</td>
+                    <td class="text-end fw-bold">${appUtils.num(total, 1)} kWh</td>
                     ${costCell}
                 </tr>`;
             }).join("");

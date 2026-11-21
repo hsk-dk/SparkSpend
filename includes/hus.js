@@ -20,7 +20,8 @@ const husApp = (() => {
         if (initialized) return;
         initialized = true;
 
-        const YEAR_COLORS = ['#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'];
+        const YEAR_COLORS = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];   // lightness-tiered, see dev/test_datacolors.js
+        const YEAR_POINTS = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];   // a second cue besides colour
         const MONTH_NAMES  = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
         // Dataset colours: the --data-* tokens of style.css, the same as the dashboard cards (dev/test_datacolors.js)
@@ -240,7 +241,7 @@ const husApp = (() => {
                 const idx = items[0]?.dataIndex;
                 if (idx === undefined) return '';
                 const total = hpVals[idx] + evVals[idx] + (hasHus ? restVals[idx] : 0);
-                const lines = [`Total: ${total.toFixed(1)} kWh`];
+                const lines = [`Total: ${appUtils.num(total, 1)} kWh`];
                 if (costVals && costVals[idx] > 0) {
                     lines.push(`ca. ${appUtils.formatCurrency(costVals[idx])}`);
                 }
@@ -306,6 +307,7 @@ const husApp = (() => {
                     backgroundColor: color + '20',
                     borderWidth: 2,
                     pointRadius: 4,
+                    pointStyle: YEAR_POINTS[i % YEAR_POINTS.length],
                     pointHoverRadius: 6,
                     ...appUtils.monthLineStyle(year, color),
                     spanGaps: false,
@@ -341,7 +343,7 @@ const husApp = (() => {
                             callbacks: {
                                 label: c => {
                                     if (c.parsed.y === null) return `${c.dataset.label}: ingen data`;
-                                    return `${c.dataset.label}: ${c.parsed.y.toFixed(1)} kWh`;
+                                    return `${c.dataset.label}: ${appUtils.num(c.parsed.y, 1)} kWh`;
                                 }
                             }
                         }
@@ -401,7 +403,7 @@ const husApp = (() => {
                         datalabels: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: c => `${c.dataset.label}: ${c.parsed.y?.toFixed(1) ?? '—'} kWh`,
+                                label: c => `${c.dataset.label}: ${appUtils.num(c.parsed.y, 1) ?? '—'} kWh`,
                                 title: items => `Dag ${items[0]?.label}`
                             }
                         }
@@ -488,24 +490,24 @@ const husApp = (() => {
 
                 let html = '<dl class="stat-list">';
                 if (hasHus) {
-                    html += `<dt>Hus total</dt><dd>${totHus.toFixed(1)} kWh${krCell(costHus)}</dd>`;
+                    html += `<dt>Hus total</dt><dd>${appUtils.num(totHus, 1)} kWh${krCell(costHus)}</dd>`;
                     html += `
                         <dt><span class="stat-dot" style="background:${COLOR_HP}"></span> Jordvarme</dt>
-                        <dd>${totHp.toFixed(1)} kWh${pct(totHp)}${krCell(costHp)}</dd>
+                        <dd>${appUtils.num(totHp, 1)} kWh${pct(totHp)}${krCell(costHp)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_EV}"></span> El-bil</dt>
-                        <dd>${totEv.toFixed(1)} kWh${pct(totEv)}${krCell(costEv)}</dd>
+                        <dd>${appUtils.num(totEv, 1)} kWh${pct(totEv)}${krCell(costEv)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_REST}"></span> Restforbrug</dt>
-                        <dd>${totRest.toFixed(1)} kWh${pct(totRest)}${krCell(costRest)}</dd>
+                        <dd>${appUtils.num(totRest, 1)} kWh${pct(totRest)}${krCell(costRest)}</dd>
                     `;
                     if (totSkur > 0) {
-                        html += `<dt class="text-muted ps-3">heraf Varme - Skur</dt><dd class="text-muted">${totSkur.toFixed(1)} kWh</dd>`;
+                        html += `<dt class="text-muted ps-3">heraf Varme - Skur</dt><dd class="text-muted">${appUtils.num(totSkur, 1)} kWh</dd>`;
                     }
                 } else {
                     html += `
                         <dt><span class="stat-dot" style="background:${COLOR_HP}"></span> Jordvarme</dt>
-                        <dd>${totHp.toFixed(1)} kWh${krCell(costHp)}</dd>
+                        <dd>${appUtils.num(totHp, 1)} kWh${krCell(costHp)}</dd>
                         <dt><span class="stat-dot" style="background:${COLOR_EV}"></span> El-bil</dt>
-                        <dd>${totEv.toFixed(1)} kWh${krCell(costEv)}</dd>
+                        <dd>${appUtils.num(totEv, 1)} kWh${krCell(costEv)}</dd>
                         <dt colspan="2" class="text-muted small">Hus-måler ikke synkroniseret endnu</dt>
                     `;
                 }
@@ -524,10 +526,10 @@ const husApp = (() => {
                         if (c) {
                             const netLabel = (c.nettarif_records === 0)
                                 ? `<span style="color:#dc3545">Net 0,000 ⚠ (netselskab ikke fundet)</span>`
-                                : `Net ${c.nettarif_kr_kwh.toFixed(3)}`;
+                                : `Net ${appUtils.num(c.nettarif_kr_kwh, 3)}`;
                             breakdown = `<div class="text-muted text-xs" style="line-height:1.4;margin-top:2px">` +
-                                `Spot ${c.spot_avg_kr_kwh.toFixed(3)} · Sys ${c.systemtarif_kr_kwh.toFixed(3)} · ` +
-                                `Ela ${c.elafgift_kr_kwh.toFixed(3)} · ${netLabel} kr/kWh (ekskl. moms)</div>`;
+                                `Spot ${appUtils.num(c.spot_avg_kr_kwh, 3)} · Sys ${appUtils.num(c.systemtarif_kr_kwh, 3)} · ` +
+                                `Ela ${appUtils.num(c.elafgift_kr_kwh, 3)} · ${netLabel} kr/kWh (ekskl. moms)</div>`;
                         }
                         html += `<div class="hus-cost-summary" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08)">` +
                             `<strong>Estimeret elomkostning: ${kr(costHus)}</strong>` +
@@ -558,10 +560,11 @@ const husApp = (() => {
                     const suffix  = mode === 'ytd' ? ' (ÅTD)' : '';
                     const costTxt = costsReady && yearCosts[y] > 0
                         ? ` <span class="text-muted">· ca. ${appUtils.formatCurrency(yearCosts[y])}</span>` : '';
-                    html += `<dt>${y}${suffix}</dt><dd>${yearTotals[y].toFixed(1)} kWh${costTxt}</dd>`;
+                    html += `<dt>${y}${suffix}</dt><dd>${appUtils.num(yearTotals[y], 1)} kWh${costTxt}</dd>`;
                 });
                 if (years.length === 0) html += '<dt colspan="2" class="text-muted">Ingen hus-data</dt>';
                 html += '</dl>';
+                if (mode === 'compare' && years.length) html += '<p class="text-muted text-xs mt-2 mb-0">Summen af de måneder, der har målinger. Årsrapporten bruger tællerdifferenser og viser hele året.</p>';
                 if (data.length === 0) {
                     html = '<p class="text-muted small">Hus-måler ikke synkroniseret endnu.<br>Kør <code>cron/sync_housepowerlog_data.php</code></p>';
                 }

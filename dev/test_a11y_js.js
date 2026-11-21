@@ -22,7 +22,7 @@ function fn(name) {
 }
 const kinds = src.match(/const _A11Y_KINDS = \{[^}]*\};/)[0].replace('const ', 'var ');
 const sb = vm.createContext({ Number, Math, Intl, String, Array });
-vm.runInContext(kinds + '\n' + fn('_a11yNum') + '\n' + fn('_a11yChartText'), sb);
+vm.runInContext(kinds + '\n' + fn('_a11yNum') + '\n' + fn('_a11yPercents') + '\n' + fn('_a11yChartText'), sb);
 const text = sb._a11yChartText;
 
 console.log('_a11yChartText: bars and lines');
@@ -50,6 +50,7 @@ check('a title that ends in a question mark gets no full stop on top', text('Hva
 console.log('\n_a11yChartText: a doughnut and an empty chart');
 const donut = text('Hvad bruger penge', 'doughnut', ['El-bil', 'Varmepumpe', 'Restforbrug'], [{ data: [10021, 4352, 1044] }]);
 check('a doughnut says each slice\'s share (65, 28, 7 %)', donut === 'Hvad bruger penge. Cirkeldiagram: El-bil 65 %, Varmepumpe 28 %, Restforbrug 7 %.', donut);
+check('slices that round to 101 % are made to add up to 100 (44.6, 18.8, 36.6 reads 45, 19, 36, not 45, 19, 37)', text('P', 'doughnut', ['A', 'B', 'C'], [{ data: [446, 188, 366] }]) === 'P. Cirkeldiagram: A 45 %, B 19 %, C 36 %.');
 check('a doughnut of nothing: values, not NaN %', !text('T', 'doughnut', ['A'], [{ data: [0] }]).includes('NaN'));
 check('no data at all: it says so', text('Tom', 'bar', [], [{ data: [] }]) === 'Tom. Søjlediagram uden data.' && text('Tom', 'bar', [], []) === 'Tom. Søjlediagram uden data.');
 check('an unknown chart type is a plain "Diagram"', text('T', 'whatever', ['a'], [{ label: 'S', data: [1] }]).startsWith('T. Diagram'));

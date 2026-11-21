@@ -22,8 +22,8 @@ function fn(name) {
     return m[1];
 }
 const sb = vm.createContext({ Number, Math });
-vm.runInContext(fn('_annualParts') + '\n' + fn('_annualPartsKr'), sb);
-const parts = sb._annualParts, kr = sb._annualPartsKr;
+vm.runInContext(fn('_annualParts') + '\n' + fn('_annualPartsKr') + '\n' + fn('_annualUnsplit'), sb);
+const parts = sb._annualParts, kr = sb._annualPartsKr, unsplit = sb._annualUnsplit;
 
 console.log('_annualParts: the house meter split in three');
 // The shape of 2025 (the EV home/away split is assumed; the others are the production figures): the EV at home and the heat pump are parts of the house meter, the rest is what is left
@@ -49,6 +49,13 @@ check('an older payload without home_cost: the EV total price (what the chart us
 console.log('\nthe chart is stacked');
 check('x and y are stacked and every bar belongs to one stack', /x: \{ stacked: true/.test(src) && /y: \{\s*stacked: true/.test(src) && /stack: 'house'/.test(src));
 check('"Hus total" is no longer a bar next to the others', !/label: 'Hus total kWh'|label: 'Hus total kr\*'/.test(src));
+
+console.log('\na year that cannot be split');
+check('split_ok false with a house meter: unsplit', unsplit({ hus: { kwh: 6133 }, split_ok: false }) === true);
+check('split_ok true, or an older payload without it: split as before', unsplit({ hus: { kwh: 1 }, split_ok: true }) === false && unsplit({ hus: { kwh: 1 } }) === false);
+check('no house meter: nothing to call unsplit', unsplit({ hus: null, split_ok: false }) === false);
+check('such a year is drawn as one grey house-total segment (and the three parts are left out of that year, null and not 0)', /'unsplit'/.test(src) && /un\[i\] \? null/.test(src) && !/un\[i\] \? 0/.test(src) && /Hus i alt, ikke fordelt/.test(src));
+check('its "Øvrigt" cells are a dash, and a note says where each meter starts', /!unsplit/.test(src) && /husmåleren starter/.test(src));
 
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

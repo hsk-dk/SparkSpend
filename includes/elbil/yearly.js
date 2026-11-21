@@ -14,7 +14,8 @@
     // -------------------------------------------------------------------------
     // Year-over-year comparison chart
     // -------------------------------------------------------------------------
-    const EV_YEAR_COLORS = ['#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'];
+    const EV_YEAR_COLORS = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];   // lightness-tiered, see dev/test_datacolors.js
+    const EV_YEAR_POINTS = ['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'];   // a second cue besides colour
     const EV_MONTH_NAMES = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
     let evYearCompareChart = null;
     let evYearCompareData  = null;
@@ -73,6 +74,7 @@
                 backgroundColor: color + '20',
                 borderWidth: 2,
                 pointRadius: 4,
+                pointStyle: EV_YEAR_POINTS[i % EV_YEAR_POINTS.length],
                 pointHoverRadius: 6,
                 ...appUtils.monthLineStyle(year, color),
                 spanGaps: false,
@@ -116,8 +118,8 @@
                                 if (c.parsed.y === null) return `${c.dataset.label}: ingen data`;
                                 const v = c.parsed.y;
                                 return evYearMetric === 'cost'
-                                    ? `${c.dataset.label}: ${v.toFixed(0)} kr`
-                                    : `${c.dataset.label}: ${v.toFixed(1)} kWh`;
+                                    ? `${c.dataset.label}: ${appUtils.num(v, 0)} kr`
+                                    : `${c.dataset.label}: ${appUtils.num(v, 1)} kWh`;
                             }
                         }
                     }
@@ -207,9 +209,9 @@
             const cpkwh   = kwh > 0 ? cost / kwh : 0;
             return `<tr>
                 <td><span class="year-dot" style="background:${color}"></span>${year}${appUtils.runningMonthIndex(year) !== null ? ' <span class="text-muted text-xs">til dato</span>' : ''}</td>
-                <td class="text-end fw-bold">${kwh.toFixed(1)} kWh</td>
-                <td class="text-end">${cost.toFixed(0)} kr</td>
-                <td class="text-end text-muted text-xs">${cpkwh.toFixed(2)} kr/kWh</td>
+                <td class="text-end fw-bold">${appUtils.num(kwh, 1)} kWh</td>
+                <td class="text-end">${appUtils.num(cost, 0)} kr</td>
+                <td class="text-end text-muted text-xs">${appUtils.num(cpkwh, 2)} kr/kWh</td>
                 <td class="text-end text-muted text-xs">${months} mdr.</td>
             </tr>`;
         }).join('');

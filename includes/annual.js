@@ -32,6 +32,11 @@ function _annualPartsKr(y) {
     };
 }
 
+/** A year whose heat pump meter starts after the house meter: the house total is right, but it cannot be split (see AnnualSummary.php). */
+function _annualUnsplit(y) {
+    return !!y.hus && y.split_ok === false;
+}
+
 const annualApp = (() => {
     let chartInstance = null;
     let _mode = 'kwh';
@@ -112,7 +117,7 @@ const annualApp = (() => {
     // ── Chart ─────────────────────────────────────────────────────────────────
     // Stacked: what the house meter went to, year by year (heat pump, EV at home, the rest), so the bar is the house.
     // Beside each other, "Hus total" looked like a fourth thing and a year with an EV looked like a year of doubled use.
-    const _COLOURS = { vp: '#0ea495', ev: '#224b81', rest: '#9e5f00' };   // the --data-* tokens, opaque (dev/test_datacolors.js)
+    const _COLOURS = { vp: '#0ea495', ev: '#224b81', rest: '#9e5f00', unsplit: '#6b7785' };   // the --data-* tokens, opaque (dev/test_datacolors.js); grey: the house total of a year that cannot be split
 
     function _renderChart(data) {
         const canvas = document.getElementById('annualChart');
@@ -128,22 +133,26 @@ const annualApp = (() => {
 
         if (_mode === 'kr') {
             const parts = data.years.map(_annualPartsKr);
+            const un = data.years.map(_annualUnsplit);
             datasets = [];
             // The heat pump and the rest are estimated from spot prices: only once those are there
-            if (_costsReady) datasets.push(seg('Jordvarme kr*', 'vp', parts.map(p => p.vp ?? 0)));
-            datasets.push(seg('El-bil hjemme kr', 'ev', parts.map(p => p.evHome)));
-            if (_costsReady && hasHus) datasets.push(seg('Øvrigt kr*', 'rest', parts.map(p => p.rest ?? 0)));
+            if (_costsReady) datasets.push(seg('Jordvarme kr*', 'vp', parts.map((p, i) => un[i] ? null : (p.vp ?? 0))));
+            datasets.push(seg('El-bil hjemme kr', 'ev', parts.map((p, i) => un[i] ? null : p.evHome)));
+            if (_costsReady && hasHus) datasets.push(seg('Øvrigt kr*', 'rest', parts.map((p, i) => un[i] ? null : (p.rest ?? 0))));
+            if (_costsReady && un.some(Boolean)) datasets.push(seg('Hus i alt, ikke fordelt kr*', 'unsplit', data.years.map((y, i) => un[i] ? (Number(_husCostByYear[y.year]) || 0) : null)));
             yLabel = 'kr';
             fmt = _fmtKr;
             // The "EV only" note is for when the spot-price estimates are unavailable (elspot not configured)
             if (noteEl) noteEl.style.display = _costsReady ? 'none' : '';
         } else {
             const parts = data.years.map(_annualParts);
+            const un = data.years.map(_annualUnsplit);
             datasets = [
-                seg('Jordvarme kWh', 'vp', parts.map(p => p.vp)),
-                seg('El-bil hjemme kWh', 'ev', parts.map(p => p.evHome)),
+                seg('Jordvarme kWh', 'vp', parts.map((p, i) => un[i] ? null : p.vp)),
+                seg('El-bil hjemme kWh', 'ev', parts.map((p, i) => un[i] ? null : p.evHome)),
             ];
-            if (hasHus) datasets.push(seg('Øvrigt kWh', 'rest', parts.map(p => p.rest ?? 0)));
+            if (hasHus) datasets.push(seg('Øvrigt kWh', 'rest', parts.map((p, i) => un[i] ? null : (p.rest ?? 0))));
+            if (un.some(Boolean)) datasets.push(seg('Hus i alt, ikke fordelt kWh', 'unsplit', parts.map((p, i) => un[i] ? (p.hus ?? 0) : null)));
             yLabel = hasHus ? 'kWh (husmåler)' : 'kWh';
             fmt = _fmtKwh;
             if (noteEl) noteEl.style.display = 'none';
@@ -226,9 +235,10 @@ const annualApp = (() => {
             const vpKrCell  = showCost
                 ? `<td class="text-end">${_vpCostByYear[y.year] > 0 ? _fmtKr(_vpCostByYear[y.year]) : '—'}</td>`
                 : '';
-            const restCell   = hasHus ? `<td class="text-end">${y.hus !== null ? _fmtKwh(_annualParts(y).rest) : '—'}</td>` : '';
+            const unsplit    = _annualUnsplit(y);
+            const restCell   = hasHus ? `<td class="text-end">${y.hus !== null && !unsplit ? _fmtKwh(_annualParts(y).rest) : '—'}</td>` : '';
             const restKr     = _annualPartsKr(y).rest;
-            const restKrCell = (showCost && hasHus) ? `<td class="text-end">${restKr > 0 ? _fmtKr(restKr) : '—'}</td>` : '';
+            const restKrCell = (showCost && hasHus) ? `<td class="text-end">${restKr > 0 && !unsplit ? _fmtKr(restKr) : '—'}</td>` : '';
             const husKrCell = (showCost && hasHus)
                 ? `<td class="text-end">${_husCostByYear[y.year] > 0 ? _fmtKr(_husCostByYear[y.year]) : '—'}</td>`
                 : '';
@@ -254,6 +264,13 @@ const annualApp = (() => {
 
         html += `<p class="text-muted small mt-2 mb-0">Diagrammet deler husmåleren i jordvarme, el-bil (kun hjemmeladning) og øvrigt (måler minus de to). ` +
             `Ladning ude passerer ikke måleren og står kun i tabellens EV-kolonner.</p>`;
+
+        const unsplitYears = data.years.filter(_annualUnsplit).map(y => y.year);
+        if (unsplitYears.length && data.meters) {
+            const dk = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('da-DK', { day: 'numeric', month: 'long' }) : '?';
+            html += `<p class="text-muted small mt-2 mb-0">${unsplitYears.join(', ')}: husmåleren starter ${dk(data.meters.hus_from)} og jordvarmemåleren først ${dk(data.meters.hp_from)}. ` +
+                `Jordvarmens måneder før da ville ellers tælle med som "Øvrigt", så året kan ikke deles op; den grå søjle er hustotalen, og "Øvrigt" står som —.</p>`;
+        }
 
         if (showCost) {
             html += `<p class="text-muted small mt-2 mb-0">* Estimeret ud fra spotpris, ` +

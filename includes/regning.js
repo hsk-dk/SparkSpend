@@ -94,14 +94,14 @@ const regningApp = (() => {
 
             return `<tr>
                 <td class="text-nowrap" data-label="Måned">${_monthLabel(m)}</td>
-                ${hasHus ? `<td class="text-end" data-label="Hus kWh">${husRow.kwh > 0 ? husRow.kwh.toFixed(1) : '—'}</td>` : ''}
-                <td class="text-end" data-label="El-bil kWh">${evRow.kwh > 0 ? evRow.kwh.toFixed(1) : '—'}</td>
+                ${hasHus ? `<td class="text-end" data-label="Hus kWh">${husRow.kwh > 0 ? appUtils.num(husRow.kwh, 1) : '—'}</td>` : ''}
+                <td class="text-end" data-label="El-bil kWh">${evRow.kwh > 0 ? appUtils.num(evRow.kwh, 1) : '—'}</td>
                 <td class="text-end" data-label="El-bil kr">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
-                <td class="text-end" data-label="VP kWh">${hpRow.kwh > 0 ? hpRow.kwh.toFixed(1) : '—'}</td>
+                <td class="text-end" data-label="VP kWh">${hpRow.kwh > 0 ? appUtils.num(hpRow.kwh, 1) : '—'}</td>
                 ${hasCosts ? `<td class="text-end" data-label="VP kr*">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
-                ${hasHus ? `<td data-label="Restforbrug kWh" class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + residualKwh.toFixed(1) : '\u2014'}</td>` : ''}
+                ${hasHus ? `<td data-label="Restforbrug kWh" class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + appUtils.num(residualKwh, 1) : '\u2014'}</td>` : ''}
                 ${hasResidual ? `<td class="text-end fw-semibold" data-label="Restforbrug kr*">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
-                ${hasSkur ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${skur[m] > 0 ? skur[m].toFixed(1) : '—'}</td>` : ''}
+                ${hasSkur ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${skur[m] > 0 ? appUtils.num(skur[m], 1) : '—'}</td>` : ''}
             </tr>`;
         }).join('');
 
@@ -112,14 +112,14 @@ const regningApp = (() => {
         const residualKwhTh  = hasHus      ? '<th class="text-end">Restforbrug kWh</th>' : '';
         const residualKrTh   = hasResidual ? '<th class="text-end">Restforbrug kr*</th>' : '';
         const skurTh         = hasSkur     ? '<th class="text-end text-muted" title="Skurets varmeapparat, målt af Home Assistant. Indgår i Restforbrug.">heraf Skur kWh</th>' : '';
-        const totSkurTd      = hasSkur     ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${Object.entries(skur).filter(([mm]) => months.includes(mm)).reduce((a, [, v]) => a + v, 0).toFixed(1)}</td>` : '';
+        const totSkurTd      = hasSkur     ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${appUtils.num(Object.entries(skur).filter(([mm]) => months.includes(mm)).reduce((a, [, v]) => a + v, 0), 1)}</td>` : '';
 
         const totHusTd       = hasHus
-            ? `<td class="text-end fw-bold" data-label="Hus kWh">${totHusKwh > 0 ? totHusKwh.toFixed(1) : '—'}</td>` : '';
+            ? `<td class="text-end fw-bold" data-label="Hus kWh">${totHusKwh > 0 ? appUtils.num(totHusKwh, 1) : '—'}</td>` : '';
         const totHpCostTd    = hasCosts
             ? `<td class="text-end fw-bold" data-label="VP kr*">${totHpCost > 0 ? _kr(totHpCost) : '—'}</td>` : '';
         const totResidualKwhTd = hasHus
-            ? `<td data-label="Restforbrug kWh" class="text-end fw-bold${totResidualKwh !== null && totResidualKwh < 0 ? ' text-danger' : ''}">${totResidualKwh !== null ? (totResidualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + totResidualKwh.toFixed(1) : '\u2014'}</td>` : '';
+            ? `<td data-label="Restforbrug kWh" class="text-end fw-bold${totResidualKwh !== null && totResidualKwh < 0 ? ' text-danger' : ''}">${totResidualKwh !== null ? (totResidualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + appUtils.num(totResidualKwh, 1) : '\u2014'}</td>` : '';
         const totResidualCostTd = hasResidual
             ? `<td class="text-end fw-bold" data-label="Restforbrug kr*">${totResidualCost > 0 ? _kr(totResidualCost) : '—'}</td>` : '';
 
@@ -151,9 +151,9 @@ const regningApp = (() => {
                         <tr>
                             <td data-label="Måned">Total</td>
                             ${totHusTd}
-                            <td class="text-end" data-label="El-bil kWh">${totEvKwh.toFixed(1)}</td>
+                            <td class="text-end" data-label="El-bil kWh">${appUtils.num(totEvKwh, 1)}</td>
                             <td class="text-end" data-label="El-bil kr">${totEvCost > 0 ? _kr(totEvCost) : '—'}</td>
-                            <td class="text-end" data-label="VP kWh">${totHpKwh.toFixed(1)}</td>
+                            <td class="text-end" data-label="VP kWh">${appUtils.num(totHpKwh, 1)}</td>
                             ${totHpCostTd}
                             ${totResidualKwhTd}
                             ${totResidualCostTd}
@@ -304,7 +304,8 @@ const fordelingApp = (() => {
         if (!el) return;
 
         const total = totEv + totHp + totRest;
-        const pct = v => total > 0 ? Math.round(v / total * 100) + '%' : '—';
+        const shares = appUtils.percents([totEv, totHp, totRest]);
+        const pctOf = i => total > 0 ? shares[i] + '%' : '—';
         const fmt = v => hasCosts
             ? new Intl.NumberFormat('da-DK').format(Math.round(v)) + ' kr'
             : new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(v) + ' kWh';
@@ -315,12 +316,12 @@ const fordelingApp = (() => {
         ];
         if (hasHus) cards.push({ label: 'Restforbrug', val: totRest, colour: '#9e5f00', bg: 'rgba(158,95,0,0.08)' });
 
-        el.innerHTML = cards.map(c => `
+        el.innerHTML = cards.map((c, i) => `
             <div class="col">
                 <div class="rounded p-3 text-center h-100" style="background:${c.bg}; border:1px solid ${c.colour}33; border-top:4px solid ${c.colour}">
                     <div class="small text-muted mb-1">${c.label}</div>
                     <div class="fw-bold fs-5">${fmt(c.val)}</div>
-                    <div class="small text-muted">${pct(c.val)} af total</div>
+                    <div class="small text-muted">${pctOf(i)} af total</div>
                 </div>
             </div>`).join('');
     }
@@ -396,6 +397,7 @@ const fordelingApp = (() => {
             : new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(v) + ' kWh';
 
         const total = data.reduce((a, b) => a + b, 0);
+        const shares = appUtils.percents(data);   // whole numbers that add up to 100
 
         _donutChart = new Chart(canvas.getContext('2d'), {
             type: 'doughnut',
@@ -410,14 +412,14 @@ const fordelingApp = (() => {
                     datalabels: {
                         color: '#fff',
                         font: { weight: 'bold', size: 12 },
-                        formatter: (v) => total > 0 ? Math.round(v / total * 100) + '%' : '',
+                        formatter: (v, ctx) => total > 0 ? shares[ctx.dataIndex] + '%' : '',
                         display: ctx => ctx.dataset.data[ctx.dataIndex] / total > 0.05,
                     },
                     legend: { position: 'bottom' },
                     tooltip: {
                         callbacks: {
                             label: ctx => ' ' + ctx.label + ': ' + fmtTip(ctx.raw)
-                                + (total > 0 ? ' (' + Math.round(ctx.raw / total * 100) + '%)' : ''),
+                                + (total > 0 ? ' (' + shares[ctx.dataIndex] + '%)' : ''),
                         },
                     },
                 },

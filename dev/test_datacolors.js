@@ -84,16 +84,27 @@ for (const f of ['includes/annual.js', 'includes/hus.js', 'includes/regning.js']
 check('annual.js, hus.js and regning.js carry none of the old blue, green and amber', stray.length === 0, stray.join('; '));
 
 console.log('\nthe six year colours (year comparisons on Hus, Jordvarme and Elbil)');
-const YEARS = ['#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'];
+// Chosen so the common cases read: the first three (a three-year chart) differ in LIGHTNESS as well as hue (dark brown, light orange, mid blue),
+// every pair differs for every kind of colour vision, and each year has its own marker shape as a second cue. The first set (found on hue
+// distance alone) put navy and maroon at the same lightness: on real data (Hus -> Sammenligning) the two thin lines were hard to tell apart.
+const YEARS = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];
 const list = YEARS.map(c => `'${c}'`).join(', ');
 for (const [f, name] of [['includes/hus.js', 'YEAR_COLORS'], ['includes/jordvarme.js', 'YEAR_COLORS'], ['includes/elbil/yearly.js', 'EV_YEAR_COLORS']]) {
-    has(f, new RegExp(`${name} = \\[${list.replace(/[#]/g, '#')}\\]`, 'i'), `${f} uses the same six year colours`);
+    has(f, new RegExp(`${name} = \\[${list}\\]`, 'i'), `${f} uses the same six year colours`);
 }
+const Ls = c => lab(c, 'normal')[0];
 check('each year colour is at least 3:1 on white (a line or a bar)', YEARS.every(c => ratio(c, '#ffffff') >= 3), YEARS.map(c => ratio(c, '#ffffff').toFixed(2)).join(' '));
 let yearWorst = 99;
 for (let i = 0; i < YEARS.length; i++) for (let j = i + 1; j < YEARS.length; j++) yearWorst = Math.min(yearWorst, ...Object.keys(M).map(k => dE(YEARS[i], YEARS[j], k)));
-check(`any two of the six differ by delta E 30 or more for every kind of colour vision (the old palette: blue/violet 7; worst now ${yearWorst.toFixed(0)})`, yearWorst >= 30);
-check('the old year palette (blue, green, orange, violet, red, pink) is gone', !['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#ec4899'].some(c => ['includes/hus.js', 'includes/jordvarme.js', 'includes/elbil/yearly.js'].some(f => read(f).toLowerCase().includes(c))));
+check(`any two of the six differ by delta E 30 or more for every kind of colour vision (worst ${yearWorst.toFixed(0)})`, yearWorst >= 30);
+const dl = (i, j) => Math.abs(Ls(YEARS[i]) - Ls(YEARS[j]));
+check(`the first three (a three-year chart) differ in lightness by at least 14 L* each (${dl(0, 1).toFixed(0)}, ${dl(0, 2).toFixed(0)}, ${dl(1, 2).toFixed(0)}); the first set had 3`, dl(0, 1) >= 14 && dl(0, 2) >= 14 && dl(1, 2) >= 14);
+check('neighbouring years never have the same lightness (at least 8 L* between index i and i+1)', YEARS.slice(1).every((_, i) => dl(i, i + 1) >= 8));
+check('the old year palettes are gone', !['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#ec4899', '#303091', '#f95706', '#63212c', '#27a1b9', '#cb7462', '#9406f9'].some(c => ['includes/hus.js', 'includes/jordvarme.js', 'includes/elbil/yearly.js'].some(f => read(f).toLowerCase().includes(c))));
+for (const [f, pfx] of [['includes/hus.js', 'YEAR_POINTS'], ['includes/jordvarme.js', 'YEAR_POINTS'], ['includes/elbil/yearly.js', 'EV_YEAR_POINTS']]) {
+    const src = read(f);
+    check(`${f}: six different marker shapes, used on the year lines (a cue that does not depend on colour)`, new RegExp(`${pfx} = \\['circle', 'triangle', 'rect', 'rectRot', 'crossRot', 'star'\\]`).test(src) && new RegExp(`pointStyle: ${pfx}\\[i % ${pfx}\\.length\\]`).test(src));
+}
 
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

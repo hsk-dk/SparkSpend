@@ -137,11 +137,11 @@
         const baseOpts = { chart: { type: 'line', height: 300 }, xaxis: { type: 'datetime', title: { text: 'Dato' } }, stroke: { curve: 'straight', width: 2 }, markers: { size: 4 } };
 
         if (kmPerKwhChartInstance) kmPerKwhChartInstance.destroy();
-        kmPerKwhChartInstance = new ApexCharts(document.querySelector('#kmPerKwhChart'), { ...baseOpts, series: kmSeries, yaxis: { title: { text: 'KM per kWh' }, min: 0 }, title: { text: 'Kumuleret km pr. kWh pr. bil' } });
+        kmPerKwhChartInstance = new ApexCharts(document.querySelector('#kmPerKwhChart'), { ...baseOpts, series: kmSeries, yaxis: { title: { text: 'km pr. kWh' }, min: 0, labels: { formatter: v => appUtils.num(v, 1) } }, title: { text: 'Kumuleret km pr. kWh pr. bil' } });
         kmPerKwhChartInstance.render();
 
         if (krPerKmChartInstance) krPerKmChartInstance.destroy();
-        krPerKmChartInstance = new ApexCharts(document.querySelector('#krPerKmChart'), { ...baseOpts, series: krSeries, yaxis: { title: { text: 'Kr per KM' }, min: 0 }, title: { text: 'Kumuleret kr pr. km pr. bil' } });
+        krPerKmChartInstance = new ApexCharts(document.querySelector('#krPerKmChart'), { ...baseOpts, series: krSeries, yaxis: { title: { text: 'kr pr. km' }, min: 0, labels: { formatter: v => appUtils.num(v, 2) } }, title: { text: 'Kumuleret kr pr. km pr. bil' } });
         krPerKmChartInstance.render();
     }
 

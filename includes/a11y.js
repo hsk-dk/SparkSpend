@@ -27,6 +27,18 @@ function _a11yNum(v) {
  * @param {Array}  labels    the x labels (or the slices)
  * @param {Array}  datasets  [{label, data, borderDash}]
  */
+/** Whole percentages that add up to 100 (largest remainder); appUtils.percents is the same, this file must stand alone. */
+function _a11yPercents(values) {
+    const pos = values.map(v => Math.max(0, v));
+    const total = pos.reduce((s, v) => s + v, 0);
+    if (!(total > 0)) return pos.map(() => 0);
+    const raw = pos.map(v => v / total * 100);
+    const out = raw.map(Math.floor);
+    const left = 100 - out.reduce((s, v) => s + v, 0);
+    raw.map((r, i) => [r - out[i], i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => { out[i]++; });
+    return out;
+}
+
 function _a11yChartText(title, type, labels, datasets) {
     const kind = _A11Y_KINDS[type] || 'Diagram';
     const head = (/[.?!]$/.test(title) ? title : title + '.') + ' ' + kind;   // a title that ends in ? does not get a full stop on top
@@ -37,7 +49,8 @@ function _a11yChartText(title, type, labels, datasets) {
     if (type === 'doughnut' || type === 'pie') {
         const values = series[0].data.map(v => Number(v) || 0);
         const total = values.reduce((s, v) => s + v, 0);
-        const parts = names.slice(0, 8).map((l, i) => `${l} ${total > 0 ? Math.round(values[i] / total * 100) + ' %' : _a11yNum(values[i])}`);
+        const shares = _a11yPercents(values);   // whole numbers that add up to 100, like the labels on the chart
+        const parts = names.slice(0, 8).map((l, i) => `${l} ${total > 0 ? shares[i] + ' %' : _a11yNum(values[i])}`);
         return `${head}: ${parts.join(', ')}.`;
     }
 

@@ -2320,7 +2320,7 @@ th.sort-active { color: var(--accent-strong); }
 /* Compact comparison lines on the overview cards (see _trendLine) */
 .trend-line { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; font-size: var(--text-sm); line-height: 1.5; }
 .trend-label { font-weight: 600; color: #475569; min-width: 2.6em; }
-.trend-sep { color: #94a3b8; }
+.trend-sep { color: var(--muted-strong); }   /* a separator is still text to a contrast check: #94a3b8 was 2.6:1 */
 .trend-neutral-dir { color: #334155; }
 .trend-line > span { white-space: nowrap; }
 

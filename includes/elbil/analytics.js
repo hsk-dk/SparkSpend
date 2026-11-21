@@ -63,12 +63,13 @@
 
         const opts = {
             chart: { type: 'area', height: 400, stacked: true },
-            series: [{ name: 'Indre ladning (kr)', data: internal }, { name: 'Ekstern ladning (kr)', data: external }],
+            series: [{ name: 'Hjemme (kr)', data: internal }, { name: 'Ude (kr)', data: external }],
             xaxis: { categories: dates },
-            yaxis: { title: { text: 'Omkostning (kr)' } },
+            yaxis: { title: { text: 'Omkostning (kr)' }, labels: { formatter: v => appUtils.num(v, 0) } },
+            dataLabels: { enabled: false },   // the default labelled the points with the raw sum (382.28999999999996); the tooltip has the figure
             title: { text: 'Omkostningstendenser' },
             stroke: { curve: 'straight' },
-            tooltip: { y: { formatter: v => v.toFixed(2) + ' kr' } }
+            tooltip: { y: { formatter: v => appUtils.num(v, 2) + ' kr' } }
         };
 
         if (costTrendChartInstance) costTrendChartInstance.destroy();
@@ -87,12 +88,12 @@
         const maxCost        = parseFloat(stats.max_cost)           || 0;
         el.innerHTML = `
             <table class="table table-sm mb-0">
-                <tr><td><strong>Samlet kWh:</strong></td><td>${totalKwh.toFixed(2)}</td></tr>
-                <tr><td><strong>I alt kr:</strong></td><td>${totalCost.toFixed(2)}</td></tr>
-                <tr><td><strong>Gennemsnit pr. ladning:</strong></td><td>${avgCost.toFixed(2)} kr</td></tr>
-                <tr><td><strong>Gennemsnit pr. kWh:</strong></td><td>${avgCostPerKwh.toFixed(3)} kr/kWh</td></tr>
-                <tr><td><strong>Min pr. ladning:</strong></td><td>${minCost.toFixed(2)} kr</td></tr>
-                <tr><td><strong>Max pr. ladning:</strong></td><td>${maxCost.toFixed(2)} kr</td></tr>
+                <tr><td><strong>Samlet kWh:</strong></td><td>${appUtils.num(totalKwh, 2)}</td></tr>
+                <tr><td><strong>I alt kr:</strong></td><td>${appUtils.num(totalCost, 2)}</td></tr>
+                <tr><td><strong>Gennemsnit pr. ladning:</strong></td><td>${appUtils.num(avgCost, 2)} kr</td></tr>
+                <tr><td><strong>Gennemsnit pr. kWh:</strong></td><td>${appUtils.num(avgCostPerKwh, 3)} kr/kWh</td></tr>
+                <tr><td><strong>Min pr. ladning:</strong></td><td>${appUtils.num(minCost, 2)} kr</td></tr>
+                <tr><td><strong>Max pr. ladning:</strong></td><td>${appUtils.num(maxCost, 2)} kr</td></tr>
             </table>`;
     }
 
@@ -117,6 +118,7 @@
 
     function _renderVehicleComparison(data) {
         const tbody = document.getElementById('vehicleComparisonTableBody');
+        data = (data || []).filter(v => Number(v.charge_count) > 0);   // "Ukendt" with 0 charges and 0 kWh is noise
         if (!data || !data.length) {
             appUtils.showEmptyState(tbody, {
                 message: 'Ingen biler at sammenligne i den valgte periode.',
@@ -130,11 +132,11 @@
             <tr>
                 <td><strong>${_esc(v.vehicleName)}</strong></td>
                 <td>${v.charge_count}</td>
-                <td>${v.total_kwh.toFixed(2)} kWh</td>
-                <td>${v.total_cost.toFixed(2)} kr</td>
-                <td>${v.avg_cost_per_kwh.toFixed(3)} kr/kWh</td>
-                <td>${v.internal_percentage.toFixed(1)}%</td>
-                <td>${v.external_percentage.toFixed(1)}%</td>
+                <td>${appUtils.num(v.total_kwh, 2)} kWh</td>
+                <td>${appUtils.num(v.total_cost, 2)} kr</td>
+                <td>${appUtils.num(v.avg_cost_per_kwh, 3)} kr/kWh</td>
+                <td>${appUtils.num(v.internal_percentage, 1)}%</td>
+                <td>${appUtils.num(v.external_percentage, 1)}%</td>
             </tr>`).join('');
     }
 
@@ -183,9 +185,9 @@
                   <tr>
                     <td>${_esc(p.providerName)}</td>
                     <td class="text-end">${p.charge_count}</td>
-                    <td class="text-end">${p.total_kwh.toFixed(2)}</td>
-                    <td class="text-end">${p.total_cost.toFixed(2)}</td>
-                    <td class="text-end">${p.avg_cost_per_kwh.toFixed(3)}</td>
+                    <td class="text-end">${appUtils.num(p.total_kwh, 2)}</td>
+                    <td class="text-end">${appUtils.num(p.total_cost, 2)}</td>
+                    <td class="text-end">${appUtils.num(p.avg_cost_per_kwh, 3)}</td>
                   </tr>`).join('')}
                 </tbody>
               </table>

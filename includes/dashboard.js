@@ -68,7 +68,7 @@ function _trendLine(label, pctMonth, pctYear, tone, extra = '', now = new Date()
     };
     const parts = [part('vs. ' + labels.prev, pctMonth), part('vs. ' + labels.year, pctYear)].filter(Boolean);
     if (!parts.length) return '';
-    return `<div class="trend-line"${title ? ` title="${title}"` : ''}><span class="trend-label">${label}</span>${parts.join('<span class="trend-sep">·</span>')}${extra}</div>`;
+    return `<div class="trend-line"${title ? ` title="${title}"` : ''}><span class="trend-label">${label}</span>${parts.join('<span class="trend-sep" aria-hidden="true">·</span>')}${extra}</div>`;
 }
 
 function _setCardNote(cardId, text) {
@@ -543,7 +543,7 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
                             const day = d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
                             return !line && items[0].dataIndex === dataPoints.length - 1 ? `${day} (i dag, hidtil)` : day;
                         },
-                        label: (item) => item.raw.toFixed(1) + ' ' + unit
+                        label: (item) => appUtils.num(item.raw, 1) + ' ' + unit
                     }
                 } : { enabled: false },
                 datalabels: { display: false }
@@ -643,7 +643,7 @@ async function loadElspotForecast(force = false) {
             cheapEl.innerHTML =
                 `<span class="badge bg-success me-1"><i class="fas fa-bolt"></i></span>` +
                 `Billigste 2-timers ladevindue: <strong>${String(cheapH1).padStart(2,'0')}:00–${String(cheapH2 + 1).padStart(2,'0')}:00</strong>` +
-                ` · gns. ${cheapAvg.toFixed(3)} kr/kWh`;
+                ` · gns. ${appUtils.num(cheapAvg, 3)} kr/kWh`;
         }
 
         // ApexCharts bar chart
@@ -674,9 +674,9 @@ async function loadElspotForecast(force = false) {
                 labels: { rotate: -45, style: { fontSize: '9px' } },
                 tickAmount: 6,
             },
-            yaxis: { labels: { formatter: v => v.toFixed(2) }, title: { text: 'kr/kWh', style: { fontSize: '11px' } } },
+            yaxis: { labels: { formatter: v => appUtils.num(v, 2) }, title: { text: 'kr/kWh', style: { fontSize: '11px' } } },
             tooltip: {
-                y: { formatter: v => v.toFixed(3) + ' kr/kWh' },
+                y: { formatter: v => appUtils.num(v, 3) + ' kr/kWh' },
                 x: { formatter: (_, { dataPointIndex }) => {
                     const h = hours[dataPointIndex];
                     return `${String(h.hour).padStart(2,'0')}:00–${String(h.hour+1).padStart(2,'0')}:00`;
@@ -761,7 +761,8 @@ function _costShareBars(kwh, cost) {
 
     const legend = _SHARE_PARTS.map((x, i) =>
         `<span class="tc-key"><i class="tc-dot" style="background:${x.color}"></i>${x.label} ` +
-        `<b>${kPct[i]}\u00a0%</b> af kWh \u00b7 <b>${cPct[i]}\u00a0%</b> af kr</span>`).join('');
+        `<b>${kPct[i]}\u00a0%</b> af kWh \u00b7 <b>${cPct[i]}\u00a0%</b> af kr</span>`).join('') +
+        (cVals[3] > 0 ? `<span class="tc-key"><i class="tc-dot" style="background:${_SHARE_SUB_COLOR}"></i>Abonnement <b>${cPct[3]}\u00a0%</b> af kr</span>` : '');
     return `<div class="total-cost-bars">` +
         row('kWh hidtil', kTotal, 'kWh', kParts) +
         row('kr forventet', cTotal, 'kr', cParts) +
@@ -822,7 +823,7 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
     const evCard = document.getElementById('ev-dashboard-card');
     if (evCard && cost.low_rate > 0) {
         const cpkwhEl = evCard.querySelector('.dash-stat-cpkwh');
-        if (cpkwhEl) cpkwhEl.title = `Spotpris gns. denne mdr: ${cost.low_rate.toFixed(2)} kr/kWh (inkl. afgifter)`;
+        if (cpkwhEl) cpkwhEl.title = `Spotpris gns. denne mdr: ${appUtils.num(cost.low_rate, 2)} kr/kWh (inkl. afgifter)`;
     }
 }
 

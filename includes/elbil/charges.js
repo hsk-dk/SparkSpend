@@ -183,7 +183,7 @@
                             : `SoC: ${charge.socPercentage}%`;
                         socHtml = `<br><small class="text-muted">${socStr}</small>`;
                     }
-                    sessionCell  = `<td data-label="Varighed">${durStr}<br><small class="text-muted">Ø ${avgKw.toFixed(1)} kW</small>${socHtml}</td>`;
+                    sessionCell  = `<td data-label="Varighed">${durStr}<br><small class="text-muted">Ø ${appUtils.num(avgKw, 1)} kW</small>${socHtml}</td>`;
                 }
             }
 
@@ -211,10 +211,10 @@
 
             row.innerHTML = `
                 <td data-label="Dato">${fmtDate}</td>
-                <td data-label="Forbrugt kWh">${kwh.toFixed(2)} kWh</td>
+                <td data-label="Forbrugt kWh">${appUtils.num(kwh, 2)} kWh</td>
                 ${sessionCell}
-                <td data-label="Pris">${pris.toFixed(2)} kr</td>
-                <td data-label="Pris pr kWh">${priceIcon ? priceIcon + ' ' : ''}${pPerKwh.toFixed(2)} kr/kWh${priceText ? ' <small>' + priceText + '</small>' : ''}</td>
+                <td data-label="Pris">${appUtils.num(pris, 2)} kr</td>
+                <td data-label="Pris pr kWh">${priceIcon ? priceIcon + ' ' : ''}${appUtils.num(pPerKwh, 2)} kr/kWh${priceText ? ' <small>' + priceText + '</small>' : ''}</td>
                 <td data-label="Bil">${appUtils.escapeHtml(vName)}${pairingBadge}</td>
                 <td data-label="Type">${icon}${stateBadge}</td>
                 <td data-label="Handling"><button class="btn btn-sm btn-secondary" data-action="edit">Rediger</button></td>
@@ -253,22 +253,22 @@
             const avg = totals[v].totalKwh > 0 ? totals[v].totalPris / totals[v].totalKwh : 0;
             html += `<tr>
                 <td>${appUtils.escapeHtml(v)}</td>
-                <td>${totals[v].totalKwh.toFixed(2)} kWh</td>
-                <td>${totals[v].internalPris.toFixed(2)} kr</td>
-                <td>${totals[v].externalPris.toFixed(2)} kr</td>
-                <td>${totals[v].totalPris.toFixed(2)} kr</td>
-                <td>${avg.toFixed(2)} kr/kWh</td>
+                <td>${appUtils.num(totals[v].totalKwh, 2)} kWh</td>
+                <td>${appUtils.num(totals[v].internalPris, 2)} kr</td>
+                <td>${appUtils.num(totals[v].externalPris, 2)} kr</td>
+                <td>${appUtils.num(totals[v].totalPris, 2)} kr</td>
+                <td>${appUtils.num(avg, 2)} kr/kWh</td>
             </tr>`;
         });
 
         const overallAvg = overallKwh > 0 ? overallPris / overallKwh : 0;
         html += `<tr style="font-weight:bold;">
             <td>Total</td>
-            <td>${overallKwh.toFixed(2)} kWh</td>
-            <td>${internalPrice.toFixed(2)} kr</td>
-            <td>${externalPrice.toFixed(2)} kr</td>
-            <td>${overallPris.toFixed(2)} kr</td>
-            <td>${overallAvg.toFixed(2)} kr/kWh</td>
+            <td>${appUtils.num(overallKwh, 2)} kWh</td>
+            <td>${appUtils.num(internalPrice, 2)} kr</td>
+            <td>${appUtils.num(externalPrice, 2)} kr</td>
+            <td>${appUtils.num(overallPris, 2)} kr</td>
+            <td>${appUtils.num(overallAvg, 2)} kr/kWh</td>
         </tr></table>`;
         if (summaryTextEl) summaryTextEl.innerHTML = html;
 
@@ -410,7 +410,7 @@
             priceInput.insertAdjacentElement('afterend', el);
         }
         if (kwh > 0 && pris >= 0) {
-            el.textContent = `� ${(pris / kwh).toFixed(2)} kr/kWh`;
+            el.textContent = `� ${appUtils.num(pris / kwh, 2)} kr/kWh`;
             el.style.display = '';
         } else {
             el.textContent = '';

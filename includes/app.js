@@ -41,6 +41,30 @@ const initializeTooltips = () => {
 };
 
 /**
+ * A number the Danish way (comma for decimals, dot between thousands) with a fixed number of decimals; '—' for null/NaN.
+ * Use this instead of toFixed() for anything the user reads (toFixed gives 9192.2 where the rest of the app says 9.192,2).
+ */
+const num = (value, decimals = 0) => {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '—';
+  return new Intl.NumberFormat('da-DK', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value));
+};
+
+/**
+ * Whole percentages of a set of values that add up to exactly 100 (largest remainder), so a pie of 44.6 + 18.8 + 36.6 does not read
+ * 45 + 19 + 37 = 101. Negative values count as 0; an empty or all-zero set gives zeros.
+ */
+const percents = (values) => {
+  const pos = values.map(v => Math.max(0, Number(v) || 0));
+  const total = pos.reduce((s, v) => s + v, 0);
+  if (!(total > 0)) return pos.map(() => 0);
+  const raw = pos.map(v => v / total * 100);
+  const out = raw.map(Math.floor);
+  const left = 100 - out.reduce((s, v) => s + v, 0);
+  raw.map((r, i) => [r - out[i], i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => { out[i]++; });
+  return out;
+};
+
+/**
  * Format currency to Danish Krone format
  * @param {number} value - Value to format
  * @returns {string} Formatted value
@@ -585,6 +609,8 @@ window.appUtils = {
   debounce,
   initializeTooltips,
   formatCurrency,
+  num,
+  percents,
   formatDate,
   ymd,
   runningMonthIndex,
@@ -602,6 +628,28 @@ window.appUtils = {
   extractChargeData,
   initializeAppUtilities
 };
+
+// ApexCharts in Danish: month and day names on the axes and the download menu ("Download SVG" -> "Hent som SVG"). It is the library's
+// own locale mechanism; every Apex chart picks it up through the global Apex options.
+if (window.ApexCharts) {
+  window.Apex = window.Apex || {};
+  window.Apex.chart = Object.assign({}, window.Apex.chart, {
+    defaultLocale: 'da',
+    locales: [{
+      name: 'da',
+      options: {
+        months: ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'],
+        shortMonths: ['jan.', 'feb.', 'mar.', 'apr.', 'maj', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'],
+        days: ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'],
+        shortDays: ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'],
+        toolbar: {
+          exportToSVG: 'Hent som SVG', exportToPNG: 'Hent som PNG', exportToCSV: 'Hent som CSV', menu: 'Menu',
+          selection: 'Markér', selectionZoom: 'Zoom til markering', zoomIn: 'Zoom ind', zoomOut: 'Zoom ud', pan: 'Panorér', reset: 'Nulstil zoom',
+        },
+      },
+    }],
+  });
+}
 
 // Register the datalabels plugin once, before any chart exists. It used to be registered when the Elbil tab first opened:
 // a chart made earlier (Jordvarme, Hus, Regning) then had no per-chart plugin state, and its next update or mouse event threw

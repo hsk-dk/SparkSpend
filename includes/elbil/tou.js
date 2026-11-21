@@ -91,7 +91,7 @@
             new ApexCharts(
                 document.getElementById('touPriceChart'),
                 heatmapOpts(priceSeries, 'Gns. elpris (kr/kWh inkl. afgifter)', '#22c55e',
-                    v => v > 0 ? v.toFixed(3) + ' kr/kWh' : '—')
+                    v => v > 0 ? appUtils.num(v, 3) + ' kr/kWh' : '—')
             ).render();
 
             if (S.allCharges.length > 0) {

@@ -86,6 +86,22 @@ $r2 = AnnualSummary::build($c, $p2);
 $y2 = array_column($r2['payload']['years'], null, 'year');
 check('hus is null and the cost has no rest', $y2['2025']['hus'] === null && (($y2['2025']['cost']['rest'] ?? null) === null), json_encode([$y2['2025']['hus'], $y2['2025']['cost'] ?? null]));
 
+echo "\na year the heat pump meter does not cover (real data: house from 2021-03-09, heat pump from 2021-10-25)\n";
+$p3 = freshDb('powerlog');
+$h = 0; $k = 0;
+for ($d = new DateTimeImmutable('2021-03-09 12:00:00'); $d <= new DateTimeImmutable('2022-12-31 12:00:00'); $d = $d->modify('+1 day')) {
+    $h += 3;
+    $p3->prepare("INSERT INTO powerloghus (logdate, kwh) VALUES (?, ?)")->execute([$d->format('Y-m-d H:i:s'), $h]);
+    if ($d >= new DateTimeImmutable('2021-10-25 12:00:00')) { $k += 1; $p3->prepare("INSERT INTO powerlogjord (logdate, kwh) VALUES (?, ?)")->execute([$d->format('Y-m-d H:i:s'), $k]); }
+}
+$r3 = AnnualSummary::build($c, $p3);
+$y3 = array_column($r3['payload']['years'], null, 'year');
+check('2021: split_ok is false (the house meter starts before the heat pump meter)', ($y3['2021']['split_ok'] ?? null) === false, json_encode($y3['2021'] ?? null));
+check('2022: split_ok is true (both meters cover the whole year)', ($y3['2022']['split_ok'] ?? null) === true);
+check('the payload says where each meter starts', ($r3['payload']['meters']['hus_from'] ?? '') === '2021-03-09' && ($r3['payload']['meters']['hp_from'] ?? '') === '2021-10-25', json_encode($r3['payload']['meters'] ?? null));
+check('the first set (both meters from 2024-01-01) is split_ok in every year', ($years['2024']['split_ok'] ?? null) === true && ($years['2025']['split_ok'] ?? null) === true);
+check('no house meter: split_ok false (nothing to split)', ($y2['2025']['split_ok'] ?? null) === false);
+
 foreach (glob($cache . DIRECTORY_SEPARATOR . '*') ?: [] as $f) @unlink($f);
 @rmdir($cache);
 echo "\n$n checks, $fails failed\n";
