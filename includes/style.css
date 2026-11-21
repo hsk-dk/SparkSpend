@@ -37,12 +37,11 @@
   --bs-border-radius-sm: 0.2rem;     /* 5.3: 0.25rem  */
   --bs-border-radius-lg: 0.3rem;     /* 5.3: 0.5rem   */
 }
-/* 5.3 paints every table cell opaque white; the cards are translucent, so stay transparent */
+/* 5.3 paints every table cell opaque white; the cards and rows carry their own backgrounds, so stay transparent */
 .table { --bs-table-bg: transparent; }
 /* 5.1 drew a 2px rule between thead / tbody / tfoot; 5.3 made that opt-in (.table-group-divider) */
 .table > :not(:first-child) { border-top: 2px solid currentcolor; }
 
-/* Dark Mode */
 /* Respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -1968,16 +1967,6 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   border-left-color: #3b82f6;
 }
 .spark-toast-info .spark-toast-icon { color: #2563eb; }
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .spark-toast {
-    background: #243140;
-    color: #e2e8f0;
-    border-color: rgba(148, 163, 184, 0.25);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  }
-}
 
 /* Respect reduced-motion: no slide, just fade */
 @media (prefers-reduced-motion: reduce) {

@@ -25,7 +25,7 @@ SparkSpend har **ikke** taget det i brug (repoets README: "SparkSpend og clean.u
 
 **Valgt 2026-11-21: datapaletten med lysstyrke-trin, og den er lavet** (`--data-ev` `#224B81`, `--data-hp` `#0EA495`, `--data-rest` `#9E5F00`; se Afsluttet). De seks farver til år-sammenligningerne er lavet 2026-11-21 (se Afsluttet).
 
-**Trin 1-6 er lavet 2026-11-21** (se Afsluttet); næste er trin 7 (halvt mørkt tema).
+**Trin 1-7 er lavet 2026-11-21** (se Afsluttet); næste er trin 8 (ikoner som SVG og skrift: en beslutning, ikke en rettelse).
 
 **Rækkefølge (hvert trin måles):** (1) kopiér `dist/useful.css` ind, fastlåst på v0.3.0, og indlæs den før `style.css` uden at ændre klasser; (2) peg mine farvevariabler på tokens og lad `dev/test_contrast.js` læse tokens; (3) skift `--fs-*` til skalaens navne (28 → 24) og `tabular-nums` på tal; (4) header, primær knap, kortradier og uigennemsigtige kort (D1, D2, D6); (5) ~~datafarver~~ (lavet, også årsfarverne); (6) pointer-bevidste knapper og evt. bundtabbar på telefon (hører sammen med mobil-punktet nedenfor); (7) fjern det halve mørke tema (D18); (8) senere: ikoner som SVG og skrift.
 
@@ -37,7 +37,7 @@ Alle otte visninger gennemgået i browseren på 1280 og 375 px, først med seed-
 2. **Hus → Forbrug, daglig visning: EV adskilt fra de jævne poster (M).** Med rigtige data dominerer EV-ladningerne (blå) de stablede søjler så meget, at jordvarme og øvrigt næsten forsvinder. Vis EV adskilt (egen række eller skift), så det jævne forbrug kan aflæses. På mobil er Hus-diagrammerne 230–260 px brede med 31 søjler: vis uger under 400 px eller lad dem scrolle sidelæns. `includes/hus.js`
 3. **Hus → Regning, skrivebord: en mur af tal (M).** 24 rækker × 9 kolonner uden andet end tal (samme længde med rigtige data; en tidligere antagelse om cirka 60 rækker var forkert); indbyggede søjler eller en farveskala i kr-kolonnerne gør den til noget, man kan læse hen over. `includes/regning.js`
 4. **Jordvarme: dobbelt akse (M, ikke bedømt med rigtige data).** kWh til venstre og temperatur til højre med en linje kan inspirere til at aflæse en sammenhæng, der ikke er der, men med rigtige vintermåneder er sammenhængen reel og netop det, grafen skal vise; panelet sænker derfor prioriteten. Vurder først, når temperaturlinjen ses med rigtige vejrdata. `includes/jordvarme.js`
-5. **Det halve mørke tema skal fjernes (S).** Kun `.dashboard-card` har en mørk variant (`@media (prefers-color-scheme: dark)`); resten af siden er lys. Designsystemet siger "kun lyst udtryk" (D18; mørk tilstand findes kun på Authentik-login), så blokken fjernes i stedet for at blive bygget færdig. `includes/style.css`
+5. ~~**Det halve mørke tema skal fjernes (S).**~~ (lavet 2026-11-21, se Afsluttet) Kun `.dashboard-card` har en mørk variant (`@media (prefers-color-scheme: dark)`); resten af siden er lys. Designsystemet siger "kun lyst udtryk" (D18; mørk tilstand findes kun på Authentik-login), så blokken fjernes i stedet for at blive bygget færdig. `includes/style.css`
 
 Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen på Jordvarme med rigtige vejrdata og skærmlæser i praksis (tilgængelighedsrettelserne er målt i DOM og med tastatur, ikke hørt med en skærmlæser). Mulige næste skridt: flyt fokus til det nye indhold, når man skifter side; en tabel som alternativ til de store diagrammer (tekstalternativet giver laveste, højeste og seneste, ikke alle punkter); `aria-live` ved indlæsning.
 
@@ -63,6 +63,7 @@ Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen p�
 
 ## Afsluttet
 
+- ✅ **2026-11-21 — Det halve mørke tema fjernet (D18)** — den sidste mørke variant (toasts under `prefers-color-scheme: dark`) er væk; siden er lys for alle. Kontrolleret med mørk tilstand emuleret. `includes/style.css`, `dev/test_useful_css.js` (24).
 - ✅ **2026-11-21 — Trykflader efter pointer (D21, mobilpunkt d)** — mindst 36 px med mus og 44 px med finger på knapper, faner, år-chips, valgfelter, tekstfelter (touch), spring-til-indhold og sidefodslinket; før: Gå til 29, Afvis 33, Rediger 31, luk-knap 30, fodlink 17. Målt på alle sider ved 375 px med touch (intet under 44, ingen sidelæns scroll) og 1280 px (intet under 36). `includes/style.css`, `dev/test_useful_css.js` (22).
 - ✅ **2026-11-21 — Seks årsfarver** — `#303091`, `#F95706`, `#63212C`, `#27A1B9`, `#CB7462`, `#9406F9` i `hus.js`, `jordvarme.js` og `elbil/yearly.js` (fundet ved søgning: mindst 3:1 mod hvid, ΔE mindst 35 for alle fire synstyper; før: par ned til ΔE 7). Seed-data har kun ét år, så det er ikke set på et diagram med flere år; brug produktionskopien næste gang. `dev/test_datacolors.js` (29).
 - ✅ **2026-11-21 — Useful-designsystemet, trin 4 (D1, D2, D6)** — header i systemets blå gradient, flad primærknap `#446EA8` (før 2,5:1), uigennemsigtige kort med systemets radius og skygge, inaktive header-faner 94 % hvide (før 70 %, 3,5:1). `includes/style.css`, `dev/test_useful_css.js` (19).
