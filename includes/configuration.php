@@ -45,7 +45,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 // Library scripts come from cdn.jsdelivr.net with Subresource Integrity.
 // style-src keeps 'unsafe-inline': the UI uses many inline style="" attributes (and the chart
 // libraries set styles); inline styles cannot run code. Tightening that is a separate task.
-header("Content-Security-Policy: default-src 'self'; script-src 'self' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com cdnjs.cloudflare.com; font-src 'self' fonts.gstatic.com cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; font-src 'self'; img-src 'self' data:; connect-src 'self' cdn.jsdelivr.net https://archive-api.open-meteo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
 
 // ============================================================================
 // CSRF Protection

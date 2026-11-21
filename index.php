@@ -21,14 +21,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <meta name="apple-mobile-web-app-title" content="SparkSpend">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/images/icon-192.png">
-  <!-- Inter Font -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Material Symbols -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">  
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha384-3B6NwesSXE7YJlcLI9RpRqGf2p/EgVH8BgoKTaUrmKNDkHPStTQ3EyoYjCGXaOTS" crossorigin="anonymous">
+  <!-- No web fonts and no icon font: the system font (Useful's --font-family-base) and inline SVG icons (includes/icons.css) -->
 
   <!-- Flatpickr CSS og JS -->
   <!-- All library scripts use defer: they no longer block first paint and
@@ -47,6 +40,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" integrity="sha384-cVMg8E3QFwTvGCDuK+ET4PD341jF3W8nO1auiXfuZNQkzbUUiBGLsIQUE+b1mxws" crossorigin="anonymous"></script>
   <!-- The shared Useful design system (hsk-dk/useful-design), pinned to v0.3.0: tokens and u- classes; do not edit, see includes/useful.css -->
   <link rel="stylesheet" href="<?= asset('includes/useful.css') ?>">
+  <link rel="stylesheet" href="<?= asset('includes/icons.css') ?>">
   <link rel="stylesheet" href="<?= asset('includes/style.css') ?>">
 
   <script defer src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0/dist/apexcharts.min.js" integrity="sha384-5u6RO0Q8xx8HD9yfm1MUPRgt4kTTlZxjJmXIFZxa5pEZy7U9XOtkAZgbF1fSYmsw" crossorigin="anonymous"></script>

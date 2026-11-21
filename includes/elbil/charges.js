@@ -142,8 +142,8 @@
             const pName    = (S.providers.find(p => p.id == charge.providerId) || {}).providerName || 'Ukendt';
 
             const icon = charge.source === 'internal'
-                ? `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="ID: ${charge.id}">electrical_services</span>`
-                : `<span class="material-symbols-outlined" data-bs-toggle="tooltip" title="${appUtils.escapeHtml(pName)}">ev_station</span>`;
+                ? `<i class="fas fa-plug icon-lg" data-bs-toggle="tooltip" title="ID: ${charge.id}"></i>`
+                : `<i class="fas fa-ev-charger icon-lg" data-bs-toggle="tooltip" title="${appUtils.escapeHtml(pName)}"></i>`;
 
             // State badge (internal charges only)
             let stateBadge = '';

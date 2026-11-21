@@ -18,14 +18,14 @@ SparkSpend har **ikke** taget det i brug (repoets README: "SparkSpend og clean.u
 **Tag med, men ændret (udfordring, med tal):**
 - **D12 datafarver.** De fire farver (`#446EA8`, `#0B7A70`, `#6D52AB`, `#A35A00`) har næsten ens lysstyrke (hver 5,2:1 mod hvid, indbyrdes 1,0–1,17:1), så de skilles kun på farvetone. For farveblinde er forskellen lille (ΔE blå/violet 7 under deuteranopi, blå/teal 9 under tritanopi; 20+ er tydeligt forskelligt), og naboer i en stabel har ingen lys/mørk-forskel. SparkSpends nuværende grøn og gul består omvendt ikke 3:1 mod hvid (2,28 og 2,15). Forslag: samme farvetoner, men med lysstyrke-trin: elbil `#224B81` (8,8:1), jordvarme `#0EA495` (3,1:1), øvrigt `#9E5F00` (5,1:1): ΔE mindst 34 under alle fire synstyper, nabokontrast 1,7–2,8:1, alle mindst 3:1 som grafik. Prisen: den lysere teal kan ikke stå som tekst (under 4,5:1), så etiketter står i mørk tekst. Desuden mangler en 5. og 6. farve: årssammenligningerne bruger op til seks år.
 - **D21 knapper mindst 44 px overalt.** Systemets egen tekst siger, at 24 px består WCAG 2.2 AA. I SparkSpends datatabeller (16–24 rækker med "Rediger") ville hver række blive cirka 13 px højere (skøn). Forslag: 44 px ved `pointer: coarse` (telefon), 36 px ved `pointer: fine`.
-- **D14 ikoner som indbygget SVG** i stedet for Font Awesome (CDN) og Material Symbols (Google): færre eksterne kald (CSP, offline-PWA, privatliv). Større arbejde (L); senere.
-- **D10 systemskrift** i stedet for Inter fra Google Fonts: dropper endnu et eksternt kald; ændrer udseendet lidt. Afgør, om Inter beholdes.
+- ~~**D14 ikoner som indbygget SVG**~~ (lavet 2026-11-21: Lucide).
+- ~~**D10 systemskrift**~~ (lavet 2026-11-21: Inter er væk).
 
 **Forslag opstrøms til `useful-design` (ikke sendt; det er et udgående indlæg, så det afgør ejeren):** (1) datapaletten med lysstyrke-trin og seks kategorifarver, (2) pointer-bevidst knapstørrelse (D21), (3) en opskrift på tekstalternativer til diagrammer og "spring til indhold" (SparkSpends `includes/a11y.js`), (4) at domænefarver må være ens i hele en app, så længe de består kontrasten.
 
 **Valgt 2026-11-21: datapaletten med lysstyrke-trin, og den er lavet** (`--data-ev` `#224B81`, `--data-hp` `#0EA495`, `--data-rest` `#9E5F00`; se Afsluttet). De seks farver til år-sammenligningerne er lavet 2026-11-21 (se Afsluttet).
 
-**Trin 1-7 er lavet 2026-11-21** (se Afsluttet); næste er trin 8 (ikoner som SVG og skrift: en beslutning, ikke en rettelse).
+**Trin 1-8 er lavet 2026-11-21** (se Afsluttet). Det, der er tilbage af D-listen, er kun opstrøms-forslagene nedenfor.
 
 **Rækkefølge (hvert trin måles):** (1) kopiér `dist/useful.css` ind, fastlåst på v0.3.0, og indlæs den før `style.css` uden at ændre klasser; (2) peg mine farvevariabler på tokens og lad `dev/test_contrast.js` læse tokens; (3) skift `--fs-*` til skalaens navne (28 → 24) og `tabular-nums` på tal; (4) header, primær knap, kortradier og uigennemsigtige kort (D1, D2, D6); (5) ~~datafarver~~ (lavet, også årsfarverne); (6) pointer-bevidste knapper og evt. bundtabbar på telefon (hører sammen med mobil-punktet nedenfor); (7) fjern det halve mørke tema (D18); (8) senere: ikoner som SVG og skrift.
 
@@ -63,6 +63,7 @@ Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen p�
 
 ## Afsluttet
 
+- ✅ **2026-11-21 — Ikoner som SVG og systemskrift (D14, D10, trin 8)** — `includes/icons.css` (27 Lucide-ikoner som masker, ISC) i stedet for Font Awesome og Material Symbols; skriften er systemets; CSP'en nævner hverken Google eller cdnjs mere. Kun cdn.jsdelivr.net er tilbage som tredjepart. Ikonerne er streg i stedet for fyldt. `includes/icons.css`, `index.php`, `includes/configuration.php`, `includes/style.css`, `includes/elbil/charges.js`, `dev/test_icons.js` (39).
 - ✅ **2026-11-21 — Det halve mørke tema fjernet (D18)** — den sidste mørke variant (toasts under `prefers-color-scheme: dark`) er væk; siden er lys for alle. Kontrolleret med mørk tilstand emuleret. `includes/style.css`, `dev/test_useful_css.js` (24).
 - ✅ **2026-11-21 — Trykflader efter pointer (D21, mobilpunkt d)** — mindst 36 px med mus og 44 px med finger på knapper, faner, år-chips, valgfelter, tekstfelter (touch), spring-til-indhold og sidefodslinket; før: Gå til 29, Afvis 33, Rediger 31, luk-knap 30, fodlink 17. Målt på alle sider ved 375 px med touch (intet under 44, ingen sidelæns scroll) og 1280 px (intet under 36). `includes/style.css`, `dev/test_useful_css.js` (22).
 - ✅ **2026-11-21 — Seks årsfarver** — `#303091`, `#F95706`, `#63212C`, `#27A1B9`, `#CB7462`, `#9406F9` i `hus.js`, `jordvarme.js` og `elbil/yearly.js` (fundet ved søgning: mindst 3:1 mod hvid, ΔE mindst 35 for alle fire synstyper; før: par ned til ΔE 7). Seed-data har kun ét år, så det er ikke set på et diagram med flere år; brug produktionskopien næste gang. `dev/test_datacolors.js` (29).

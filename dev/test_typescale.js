@@ -48,7 +48,7 @@ for (const f of files) {
 check('no inline font-size is a loose px or rem (use the scale, or the .text-xs class)', inlineLoose.length === 0, inlineLoose.join('; '));
 check('Bootstrap\'s own size helpers follow the scale too (.small, .fs-4/.fs-5/.fs-6, .badge)',
     /\.small, small \{ font-size: var\(--text-xs\); \}/.test(css) && /\.fs-4, \.fs-5 \{ font-size: var\(--text-lg\) !important; \}/.test(css)
-    && /\.fs-6 \{ font-size: var\(--text-md\) !important; \}/.test(css) && /\.badge \{ --bs-badge-font-size: var\(--text-xs\); \}/.test(css) && /\.material-symbols-outlined \{ font-size: var\(--text-lg\); \}/.test(css));
+    && /\.fs-6 \{ font-size: var\(--text-md\) !important; \}/.test(css) && /\.badge \{ --bs-badge-font-size: var\(--text-xs\); \}/.test(css));
 check('the small notes inside the tables use .text-xs', /\.text-xs \{ font-size: var\(--text-xs\); \}/.test(css));
 
 console.log('\n' + n + ' checks, ' + fails + ' failed');

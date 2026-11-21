@@ -68,7 +68,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-family-base);   /* the system font, no web font (D10) */
   line-height: 1.6;
   background-color: #C9CFD8;
   color: #1f2937;
@@ -345,7 +345,7 @@ textarea {
   border-radius: 8px;
   background: #ffffff;
   color: #1f2937;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-family-base);
   font-size: var(--text-sm);
   transition: all 0.2s ease;
   margin-bottom: 12px;
@@ -1780,7 +1780,6 @@ table, .dash-stat-value, .total-cost-amount, .total-cost-breakdown, .trend-line,
 .fs-4, .fs-5 { font-size: var(--text-lg) !important; }
 .fs-6 { font-size: var(--text-md) !important; }
 .badge { --bs-badge-font-size: var(--text-xs); }
-.material-symbols-outlined { font-size: var(--text-lg); }   /* the icon font sets 24 px itself; 20 px like the other icons */
 
 /* ===== SKIP LINK ===== */
 
