@@ -1822,12 +1822,17 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 .total-cost-bars .tc-seg { height: 100%; flex-shrink: 0; transition: width 0.4s ease; }
 .total-cost-bars .tc-seg + .tc-seg { border-left: 1px solid rgba(255, 255, 255, 0.85); }
 .total-cost-bars .tc-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-left: 160px; font-size: var(--text-xs); color: var(--muted-strong, #4b5563); }
+.total-cost-bars .tc-fold { margin-left: 160px; }
+.total-cost-bars .tc-fold > summary { display: none; }   /* a wide screen has it open and needs no handle */
+.total-cost-bars .tc-fold .tc-legend { margin-left: 0; }
 .total-cost-bars .tc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 @media (max-width: 640px) {
   .total-cost-bars .tc-row { flex-direction: column; align-items: stretch; gap: 3px; }
   .total-cost-bars .tc-label { flex: none; }
   .total-cost-bars .tc-track { flex: none; }   /* in a column flex:1 would make the 10px height basis 0 */
-  .total-cost-bars .tc-legend { margin-left: 0; }
+  .total-cost-bars .tc-fold { margin-left: 0; }
+  .total-cost-bars .tc-fold > summary { display: list-item; cursor: pointer; font-size: var(--text-xs); color: var(--accent-strong, #1d4ed8); }
+  .total-cost-bars .tc-fold[open] > summary { margin-bottom: 4px; }
 }
 
 .total-cost-card .total-cost-icon {
@@ -2351,6 +2356,7 @@ th.sort-active { color: var(--accent-strong); }
   .hp-mode-nav { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
 }
 
+.reg-more { display: none; }   /* "Vis ældre måneder": phones only, see below */
 /* Phones: Regning as one card per month (eight columns do not fit), and a scroll hint on the other wide tables */
 @media (max-width: 600px) {
   #regningTableWrapper .table-responsive { overflow-x: visible; }
@@ -2365,8 +2371,13 @@ th.sort-active { color: var(--accent-strong); }
   #regningTableWrapper td::before { content: attr(data-label); color: #475569; font-weight: 400; text-align: left; }
   #regningTableWrapper td:first-child { font-weight: 700; border-bottom: 1px solid rgba(148, 163, 184, 0.3); margin-bottom: 2px; }
   #regningTableWrapper td:first-child::before { content: none; }
-  /* shadows at the edge that still has more to scroll to */
-  .table-responsive {
+  /* a month card keeps what is read first (the house, and the three kr), not the kWh behind each (.m-extra), and only the newest twelve */
+  #regningTableWrapper .m-extra { display: none; }
+  #regningTableWrapper:not(.reg-all) tbody tr.reg-old { display: none; }
+  #regningTableWrapper .reg-more { display: block; width: 100%; margin-top: 4px; }
+  #regningTableWrapper.reg-all .reg-more { display: none; }
+  /* shadows at the edge that still has more to scroll to (the summary on Elbil -> Ladninger scrolls in its own box too) */
+  .table-responsive, #summaryText {
     background:
       linear-gradient(to right, #fff 30%, rgba(255, 255, 255, 0)) left center / 24px 100% no-repeat local,
       linear-gradient(to left, #fff 30%, rgba(255, 255, 255, 0)) right center / 24px 100% no-repeat local,

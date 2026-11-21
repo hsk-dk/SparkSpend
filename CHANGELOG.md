@@ -6,6 +6,11 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (phones)
+- **Hus → Regning is a third as long on a phone.** On real data it was 8,295 px at 375 px (about 60 month cards of nine rows each). A card now keeps the house and the three kr (Hus kWh, El-bil kr, VP kr*, Restforbrug kr*) and leaves out the kWh behind each (they are still in the table on a wide screen), and only the newest twelve months are shown, with "Vis ældre måneder (n)" for the rest. On seed data (24 months) the page went from about 7,900 to 3,317 px. Nothing changes on a wide screen: eight columns, every row.
+- **The cost band on Oversigt folds its legend on a phone.** The four lines of "EV hjemme 47 % af kWh · 54 % af kr" under the two bars were about a sixth of the screen before the first card; they are behind "Fordeling i procent" now (the band went from 288 to 243 px; the bars' own titles and spoken labels have the figures). On a wide screen the legend is open and as before; turning the phone sideways opens or folds it.
+- The summary on Elbil → Ladninger has the same scroll shadow as the other wide tables (it already scrolled inside its own box, with no page-wide scroll).
+
 ### Fixed
 - **The cost trend chart on Elbil → Analyse showed raw floating point numbers** (found by reviewing against production data): y axis marks like `400.00000000000000`, a data label `382.28999999999996`. Its point labels are off (the tooltip has the figure), the axis is formatted, and the series are called Hjemme / Ude like the rest of the app (they were Indre / Ekstern).
 - **Årsrapport 2021 no longer pretends to be split.** The house meter starts on 9 March 2021, the heat pump meter on 25 October; the heat pump's missing months counted as "Øvrigt" (5.731 kWh), so the bar looked like a normal year with a tiny heat pump. A year where the house meter covers days the heat pump meter does not is now one grey bar, "Hus i alt, ikke fordelt", with "Øvrigt" as a dash in the table and a note saying where each meter starts. `AnnualSummary` returns `split_ok` per year and `meters.hus_from` / `hp_from`; `dev/test_annual_summary.php` and `dev/test_annual_js.js` cover it.

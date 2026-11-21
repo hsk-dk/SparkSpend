@@ -763,10 +763,19 @@ function _costShareBars(kwh, cost) {
         `<span class="tc-key"><i class="tc-dot" style="background:${x.color}"></i>${x.label} ` +
         `<b>${kPct[i]}\u00a0%</b> af kWh \u00b7 <b>${cPct[i]}\u00a0%</b> af kr</span>`).join('') +
         (cVals[3] > 0 ? `<span class="tc-key"><i class="tc-dot" style="background:${_SHARE_SUB_COLOR}"></i>Abonnement <b>${cPct[3]}\u00a0%</b> af kr</span>` : '');
+    // On a phone the legend is four lines under two bars, about a sixth of the screen before the first card: folded there
+    // (the bars' own title and aria-label carry the figures), open on a wide screen where it is one line.
+    const wide = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(min-width: 601px)').matches : true;
     return `<div class="total-cost-bars">` +
         row('kWh hidtil', kTotal, 'kWh', kParts) +
         row('kr forventet', cTotal, 'kr', cParts) +
-        `<div class="tc-legend">${legend}</div></div>`;
+        `<details class="tc-fold"${wide ? ' open' : ''}><summary>Fordeling i procent</summary><div class="tc-legend">${legend}</div></details></div>`;
+}
+
+// Turning the phone sideways (or widening the window) opens or folds every legend, as it would have been drawn
+if (typeof window !== 'undefined' && window.matchMedia) {
+    const _tcWide = window.matchMedia('(min-width: 601px)');
+    if (_tcWide.addEventListener) _tcWide.addEventListener('change', e => document.querySelectorAll('.tc-fold').forEach(d => { d.open = e.matches; }));
 }
 
 // Electricity cost estimates. The elvarme model (rates, weighting, high/low split,

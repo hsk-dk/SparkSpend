@@ -67,7 +67,8 @@ const regningApp = (() => {
         let totEvKwh = 0, totEvCost = 0, totHpKwh = 0, totHpCost = 0,
             totHusKwh = 0, totResidualCost = 0, negMonths = 0;
 
-        const rows = months.map(m => {
+        const MOBILE_MONTHS = 12;   // phones show the newest twelve month cards, the rest behind a button (CSS: .reg-old, .reg-all)
+        const rows = months.map((m, idx) => {
             const evRow  = ev[m]  || { kwh: 0, cost: 0 };
             const hpRow  = hp[m]  || { kwh: 0 };
             const husRow = hus[m] || { kwh: 0 };
@@ -92,16 +93,16 @@ const regningApp = (() => {
             if (hpCost !== null) totHpCost += hpCost;
             if (residualCost !== null) totResidualCost += residualCost;
 
-            return `<tr>
+            return `<tr${idx >= MOBILE_MONTHS ? ' class="reg-old"' : ''}>
                 <td class="text-nowrap" data-label="Måned">${_monthLabel(m)}</td>
                 ${hasHus ? `<td class="text-end" data-label="Hus kWh">${husRow.kwh > 0 ? appUtils.num(husRow.kwh, 1) : '—'}</td>` : ''}
-                <td class="text-end" data-label="El-bil kWh">${evRow.kwh > 0 ? appUtils.num(evRow.kwh, 1) : '—'}</td>
+                <td class="text-end${evRow.cost > 0 ? ' m-extra' : ''}" data-label="El-bil kWh">${evRow.kwh > 0 ? appUtils.num(evRow.kwh, 1) : '—'}</td>
                 <td class="text-end" data-label="El-bil kr">${evRow.cost > 0 ? _kr(evRow.cost) : '—'}</td>
-                <td class="text-end" data-label="VP kWh">${hpRow.kwh > 0 ? appUtils.num(hpRow.kwh, 1) : '—'}</td>
+                <td class="text-end${hasCosts ? ' m-extra' : ''}" data-label="VP kWh">${hpRow.kwh > 0 ? appUtils.num(hpRow.kwh, 1) : '—'}</td>
                 ${hasCosts ? `<td class="text-end" data-label="VP kr*">${hpCost > 0 ? _kr(hpCost) : '—'}</td>` : ''}
-                ${hasHus ? `<td data-label="Restforbrug kWh" class="text-end fw-semibold${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + appUtils.num(residualKwh, 1) : '\u2014'}</td>` : ''}
+                ${hasHus ? `<td data-label="Restforbrug kWh" class="text-end fw-semibold${hasResidual ? ' m-extra' : ''}${residualKwh !== null && residualKwh < 0 ? ' text-danger' : ''}">${residualKwh !== null ? (residualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + appUtils.num(residualKwh, 1) : '\u2014'}</td>` : ''}
                 ${hasResidual ? `<td class="text-end fw-semibold" data-label="Restforbrug kr*">${residualCost !== null ? _kr(residualCost) : '—'}</td>` : ''}
-                ${hasSkur ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${skur[m] > 0 ? appUtils.num(skur[m], 1) : '—'}</td>` : ''}
+                ${hasSkur ? `<td class="text-end text-muted m-extra" data-label="heraf Varme - Skur kWh">${skur[m] > 0 ? appUtils.num(skur[m], 1) : '—'}</td>` : ''}
             </tr>`;
         }).join('');
 
@@ -112,14 +113,14 @@ const regningApp = (() => {
         const residualKwhTh  = hasHus      ? '<th class="text-end">Restforbrug kWh</th>' : '';
         const residualKrTh   = hasResidual ? '<th class="text-end">Restforbrug kr*</th>' : '';
         const skurTh         = hasSkur     ? '<th class="text-end text-muted" title="Skurets varmeapparat, målt af Home Assistant. Indgår i Restforbrug.">heraf Skur kWh</th>' : '';
-        const totSkurTd      = hasSkur     ? `<td class="text-end text-muted" data-label="heraf Varme - Skur kWh">${appUtils.num(Object.entries(skur).filter(([mm]) => months.includes(mm)).reduce((a, [, v]) => a + v, 0), 1)}</td>` : '';
+        const totSkurTd      = hasSkur     ? `<td class="text-end text-muted m-extra" data-label="heraf Varme - Skur kWh">${appUtils.num(Object.entries(skur).filter(([mm]) => months.includes(mm)).reduce((a, [, v]) => a + v, 0), 1)}</td>` : '';
 
         const totHusTd       = hasHus
             ? `<td class="text-end fw-bold" data-label="Hus kWh">${totHusKwh > 0 ? appUtils.num(totHusKwh, 1) : '—'}</td>` : '';
         const totHpCostTd    = hasCosts
             ? `<td class="text-end fw-bold" data-label="VP kr*">${totHpCost > 0 ? _kr(totHpCost) : '—'}</td>` : '';
         const totResidualKwhTd = hasHus
-            ? `<td data-label="Restforbrug kWh" class="text-end fw-bold${totResidualKwh !== null && totResidualKwh < 0 ? ' text-danger' : ''}">${totResidualKwh !== null ? (totResidualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + appUtils.num(totResidualKwh, 1) : '\u2014'}</td>` : '';
+            ? `<td data-label="Restforbrug kWh" class="text-end fw-bold${hasResidual ? ' m-extra' : ''}${totResidualKwh !== null && totResidualKwh < 0 ? ' text-danger' : ''}">${totResidualKwh !== null ? (totResidualKwh < 0 ? '<span title="Data inkonsistent: EV\u00a0+\u00a0VP overstiger hus-m\u00e5leren \u2014 tjek systemlog">\u26a0\ufe0f\u00a0</span>' : '') + appUtils.num(totResidualKwh, 1) : '\u2014'}</td>` : '';
         const totResidualCostTd = hasResidual
             ? `<td class="text-end fw-bold" data-label="Restforbrug kr*">${totResidualCost > 0 ? _kr(totResidualCost) : '—'}</td>` : '';
 
@@ -151,9 +152,9 @@ const regningApp = (() => {
                         <tr>
                             <td data-label="Måned">Total</td>
                             ${totHusTd}
-                            <td class="text-end" data-label="El-bil kWh">${appUtils.num(totEvKwh, 1)}</td>
+                            <td class="text-end${totEvCost > 0 ? ' m-extra' : ''}" data-label="El-bil kWh">${appUtils.num(totEvKwh, 1)}</td>
                             <td class="text-end" data-label="El-bil kr">${totEvCost > 0 ? _kr(totEvCost) : '—'}</td>
-                            <td class="text-end" data-label="VP kWh">${appUtils.num(totHpKwh, 1)}</td>
+                            <td class="text-end${hasCosts ? ' m-extra' : ''}" data-label="VP kWh">${appUtils.num(totHpKwh, 1)}</td>
                             ${totHpCostTd}
                             ${totResidualKwhTd}
                             ${totResidualCostTd}
@@ -162,8 +163,12 @@ const regningApp = (() => {
                     </tfoot>
                 </table>
             </div>
+            ${months.length > MOBILE_MONTHS ? `<button type="button" class="btn btn-sm btn-outline-secondary reg-more">Vis ældre måneder (${months.length - MOBILE_MONTHS})</button>` : ''}
             ${hasCosts ? '<p class="text-muted small mt-2 mb-0">* Estimeret ud fra spotpris, nettarif, systemtarif, elafgift og moms. Elvarme-model: første 4.000 kWh/år (≈333 kWh/md) af VP+Restforbrug til fuld elafgift, resten til reduceret elvarmesats. El-bil kr er fra Monta.</p>' : ''}
         `;
+
+        // Phones only (the button is hidden on a wide screen): the older month cards
+        wrapper.querySelector('.reg-more')?.addEventListener('click', () => wrapper.classList.add('reg-all'));
     }
 
     function _monthLabel(ym) {
