@@ -12,6 +12,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 ### Changed (Hus → Forbrug)
 - **The car no longer hides the steady parts.** On real data the blue charges dwarfed the stacked bars, so Jordvarme and Restforbrug could hardly be read. They now sit at the bottom of the stack, where they share a baseline, with El-bil on top, and a "Skjul El-bil" button (also the legend entry) takes the car out so the axis rescales to the steady parts (seed data, a day view: top 50 → 30 kWh). The tooltip total then says "Uden El-bil" and leaves out the kr, which include the car. Daily and monthly view; `includes/hus.js`, `index.php`, `dev/test_hus_forbrug.js`.
 
+### Changed (design system v0.5.0)
+- **The pinned Useful design system is v0.5.0** (was v0.4.0). Additions only: the optional `u-card--spotlight` (D27) and status documentation. SparkSpend uses neither, so nothing changes on screen. `includes/useful.css` is the new copy; `dev/test_useful_css.js` has the new version and hash.
+
 ### Changed (design system v0.4.0)
 - **The pinned Useful design system is v0.4.0** (the release that took in SparkSpend's proposals, hsk-dk/useful-design PR #1 and #2). The year colours and markers on Hus, Jordvarme and Elbil are now the system's `--series-1…6`, read once by `appUtils.seriesColors()` (with the same six as a fallback, and a test that they are equal), and the pointer-aware control sizes read `--target-size-fine` (36 px) and `--target-size` (44 px). Nothing changes on screen.
 

@@ -1,6 +1,6 @@
 /**
  * The shared Useful design system (hsk-dk/useful-design) as SparkSpend uses it: includes/useful.css is a PINNED copy of
- * dist/useful.css at tag v0.4.0 (commit e2e1d4c), never edited here; it loads before style.css; SparkSpend's own variables for the
+ * dist/useful.css at tag v0.5.0 (commit 35f81f3), never edited here; it loads before style.css; SparkSpend's own variables for the
  * strong text colours are aliases of its tokens; and style.css never redefines a token (it would silently change the meaning of
  * everything that reads it).
  * Upgrading is a deliberate act: copy the new dist/useful.css in, change VERSION and SHA256 below, and read its CHANGELOG.
@@ -17,8 +17,8 @@ function check(name, ok, info = '') {
     fails++; console.log('  FAIL ' + name + ' ' + info);
 }
 
-const VERSION = '0.4.0';
-const SHA256 = '981174f34d0c1a4e73e92a7870197395eeed6434656e478a373c67ffb5395296';   // dist/useful.css at v0.4.0, LF line endings
+const VERSION = '0.5.0';
+const SHA256 = 'b89df2662bb32ec3eb46dd36d464ee7b92dca034d67ebbe119d1e9954fcf8266';   // dist/useful.css at v0.5.0, LF line endings
 
 const root = path.join(__dirname, '..');
 const raw = f => fs.readFileSync(path.join(root, f), 'utf8').split('\r\n').join('\n');
