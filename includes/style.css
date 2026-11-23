@@ -774,7 +774,7 @@ tr:last-child td {
 .alert-warning {
   background: #fff8e1;   /* opaque: it sits straight on the page photo, so a 10 % tint gave no fixed backdrop to measure against */
   border-color: #FFC107;
-  color: #92400e;   /* was #f57f17: 1.7-2.4:1 */
+  color: var(--warn-strong);   /* was #f57f17: 1.7-2.4:1 */
 }
 
 .alert-info {
@@ -1595,7 +1595,7 @@ header {
   border-bottom: 1px solid rgba(245, 158, 11, 0.2);
   font-weight: 600;
   font-size: var(--text-sm);
-  color: #92400e;
+  color: var(--warn-strong);
 }
 
 .anomaly-panel.has-critical {
@@ -1657,11 +1657,11 @@ header {
 }
 .anomaly-cause-vejr {
   background: #dbeafe;
-  color: #1d4ed8;
+  color: var(--accent-strong);
 }
 .anomaly-cause-forbrug {
   background: #fef3c7;
-  color: #92400e;
+  color: var(--warn-strong);
 }
 
 .anomaly-item-action {
@@ -1887,7 +1887,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
 
 .dash-season-badge.season-normal { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
 .dash-season-badge.season-high { background: rgba(100, 116, 139, 0.16); color: #334155; }   /* kWh, not money: not red */
-.dash-season-badge.season-low { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }   /* was #2563eb: 4.4:1 at 10 px */
+.dash-season-badge.season-low { background: rgba(59, 130, 246, 0.12); color: var(--accent-strong); }   /* was #2563eb: 4.4:1 at 10 px */
 
 /* ===== TOAST NOTIFICATIONS ===== */
 
@@ -2000,7 +2000,7 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   align-items: center;
   gap: 8px;
   padding: 20px 16px;
-  color: #b91c1c;
+  color: var(--bad-strong);
   text-align: center;
 }
 
@@ -2317,7 +2317,7 @@ th.sort-active { color: var(--accent-strong); }
   background: rgba(255,255,255,.92); border-left: 4px solid #f59e0b; font-size: var(--text-sm); color: #1e293b; }
 .section-anomaly.critical { border-left-color: #ef4444; }
 .section-anomaly i { margin-top: 3px; color: #b45309; }
-.section-anomaly.critical i { color: #b91c1c; }
+.section-anomaly.critical i { color: var(--bad-strong); }
 .data-note { font-size: var(--text-xs); color: #475569; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
   padding: 6px 10px; margin: 8px 0; }
 .data-note i { color: #b45309; margin-right: 4px; }
@@ -2406,7 +2406,7 @@ th.sort-active { color: var(--accent-strong); }
   .stat-list dd { text-align: left; }
 }
 
-.baseload-now { font-size: var(--text-xl); font-weight: 700; color: #92400e; }
+.baseload-now { font-size: var(--text-xl); font-weight: 700; color: var(--warn-strong); }
 
 /* D25, pointer-aware (the system's .u-pointer-aware, written for these classes): a control is at least --target-size (44 px) where a
    finger presses it and --target-size-fine (36 px) where a mouse does (the system's 24 px is the WCAG 2.2 AA floor). min-height only:
