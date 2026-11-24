@@ -98,7 +98,6 @@
                 plugins: {
                     title: { display: true, text: 'Omkostningstendenser', align: 'start', font: { size: 16, weight: '600' } },
                     legend: { position: 'bottom' },
-                    datalabels: { display: false },
                     tooltip: {
                         callbacks: {
                             label: item => ` ${item.dataset.label}: ${appUtils.num(item.raw, 2)} kr`,

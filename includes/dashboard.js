@@ -613,7 +613,6 @@ function _renderSparkline(canvasId, dataPoints, color, existing, monthStart = nu
                         label: (item) => appUtils.num(item.raw, 1) + ' ' + unit
                     }
                 } : { enabled: false },
-                datalabels: { display: false }
             },
             scales: {
                 x: { display: false },
@@ -752,7 +751,6 @@ async function loadElspotForecast(force = false) {
                 animation: false,
                 plugins: {
                     legend: { display: false },
-                    datalabels: { display: false },
                     tooltip: {
                         callbacks: {
                             title: items => `${hh(hours[items[0].dataIndex].hour)}–${hh(hours[items[0].dataIndex].hour + 1)}`,

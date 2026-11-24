@@ -58,7 +58,7 @@ check('every toFixed left is a computation, a CSS width or already has its decim
 
 console.log('\nthe cost trend chart (Elbil -> Analyse)');
 const an = read('includes/elbil/analytics.js');
-check('its points are not labelled with the raw sum (dataLabels off; the tooltip has the figure)', /datalabels: \{ display: false \}/.test(an));
+check('its points are not labelled with the raw sum (no labels on the points at all: the tooltip has the figure)', !/datalabels/i.test(an) && /label: item => ` \$\{item\.dataset\.label\}: \$\{appUtils\.num\(item\.raw, 2\)\} kr`/.test(an));
 check('its y axis is formatted (no 400.00000000000000)', /ticks: \{ callback: v => appUtils\.num\(v, 0\) \}/.test(an));
 check('its series are Hjemme / Ude like the rest of the app, not Indre / Ekstern', /label: 'Hjemme'/.test(an) && /label: 'Ude'/.test(an) && !/Indre ladning/.test(an));
 check('the car comparison says Hjemme (%) / Ude (%)', /<th[^>]*>Hjemme \(%\)<\/th>/.test(read('index.php')) && /<th[^>]*>Ude \(%\)<\/th>/.test(read('index.php')));

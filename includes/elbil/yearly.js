@@ -118,7 +118,6 @@
                 responsive: true,
                 plugins: {
                     legend: { display: false },
-                    datalabels: { display: false },
                     tooltip: {
                         callbacks: {
                             afterLabel: c => appUtils.runningMonthIndex(c.dataset.label) === c.dataIndex ? 'Måneden er ikke slut'

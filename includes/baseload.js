@@ -69,7 +69,6 @@ const baseloadApp = (() => {
                 responsive: true,
                 plugins: {
                     legend: { display: true, position: 'bottom' },
-                    datalabels: { display: false },
                     tooltip: { callbacks: {
                         label: (c) => `${c.dataset.label}: ${c.parsed.y} W`,
                         afterBody: (items) => {

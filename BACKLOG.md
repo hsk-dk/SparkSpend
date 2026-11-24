@@ -69,7 +69,7 @@ Alle sider gennemgået. Telefon kunne ikke ses i Chrome (vinduet kan ikke gøres
 
 ### Teknisk gæld
 
-- **Chart.js' datalabels-plugin (S–M, valgfrit).** Bruges kun af ringdiagrammet i `regning.js`; de andre 12 diagrammer slår det fra, og det har givet to kendte nedbrud (omgået i `app.js` og `nav.js`). Plan: `docs/plan-teknisk-gaeld.md`, trin 7. Kræver at procenttallene flyttes fra skiverne til forklaringen.
+_Ingen åbne punkter i teknisk gæld._ (Trin 1–8 i `docs/plan-teknisk-gaeld.md` er lavet eller målt: datalabels-pluginet er fjernet 2026-11-24, og at indlæse Chart.js kun hvor det bruges er målt ikke værd at gøre.)
 
 ### Fravalgt
 

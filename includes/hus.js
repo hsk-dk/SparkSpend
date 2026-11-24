@@ -290,7 +290,6 @@ const husApp = (() => {
                                 if (ev >= 0) { hideEv = !legend.chart.isDatasetVisible(ev); syncEvToggle(); }
                             },
                         },
-                        datalabels: { display: false },
                         tooltip: {
                             callbacks: {
                                 footer: footerFn
@@ -364,7 +363,6 @@ const husApp = (() => {
                     maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: false },
-                        datalabels: { display: false },
                         tooltip: {
                             callbacks: {
                                 label: c => {
@@ -427,7 +425,6 @@ const husApp = (() => {
                     animation: false,
                     plugins: {
                         legend: { display: false },
-                        datalabels: { display: false },
                         tooltip: {
                             callbacks: {
                                 label: c => `${c.dataset.label}: ${appUtils.num(c.parsed.y, 1) ?? '—'} kWh`,

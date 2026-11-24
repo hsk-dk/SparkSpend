@@ -19,8 +19,8 @@ const SparkNav = (() => {
     let husForbrugLoaded  = false;
     let husRegningLoaded  = false;
     let husFordelingLoaded = false;
-    // Run a tab's init once its section is laid out. Two animation frames let Chart.js and
-    // the datalabels plugin measure a visible canvas; the timeout is the fallback for
+    // Run a tab's init once its section is laid out. Two animation frames let Chart.js
+    // measure a visible canvas; the timeout is the fallback for
     // pages that get no frames (background tab, hidden pane), so a tab never stays on
     // "Indlæser…" waiting for a paint that does not come.
     function afterLayout(fn) {
@@ -101,7 +101,6 @@ const SparkNav = (() => {
                 jordvarmeLoaded = true;
                 // Double-RAF: first frame lets the browser apply display:block + layout;
                 // second frame lets Chart.js ResizeObserver settle before we create charts.
-                // Prevents the chartjs-plugin-datalabels _listened crash on intermittent loads.
                 afterLayout(() => window.jordvarmeApp?.init());
             }
         }
@@ -122,12 +121,11 @@ const SparkNav = (() => {
         if (tabId === 'aarsrapport-section') {
             if (!aarsrapportLoaded) {
                 aarsrapportLoaded = true;
-                // Double-RAF for the same datalabels-compatibility reason as jordvarme above.
+                // Double-RAF for the same reason as jordvarme above.
                 afterLayout(() => window.annualApp?.init());
             }
             // No _resizeSection on return visits: responsive:true lets Chart.js handle
-            // its own resizing via the internal ResizeObserver. Calling chart.resize()
-            // externally crashes chartjs-plugin-datalabels (beforeUpdate hook).
+            // its own resizing via the internal ResizeObserver.
         }
     }
 

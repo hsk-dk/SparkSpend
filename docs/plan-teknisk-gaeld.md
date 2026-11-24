@@ -37,8 +37,8 @@ Eneste egentlige hul: **Chart.js har ingen heatmap**. De to heatmaps løses som 
 | 4 | ✅ (2026-11-24) **Effektivitet (2 linjer med datoakse) → Chart.js.** Her har man brug for en tidsakse: enten adapteren igen (så trin 1 udgår) eller datoer som kategorier. **Foreslået: kategorier**, så adapteren kan blive væk. | M | Tjek at tomme dage ikke giver ujævn akse |
 | 5 | ✅ (2026-11-24) **Heatmaps → HTML-tabeller** (`tou.js`). Ny lille hjælper `appUtils.heatTable(rows, cols, values, color, fmt)` med `<caption>`, `th scope`, tal i cellen (farven er en andendel, aldrig den eneste kode). Test: kontrast + ugedagenes rækkefølge Man→Søn. | M | Fjerner det sidste Apex-sted |
 | 6 | ✅ (2026-11-24) **Fjern ApexCharts**: script-linjen, `app.js`' danske Apex-blok, Apex-grenen i `a11y.js`, XSS-noten, tests. | S | ca. 520 KB, ét tooltip-mønster, én a11y-sti |
-| 7 | **Valgfrit: datalabels-plugin.** Ringdiagrammet i `regning.js` kan skrive procenttallet i forklaringen/tooltip i stedet. Så kan pluginet og de 12 `datalabels: { display: false }` samt nedbrudsomgangene i `app.js`/`nav.js` fjernes. | S–M | Mindre kode og færre kendte nedbrud; kun hvis procenterne på skiverne ikke skal bevares |
-| 8 | **Indlæs kun det, siden bruger** (lazy-load Chart.js først ved en side med diagram; Dashboard har allerede sparklines). | M | Kun hvis der stadig er en side uden diagrammer; mål først |
+| 7 | ✅ (2026-11-24) **Valgfrit: datalabels-plugin.** Ringdiagrammet i `regning.js` kan skrive procenttallet i forklaringen/tooltip i stedet. Så kan pluginet og de 12 `datalabels: { display: false }` samt nedbrudsomgangene i `app.js`/`nav.js` fjernes. | S–M | Mindre kode og færre kendte nedbrud; kun hvis procenterne på skiverne ikke skal bevares |
+| 8 | ✅ (2026-11-24, målt: ikke værd at gøre; se CHANGELOG) **Indlæs kun det, siden bruger** (lazy-load Chart.js først ved en side med diagram; Dashboard har allerede sparklines). | M | Kun hvis der stadig er en side uden diagrammer; mål først |
 
 Trin 1 kan rulles ud med det samme. Rækkefølgen 2 → 3 → 4 → 5 → 6 gør, at appen aldrig er i en halv tilstand: Apex bliver stående, indtil sidste bruger er flyttet.
 

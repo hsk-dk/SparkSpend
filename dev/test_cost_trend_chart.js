@@ -15,7 +15,7 @@ check('one point per date (duplicates are merged before drawing)', /merged\.has\
 check('the chart keeps its title, and the canvas is named for a screen reader', /text: 'Omkostningstendenser'/.test(fn) && /data-a11y-title="Omkostningstendenser"/.test(fn));
 check('the tooltip gives each layer and the total, in Danish numbers with two decimals', /appUtils\.num\(item\.raw, 2\)/.test(fn) && /I alt:/.test(fn));
 check('the y axis is titled and starts at 0 with whole kr', /text: 'Omkostning \(kr\)'/.test(fn) && /beginAtZero: true/.test(fn) && /appUtils\.num\(v, 0\)/.test(fn));
-check('an old chart is destroyed first, and the datalabels plugin is off for it', /costTrendChartInstance\.destroy\(\)/.test(fn) && /datalabels: \{ display: false \}/.test(fn));
+check('an old chart is destroyed first', /costTrendChartInstance\.destroy\(\)/.test(fn));
 check('the layers differ in lightness (dark home, lighter away), both at least 3:1 against white', (() => {
     const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
     const L = h => { const r = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); return 0.2126 * lin(r[0]) + 0.7152 * lin(r[1]) + 0.0722 * lin(r[2]); };

@@ -166,7 +166,6 @@ const annualApp = (() => {
                 aspectRatio: window.innerWidth < 600 ? 1.1 : 2.8,
                 plugins: {
                     legend: { position: 'top' },
-                    datalabels: { display: false },
                     tooltip: {
                         callbacks: {
                             label: ctx => ' ' + ctx.dataset.label + ': ' + fmt(ctx.raw),

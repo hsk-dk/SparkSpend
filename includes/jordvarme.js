@@ -485,7 +485,6 @@ const jordvarmeApp = (() => {
                     maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: !!hddValues, position: 'top' },
-                        datalabels: { display: false },
                         tooltip: {
                             filter: item => item.datasetIndex === 0,
                             callbacks: {
@@ -627,7 +626,6 @@ const jordvarmeApp = (() => {
                     maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: false },
-                        datalabels: { display: false },
                         tooltip: {
                             callbacks: {
                                 label: c => {
@@ -1044,7 +1042,6 @@ const jordvarmeApp = (() => {
                     maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: false },
-                        datalabels: { display: false },
                         tooltip: {
                             callbacks: {
                                 title: items => {

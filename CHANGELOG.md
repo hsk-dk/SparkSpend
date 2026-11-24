@@ -6,6 +6,10 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Removed (technical debt, steps 7 and 8)
+- **The datalabels plugin is gone.** `chartjs-plugin-datalabels` (about 13 KB on every page) drew the percentage on the slices of ONE doughnut (Hus → Forbrug) while the 14 other charts each switched it off, and it caused the `reading '_listened'` crashes that `app.js` and `nav.js` worked around. The share of each slice is now in the legend ("El-bil 65 %", whole numbers that add up to 100) and still in the tooltip; the script tag, the registration in `app.js`, the 14 `datalabels: { display: false }` switches and the comments about the crash are removed. The page now loads Chart.js and nothing else for charts. `dev/test_one_chart_library.js` (7) fails if a plugin or the word comes back.
+- **Step 8 (load Chart.js only where it is used) is not worth doing.** Measured on all pages: the landing page (Oversigt) draws four charts on its first paint, and every other page has at least one; only Hus → Regning (a table) has none, and Chart.js is already `defer`red and cached by the service worker. `includes/app.js`, `includes/nav.js`, `includes/regning.js`, `index.php`, nine more scripts, `dev/test_frontend.php`.
+
 ### Changed (Elbil: Effektivitet is its own page)
 - **Elbil → Analyse was 4,500 px long with seven modules; "Forbrug pr. km" and its two curves are now a page of their own, Effektivitet,** between Analyse and Sammenligning (the sub-nav is Ladninger, Analyse, Effektivitet, Sammenligning). `#elbil/effektivitet` is a link that works, and `#elbil/analyse` still opens Analyse (Ladeoptimering, Omkostningsanalyse, Ladesteder, Elspot-tidsmønster; on the seed data 2,761 px, the new page 1,939 px). On a phone the four pills and the Administrér button wrap to two rows instead of one row that was cut off (the sub-nav was `nowrap` for three pills). `index.php`, `includes/style.css`, `dev/test_elbil_effektivitet.js` (8).
 

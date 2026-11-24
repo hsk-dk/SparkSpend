@@ -372,7 +372,6 @@ const fordelingApp = (() => {
                 responsive: true,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    datalabels: { display: false },
                     legend: { position: 'top' },
                     tooltip: {
                         callbacks: {
@@ -427,13 +426,14 @@ const fordelingApp = (() => {
                 responsive: true,
                 cutout: '62%',
                 plugins: {
-                    datalabels: {
-                        color: '#fff',
-                        font: { weight: 'bold', size: 12 },
-                        formatter: (v, ctx) => total > 0 ? shares[ctx.dataIndex] + '%' : '',
-                        display: ctx => ctx.dataset.data[ctx.dataIndex] / total > 0.05,
+                    // The share is in the legend ("El-bil 43 %") and the tooltip, not on the slices: it needed a plugin for one chart
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            generateLabels: chart => Chart.overrides.doughnut.plugins.legend.labels.generateLabels(chart)
+                                .map((item, i) => ({ ...item, text: total > 0 ? `${item.text} ${shares[i]} %` : item.text })),
+                        },
                     },
-                    legend: { position: 'bottom' },
                     tooltip: {
                         callbacks: {
                             label: ctx => ' ' + ctx.label + ': ' + fmtTip(ctx.raw)

@@ -58,15 +58,13 @@ $sysLog = file_get_contents("$root/routes/get_system_log.php");
 check('system-log still checks X-CSRF-Token', str_contains($sysLog, "header('X-CSRF-Token')"));
 check('so the sync modal sends it with Api.get', (bool) preg_match("~Api\.get\('system-log'.*?X-CSRF-Token~s", $src['includes/sync-modal.js']));
 
-echo "\nChart.js plugin registration\n";
-// The datalabels plugin must exist before the first chart is made (see app.js); registering it on first use of one tab broke
-// charts created earlier with "reading '_listened'".
-$reg = [];
-foreach ($src as $f => $s) if (preg_match('/Chart\.register\s*\(\s*ChartDataLabels/', $code($s))) $reg[] = $f;
-check('ChartDataLabels is registered once, in app.js', $reg === ['includes/app.js'], implode(', ', $reg));
-$bad = [];
-foreach ($src as $f => $s) if ($f !== 'includes/app.js' && preg_match('/new Chart\(/', $code($s)) && !str_contains($s, 'datalabels')) $bad[] = $f;
-check('every file that makes a Chart.js chart configures datalabels itself', $bad === [], implode(', ', $bad));
+echo "\nChart.js plugins\n";
+// There is no datalabels plugin any more (it was for one doughnut and caused "reading '_listened'" crashes whenever a chart was made
+// before it was registered): no chart plugin is loaded or registered, and the share of a doughnut slice is in its legend.
+$plugin = [];
+foreach ($src as $f => $s) if (preg_match('/ChartDataLabels|datalabels|Chart\.register\s*\(/i', $code($s))) $plugin[] = $f;
+check('no file registers or configures a Chart.js plugin of the library kind (the a11y plugin is the app\'s own)', array_values(array_diff($plugin, ['includes/a11y.js'])) === [], implode(', ', $plugin));
+check('and the page does not load one', !preg_match('~chartjs-plugin~', file_get_contents("$root/index.php")));
 
 echo "\nJordvarme: a view switch must not re-render the old rows\n";
 // Cost and weather answers re-render from lastKwhData; after a switch (ytd -> monthly ...) it still holds the old view's rows,

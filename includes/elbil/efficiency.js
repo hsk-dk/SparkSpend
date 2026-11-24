@@ -168,7 +168,6 @@
                 plugins: {
                     title: { display: true, text: title, align: 'start', font: { size: 16, weight: '600' } },
                     legend: { position: 'bottom', labels: { usePointStyle: true } },
-                    datalabels: { display: false },
                     tooltip: {
                         filter: item => item.raw !== null,
                         callbacks: {
