@@ -665,28 +665,6 @@ window.appUtils = {
   initializeAppUtilities
 };
 
-// ApexCharts in Danish: month and day names on the axes and the download menu ("Download SVG" -> "Hent som SVG"). It is the library's
-// own locale mechanism; every Apex chart picks it up through the global Apex options.
-if (window.ApexCharts) {
-  window.Apex = window.Apex || {};
-  window.Apex.chart = Object.assign({}, window.Apex.chart, {
-    defaultLocale: 'da',
-    locales: [{
-      name: 'da',
-      options: {
-        months: ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'],
-        shortMonths: ['jan.', 'feb.', 'mar.', 'apr.', 'maj', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'],
-        days: ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'],
-        shortDays: ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'],
-        toolbar: {
-          exportToSVG: 'Hent som SVG', exportToPNG: 'Hent som PNG', exportToCSV: 'Hent som CSV', menu: 'Menu',
-          selection: 'Markér', selectionZoom: 'Zoom til markering', zoomIn: 'Zoom ind', zoomOut: 'Zoom ud', pan: 'Panorér', reset: 'Nulstil zoom',
-        },
-      },
-    }],
-  });
-}
-
 // Register the datalabels plugin once, before any chart exists. It used to be registered when the Elbil tab first opened:
 // a chart made earlier (Jordvarme, Hus, Regning) then had no per-chart plugin state, and its next update or mouse event threw
 // "Cannot read properties of undefined (reading '_listened')". Every Chart.js chart sets datalabels itself, so this changes no look.

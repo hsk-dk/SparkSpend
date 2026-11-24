@@ -59,7 +59,7 @@ console.log('\nwhere it is wired in');
 check('one global Chart.js plugin labels every chart after each update', /Chart\.register\(\{ id: 'a11yLabel', afterUpdate: _a11yLabelChart \}\)/.test(src));
 check('the state of the menus and toggles is said in ARIA (aria-current, aria-pressed)', /aria-current/.test(src) && /aria-pressed/.test(src));
 check('the skip link moves focus to <main> without changing the address (the router keeps the page in the hash)', /querySelector\('\.skip-link'\)\?\.addEventListener\('click', e => \{\s*e\.preventDefault\(\);\s*document\.getElementById\('main'\)\?\.focus\(\);/.test(src));
-check('ApexCharts are one image named after their card', /\.apexcharts-canvas/.test(src) && /setAttribute\('role', 'img'\)/.test(src));
+check('every chart is a Chart.js canvas, so there is no separate branch for another library', !/apex/i.test(src) && /setAttribute\('role', 'img'\)/.test(src));
 
 console.log('\n' + n + ' checks, ' + fails + ' failed');
 process.exit(fails === 0 ? 0 : 1);

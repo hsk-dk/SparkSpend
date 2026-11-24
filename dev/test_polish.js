@@ -2,7 +2,7 @@
  * What a review against the real production data found (2026-11-21), kept from coming back:
  *  - numbers the user reads are formatted the Danish way everywhere (9.192,2 kWh), not with toFixed() (9192.2);
  *  - the cost trend chart on Elbil -> Analyse labelled its points with raw floats (382.28999999999996);
- *  - ApexCharts speaks Danish (axes, download menu), and the labels use the app's words (Hjemme/Ude, km pr. kWh);
+ *  - the labels use the app's words (Hjemme/Ude, km pr. kWh);
  *  - shares that add up to 100, not 101; a car with no charges is not a table row; the subscription is in the legend.
  * Run:  node dev/test_polish.js
  */
@@ -65,9 +65,6 @@ check('the car comparison says Hjemme (%) / Ude (%)', /<th>Hjemme \(%\)<\/th>/.t
 check('a car with no charges in the period is not a row ("Ukendt" with 0 kWh)', /filter\(v => Number\(v\.charge_count\) > 0\)/.test(an));
 const ef = read('includes/elbil/efficiency.js');
 check('the efficiency charts say km pr. kWh and kr pr. km, with formatted axes', /'km pr\. kWh'/.test(ef) && /'kr pr\. km'/.test(ef) && !/KM per kWh|Kr per KM/.test(ef));
-
-console.log('\nApexCharts in Danish');
-check('the Danish locale is registered globally: months, days and the download menu', /defaultLocale: 'da'/.test(app) && /exportToSVG: 'Hent som SVG'/.test(app) && /exportToCSV: 'Hent som CSV'/.test(app) && /'jan\.'/.test(app));
 
 console.log('\nsmall things');
 const dash = read('includes/dashboard.js'), css = read('includes/style.css');

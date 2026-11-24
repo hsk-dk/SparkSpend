@@ -52,7 +52,7 @@ Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen p�
 
 ### Teknisk gæld
 
-- **To chart-biblioteker indlæses altid (L).** Chart.js (+ 2 plugins) og ApexCharts på hver side: dobbelt download og to forskellige tooltip-mønstre. Plan: `docs/plan-teknisk-gaeld.md`. Trin 1 (datoadapteren, ubrugt) trin 2 (elprissøjlerne på Oversigt) trin 3 (omkostningstendensen) trin 4 (effektivitetslinjerne) og trin 5 (heatmaps som tabeller) er lavet 2026-11-24; ApexCharts bruges ikke længere af noget diagram (trin 6 fjerner biblioteket); resten afventer tre valg.
+- **Chart.js' datalabels-plugin (S–M, valgfrit).** Bruges kun af ringdiagrammet i `regning.js`; de andre 12 diagrammer slår det fra, og det har givet to kendte nedbrud (omgået i `app.js` og `nav.js`). Plan: `docs/plan-teknisk-gaeld.md`, trin 7. Kræver at procenttallene flyttes fra skiverne til forklaringen.
 
 ### Fravalgt
 
@@ -63,6 +63,7 @@ Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen p�
 
 ## Afsluttet
 
+- ✅ **2026-11-24 — Ét chart-bibliotek (teknisk gæld, trin 1–6)** — ApexCharts er fjernet (ca. 520 KB) og datoadapteren til Chart.js (ca. 50 KB, ubrugt). Elprissøjlerne (Oversigt), omkostningstendensen og de to effektivitetslinjer (Elbil → Analyse) er Chart.js; de to heatmaps er tabeller med tallet i cellen (`appUtils.heatTable`). Alle diagrammer har nu skærmlæsertekst fra det ene plugin i `a11y.js`, og én tooltip-form. Fundet undervejs: ladningstabellen manglede, når Analyse var første side (rettet). `dev/test_one_chart_library.js` (5), `test_elspot_chart.js` (7), `test_cost_trend_chart.js` (8), `test_efficiency_charts.js` (10), `test_heat_tables.js` (18). Plan: `docs/plan-teknisk-gaeld.md`.
 - ✅ **2026-11-21 — Hus → Regning: søjler i kr-kolonnerne** — El-bil kr, VP kr* og Restforbrug kr* med en søjle bag tallet (skrivebord; telefon uændret). `includes/regning.js`, `includes/style.css`, `dev/test_regning_bars.js` (15).
 - ✅ **2026-11-21 — Hus → Forbrug: bilen adskilt** — de jævne poster nederst, El-bil øverst, knappen "Skjul El-bil" (også forklaringen). `includes/hus.js`, `index.php`, `dev/test_hus_forbrug.js` (8).
 - ✅ **2026-11-23 — Designsystemet v0.5.0** — `includes/useful.css` fastlåst på v0.5.0 (tag `v0.5.0`, commit `35f81f3`; ny version og hash i testen). Kun tilføjelser: valgfri `u-card--spotlight` (D27), som SparkSpend ikke bruger. `includes/useful.css`, `dev/test_useful_css.js`.

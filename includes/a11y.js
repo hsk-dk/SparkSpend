@@ -4,8 +4,6 @@
  *  - Every Chart.js chart gets a text alternative (role="img" + aria-label) through one global plugin, so a chart made
  *    tomorrow has it too: its title (the heading of its card), its kind, the points it spans and, for every series, the
  *    lowest, highest and latest value. A doughnut says each slice's share.
- *  - ApexCharts (a div full of SVG, which a screen reader would read piece by piece) is wrapped as one image with the
- *    heading of its card as its name.
  *  - The state the eye reads from a class is also said in ARIA: the page and sub-page chosen in the menus
  *    (aria-current) and the buttons that switch a view or a series on and off (aria-pressed). The code that sets the
  *    classes does not change: a MutationObserver reads them.
@@ -97,22 +95,6 @@ function _a11yLabelChart(chart) {
     canvas.setAttribute('aria-label', text.length > 480 ? text.slice(0, 477) + '…' : text);
 }
 
-/** ApexCharts: one image named after its card (its SVG is a pile of texts and shapes to a screen reader). */
-function _a11yLabelApex() {
-    document.querySelectorAll('.apexcharts-canvas').forEach(canvas => {
-        const box = canvas.parentElement;
-        if (!box) return;
-        // The chart's own title (Apex draws one inside the SVG) is a better name than the heading of the card around it
-        const own = canvas.querySelector('.apexcharts-title-text');
-        const title = (own && own.textContent.trim()) || _a11yTitleFor(box);
-        if (box.getAttribute('role') !== 'img') box.setAttribute('role', 'img');
-        if (!box.hasAttribute('aria-label') || box.getAttribute('data-a11y-auto') === '1') {
-            box.setAttribute('aria-label', title + '. Diagram.');
-            box.setAttribute('data-a11y-auto', '1');
-        }
-    });
-}
-
 /** aria-current on the chosen page and sub-page, aria-pressed on the on/off buttons: from the classes the code already sets. */
 function _a11ySyncState() {
     document.querySelectorAll('.header-tab-button, .sub-nav-btn').forEach(b => {
@@ -129,19 +111,15 @@ function _a11ySyncState() {
     }
     document.addEventListener('DOMContentLoaded', () => {
         _a11ySyncState();
-        _a11yLabelApex();
         // The skip link moves focus to <main> without touching the address: "#main" would replace the page the router keeps in the
         // hash (#elbil/analyse ...) and a reload would lose it.
         document.querySelector('.skip-link')?.addEventListener('click', e => {
             e.preventDefault();
             document.getElementById('main')?.focus();
         });
-        // The menus and toggles are static; the year chips and the charts are made later
+        // The menus and toggles are static; the year chips are made later
         const watch = (selector, options) => document.querySelectorAll(selector).forEach(el => new MutationObserver(_a11ySyncState).observe(el, options));
         watch('.header-nav, .sub-nav, .hp-mode-nav', { attributes: true, attributeFilter: ['class'], subtree: true });
         watch('.year-chip-bar', { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
-        let timer = null;
-        new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(_a11yLabelApex, 250); })
-            .observe(document.body, { childList: true, subtree: true });
     });
 })();

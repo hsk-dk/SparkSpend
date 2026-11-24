@@ -42,8 +42,6 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <link rel="stylesheet" href="<?= asset('includes/icons.css') ?>">
   <link rel="stylesheet" href="<?= asset('includes/style.css') ?>">
 
-  <script defer src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.0/dist/apexcharts.min.js" integrity="sha384-5u6RO0Q8xx8HD9yfm1MUPRgt4kTTlZxjJmXIFZxa5pEZy7U9XOtkAZgbF1fSYmsw" crossorigin="anonymous"></script>
-
 </head>
 <body>
   <a class="skip-link" href="#main">Spring til indhold</a>

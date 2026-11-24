@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Removed (technical debt, step 6)
+- **ApexCharts is gone.** The library (about 520 KB, on every page) is no longer loaded, and with it the Danish locale block in `app.js`, the Apex branch of the screen reader labelling in `a11y.js` (with its MutationObserver on the whole page) and the lint globals. Every chart is now a Chart.js canvas with the one plugin's text alternative; the app has one tooltip pattern. `dev/test_one_chart_library.js` (5) fails if a second chart library comes back. Checked on all pages: no console errors, every canvas labelled.
+
 ### Fixed
 - **The charge table in "Elspot-tidsmønster" was missing when Elbil → Analyse was the first page opened.** The charge list is fetched on its own and landed after the prices, so the table of charges (which needs it) was left out until a period button was pressed. It is drawn again when the list arrives (and follows the filters). The same gap existed with the old chart; found on production. `includes/elbil/tou.js`, `includes/elbil/charges.js`.
 

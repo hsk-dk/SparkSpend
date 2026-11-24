@@ -1,7 +1,7 @@
 # SparkSpend
 
 Personligt energi-dashboard til overvågning af EV-opladning, varmepumpe og husholdningsforbrug.
-Bygget med plain PHP / SQLite og en vanilla-JS frontend (Chart.js, ApexCharts, Bootstrap).
+Bygget med plain PHP / SQLite og en vanilla-JS frontend (Chart.js, Bootstrap).
 
 ---
 
