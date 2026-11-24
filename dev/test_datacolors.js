@@ -88,7 +88,7 @@ console.log('\nthe six year colours (year comparisons on Hus, Jordvarme and Elbi
 // every pair differs for every kind of colour vision, and each year has its own marker shape as a second cue. The first set (found on hue
 // distance alone) put navy and maroon at the same lightness: on real data (Hus -> Sammenligning) the two thin lines were hard to tell apart.
 const YEARS = ['#4f1e1e', '#f35e14', '#1b67be', '#c87f6d', '#7c14f3', '#2c2460'];
-// The colours are the Useful design system's --series-1...6 (v0.4.0, D23): read from the pinned useful.css at run time, with the same six
+// The colours are the Useful design system's --series-1...6 (from v0.4.0, D23; the pinned copy is now v0.5.0): read from the pinned useful.css at run time, with the same six
 // values as a fallback in app.js. The three charts take them from appUtils.seriesColors(), so there is one definition.
 const usefulCss = read('includes/useful.css');
 const tokenSeries = [1, 2, 3, 4, 5, 6].map(i => (usefulCss.match(new RegExp(`--series-${i}:\\s*(#[0-9a-fA-F]{6})`)) || [])[1]);
