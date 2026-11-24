@@ -2355,8 +2355,9 @@ th.sort-active { color: var(--accent-strong); }
   .anomaly-item { flex-wrap: wrap; }
   .anomaly-item-body { flex: 1 1 calc(100% - 60px); }
   .anomaly-item-action { margin-left: 50px; }
-  /* sub-navigation: three pills must fit without cutting the last one */
-  .sub-nav { gap: 4px; flex-wrap: nowrap; }
+  /* sub-navigation: no pill is cut off. Elbil has four pills and the Administrér button, which do not fit one line at 320 px, so the
+     row wraps (Ladninger, Analyse, Effektivitet / Sammenligning, Administrér) */
+  .sub-nav { gap: 4px; flex-wrap: wrap; }
   .sub-nav-btn { flex: 1 1 auto; padding: 8px 6px; font-size: var(--text-xs); white-space: nowrap; text-align: center; }
   .sub-nav-btn i { display: none; }
   .sub-nav-btn.ms-auto { flex: 0 0 auto; padding: 8px 10px; }

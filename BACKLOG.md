@@ -56,7 +56,7 @@ Alle sider gennemgået. Telefon kunne ikke ses i Chrome (vinduet kan ikke gøres
 9. ~~**Døde flader (S).**~~ (lavet 2026-11-24) Sparklines på Oversigt sidder nederst i kortene, i samme højde på tværs af de tre; Jordvarme og Hus tegner diagrammet i en egen boks på 300 px (før 190 px over en tom flade); Opsummeringen har ingen tom bånd under tabellen. `includes/style.css`, `index.php`, `includes/hus.js`, `includes/jordvarme.js`, `includes/elbil/charges.js`
 10. ~~**Mine egne valg, der skal rettes (S).**~~ (lavet 2026-11-24) Elprisdiagrammets tidsmærker er vandrette (og tynder sig selv ud, hvor der ikke er plads), og kortet skriver, at farverne er i forhold til dagens billigste og dyreste og ikke en fast prisgrænse (en fast grænse ville kræve et valg, jeg ikke har at gå efter). `includes/dashboard.js`
 11. ~~**Årssammenligningens 2024-linje (S).**~~ (lavet 2026-11-24) Et år med færre end tre måneders data tegnes som punkter uden linje, står med "Kun få måneder med data: ikke med i gennemsnittet" i tooltip og er ikke med i den grå gennemsnitslinje. Gælder kun Elbil; Hus og Jordvarmes årssammenligninger har samme mønster og er ikke ændret. `includes/elbil/yearly.js`
-12. **Elbil → Analyse er 4.500 px lang (M).** Syv moduler på én side. Del i Analyse (optimering, omkostning, ladesteder, tidsmønster) og Effektivitet (forbrug pr. km, kurver). Strukturbeslutning: tag den sammen med ejeren.
+12. ~~**Elbil → Analyse er 4.500 px lang (M).**~~ (lavet 2026-11-24) "Forbrug pr. km" med de to kurver er siden Effektivitet mellem Analyse og Sammenligning; Analyse har fire kort. På telefon ombrydes de fire faner og Administrér til to rækker. `index.php`, `includes/style.css`
 
 ### Features (ingen af dem findes i koden)
 

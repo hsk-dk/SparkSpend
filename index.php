@@ -348,6 +348,9 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     <button class="sub-nav-btn" data-sub="elbil-analyse">
       <i class="fas fa-chart-line"></i> Analyse
     </button>
+    <button class="sub-nav-btn" data-sub="elbil-effektivitet">
+      <i class="fas fa-gauge-high"></i> Effektivitet
+    </button>
     <button class="sub-nav-btn" data-sub="elbil-sammenligning">
       <i class="fas fa-car"></i> Sammenligning
     </button>
@@ -544,19 +547,6 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
       <div id="chargeOptContent"><p class="text-muted small mb-0">Indlæser…</p></div>
     </div>
 
-    <!-- Efficiency Charts Card -->
-    <div class="card p-4">
-      <h3>Forbrug pr. km</h3>
-      <p class="text-muted small mb-3">
-        Beregnet pr. periode ud fra kilometertælleren ved tilslutning og den energi, der er ladet (netenergi, inkl. ladetab).
-        Uden batteriets ladeniveau kan en periode afvige med op til ét batteris energi, så tallet er mere sikkert, jo flere kWh og km der er med.
-      </p>
-      <div id="efficiencySummary"></div>
-      <h5 class="mt-3">Kumuleret udvikling</h5>
-      <div id="kmPerKwhChart"></div>
-      <div id="krPerKmChart"></div>
-    </div>
-
     <!-- Cost Analytics Card -->
     <div class="card p-4 mt-4">
       <h3>Omkostningsanalyse</h3>
@@ -604,6 +594,24 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     </div>
 
   </div><!-- /#elbil-analyse -->
+
+  <!-- Sub-section: Effektivitet (consumption per km: it was the second card of Analyse, which was 4,500 px long) -->
+  <div id="elbil-effektivitet" class="sub-section">
+
+    <!-- Efficiency Charts Card -->
+    <div class="card p-4">
+      <h3>Forbrug pr. km</h3>
+      <p class="text-muted small mb-3">
+        Beregnet pr. periode ud fra kilometertælleren ved tilslutning og den energi, der er ladet (netenergi, inkl. ladetab).
+        Uden batteriets ladeniveau kan en periode afvige med op til ét batteris energi, så tallet er mere sikkert, jo flere kWh og km der er med.
+      </p>
+      <div id="efficiencySummary"></div>
+      <h5 class="mt-3">Kumuleret udvikling</h5>
+      <div id="kmPerKwhChart"></div>
+      <div id="krPerKmChart"></div>
+    </div>
+
+  </div><!-- /#elbil-effektivitet -->
 
   <!-- Sub-section: Sammenligning -->
   <div id="elbil-sammenligning" class="sub-section">

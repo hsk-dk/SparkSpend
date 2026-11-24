@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (Elbil: Effektivitet is its own page)
+- **Elbil → Analyse was 4,500 px long with seven modules; "Forbrug pr. km" and its two curves are now a page of their own, Effektivitet,** between Analyse and Sammenligning (the sub-nav is Ladninger, Analyse, Effektivitet, Sammenligning). `#elbil/effektivitet` is a link that works, and `#elbil/analyse` still opens Analyse (Ladeoptimering, Omkostningsanalyse, Ladesteder, Elspot-tidsmønster; on the seed data 2,761 px, the new page 1,939 px). On a phone the four pills and the Administrér button wrap to two rows instead of one row that was cut off (the sub-nav was `nowrap` for three pills). `index.php`, `includes/style.css`, `dev/test_elbil_effektivitet.js` (8).
+
 ### Changed (Oversigt as a summary)
 - **Oversigt is a summary; the detail is one switch away.** The design panel's proposals 1 and 3. The month's bill is one big figure over ONE band in kr with the names on the pieces ("Elbil 1.101 · Jordvarme 770 · Øvrigt 1.144"; on a phone the names move to keys under the band) instead of two bars and a legend, with "hidtil ~1.003 kr" beside it. Each card has a figure (kr), the forecast and what it is made of ("af ~1.280 kr · 493 kWh · 14 ladninger"), ONE verdict ("Pris ↑ 60 % mod 1.–24. okt.", red for a rise in money, neutral for kWh; Jordvarme's is the weather-corrected change, with the degree-day reason as its tooltip) and the sparkline. The rest (the KPI row, every comparison against last month and last year, the home/away split, the drive line, the house composition, the old two bars and their percentages) is behind **"Vis detaljer"**, a switch remembered in this browser; nothing is removed from the page. On the seed data the three cards go from 258 to 90 words and the bill card from 69 to 14. `includes/dashboard.js`, `includes/style.css`, `index.php`, `dev/test_overview_compact.js` (24).
 
