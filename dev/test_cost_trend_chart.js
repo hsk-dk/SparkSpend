@@ -11,7 +11,7 @@ const fn = src.slice(src.indexOf('function _renderCostTrendChart'), src.indexOf(
 
 check('a Chart.js chart, not ApexCharts', /new Chart\(/.test(fn) && !/ApexCharts/.test(src));
 check('two stacked layers: Hjemme from the axis, Ude on top of it', /label: 'Hjemme'[^}]*fill: 'origin'/.test(fn) && /label: 'Ude'[^}]*fill: '-1'/.test(fn) && /y: \{ stacked: true/.test(fn));
-check('one point per date (duplicates are merged before drawing)', /merged\.has\(d\.date\)/.test(fn) && /labels: dates/.test(fn));
+check('one point per date (duplicates are merged before drawing)', /merged\.has\(d\.date\)/.test(fn) && fn.includes('const dates    = deduped.map(d => d.date);') && fn.includes('labels,'));
 check('the chart keeps its title, and the canvas is named for a screen reader', /text: 'Omkostningstendenser'/.test(fn) && /data-a11y-title="Omkostningstendenser"/.test(fn));
 check('the tooltip gives each layer and the total, in Danish numbers with two decimals', /appUtils\.num\(item\.raw, 2\)/.test(fn) && /I alt:/.test(fn));
 check('the y axis is titled and starts at 0 with whole kr', /text: 'Omkostning \(kr\)'/.test(fn) && /beginAtZero: true/.test(fn) && /appUtils\.num\(v, 0\)/.test(fn));

@@ -6,6 +6,11 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (design review of production, findings 6 and 10)
+- **A charge state has a Danish word.** `releasing` (grey, English) stood next to a green "Afsluttet" on production; the states Monta sends there are now Afsluttet, Lader, Afslutter and Frigivet, and one we do not know is "Ukendt" with Monta's word in the tooltip.
+- **The cost chart's periods are named in Danish:** "Uge 45", "nov. 2026", "5. nov." instead of `2026-W45` (with the year when the axis spans more than one).
+- **The price chart on Oversigt has level hour labels** (the 45 degrees were forced; they thin themselves out where there is no room), **and the card says what its colours mean:** relative to the day's cheapest and dearest hour, not a fixed price limit. `includes/elbil/charges.js`, `includes/elbil/analytics.js`, `includes/dashboard.js`, `dev/test_period_and_states.js` (10).
+
 ### Changed (design review of production, findings 1–3)
 - **Money is written one way.** `appUtils.formatCurrency` gives `1.234,50 kr` (a non-breaking space, no stop after "kr"; it was the browser's currency format, `1.234,50 kr.`), and the Årsrapport's EV price column is whole kr like the columns beside it (it had `7.709,30 kr.` next to `2.787 kr`).
 - **A card's title is above its sub-headings.** h3 is 20 px and h5 inside a card 16 px; Bootstrap's h5 was 20 px, so "Størst potentiale" and a car's name were louder than the title of their card.

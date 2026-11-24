@@ -35,6 +35,19 @@
         _renderCostStatistics(data.statistics);
     }
 
+    // The server names a period "2026-W45", "2026-11" or "2026-11-05"; the axis says "Uge 45", "nov. 2026" or "5. nov." The year is added
+    // to a week or a day when the axis spans more than one year (Uge 1 would otherwise be ambiguous).
+    function _periodLabel(key, withYear) {
+        let m;
+        if ((m = /^(\d{4})-W(\d{2})$/.exec(key))) return `Uge ${Number(m[2])}` + (withYear ? ` ${m[1]}` : '');
+        if ((m = /^(\d{4})-(\d{2})$/.exec(key))) return new Date(Number(m[1]), Number(m[2]) - 1, 1).toLocaleDateString('da-DK', { month: 'short', year: 'numeric' });
+        if ((m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key))) {
+            return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+                .toLocaleDateString('da-DK', withYear ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'short' });
+        }
+        return String(key);
+    }
+
     function _renderCostTrendChart(dailyData) {
         // Aggregate duplicate dates defensively: one point per date, so a repeated date cannot show twice on the axis.
         const merged = new Map();
@@ -57,6 +70,8 @@
         }
         const deduped  = [...merged.values()];
         const dates    = deduped.map(d => d.date);
+        const spansYears = new Set(dates.map(d => String(d).slice(0, 4))).size > 1;
+        const labels   = dates.map(d => _periodLabel(d, spansYears));
         const internal = deduped.map(d => d.internal_cost);
         const external = deduped.map(d => d.external_cost);
 
@@ -70,7 +85,7 @@
         costTrendChartInstance = new Chart(host.querySelector('canvas').getContext('2d'), {
             type: 'line',
             data: {
-                labels: dates,
+                labels,
                 datasets: [
                     { label: 'Hjemme', data: internal, borderColor: HOME, backgroundColor: HOME + 'd9', borderWidth: 2, fill: 'origin', pointRadius: 0, pointHoverRadius: 4 },
                     { label: 'Ude',    data: external, borderColor: AWAY, backgroundColor: AWAY + 'd9', borderWidth: 2, fill: '-1',     pointRadius: 0, pointHoverRadius: 4 },

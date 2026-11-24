@@ -153,9 +153,15 @@
                     completed:       ['bg-success',   'Afsluttet'],
                     stopped_by_user: ['bg-warning text-dark', 'Stoppet'],
                     error:           ['bg-danger',    'Fejl'],
+                    charging:        ['bg-primary',   'Lader'],
+                    releasing:       ['bg-secondary', 'Afslutter'],   // Monta's own words for the end of a session
+                    released:        ['bg-secondary', 'Frigivet'],
                 };
-                const [cls, label] = stateMap[charge.state] || ['bg-secondary', charge.state];
-                const reasonTip = charge.stopReason ? ` data-bs-toggle="tooltip" title="${appUtils.escapeHtml(charge.stopReason)}"` : '';
+                // A state we have no word for is "Ukendt", with Monta's own word in the tooltip (never the raw English as a label)
+                const known = stateMap[charge.state];
+                const [cls, label] = known || ['bg-secondary', 'Ukendt'];
+                const tipText = charge.stopReason || (known ? '' : charge.state);
+                const reasonTip = tipText ? ` data-bs-toggle="tooltip" title="${appUtils.escapeHtml(tipText)}"` : '';
                 stateBadge = `<br><span class="badge ${cls}"${reasonTip}>${appUtils.escapeHtml(label)}</span>`;
             }
 

@@ -647,7 +647,8 @@ async function loadElspotForecast(force = false) {
             cheapEl.innerHTML =
                 `<span class="badge bg-success me-1"><i class="fas fa-bolt"></i></span>` +
                 `Billigste 2-timers ladevindue: <strong>${String(cheapH1).padStart(2,'0')}:00–${String(cheapH2 + 1).padStart(2,'0')}:00</strong>` +
-                ` · gns. ${appUtils.num(cheapAvg, 3)} kr/kWh`;
+                ` · gns. ${appUtils.num(cheapAvg, 3)} kr/kWh` +
+                `<div class="text-muted mt-1">Farven viser timen i forhold til dagens billigste og dyreste, ikke en fast prisgrænse.</div>`;
         }
 
         // Chart.js bars: one colour per bar by how dear the hour is, the cheapest 2-hour window shaded behind them
@@ -697,7 +698,7 @@ async function loadElspotForecast(force = false) {
                     },
                 },
                 scales: {
-                    x: { ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 11 } }, grid: { display: false } },
+                    x: { ticks: { maxRotation: 0, minRotation: 0, autoSkip: true, maxTicksLimit: 12, font: { size: 11 } }, grid: { display: false } },
                     y: { beginAtZero: true, ticks: { callback: v => appUtils.num(v, 2), font: { size: 11 } }, title: { display: true, text: 'kr/kWh', font: { size: 12 } } },
                 },
             },
