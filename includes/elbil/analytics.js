@@ -168,12 +168,12 @@
         tbody.innerHTML = data.map(v => `
             <tr>
                 <td><strong>${_esc(v.vehicleName)}</strong></td>
-                <td>${v.charge_count}</td>
-                <td>${appUtils.num(v.total_kwh, 2)} kWh</td>
-                <td>${appUtils.num(v.total_cost, 2)} kr</td>
-                <td>${appUtils.num(v.avg_cost_per_kwh, 3)} kr/kWh</td>
-                <td>${appUtils.num(v.internal_percentage, 1)}%</td>
-                <td>${appUtils.num(v.external_percentage, 1)}%</td>
+                <td class="text-end">${v.charge_count}</td>
+                <td class="text-end">${appUtils.num(v.total_kwh, 2)} kWh</td>
+                <td class="text-end">${appUtils.num(v.total_cost, 2)} kr</td>
+                <td class="text-end">${appUtils.num(v.avg_cost_per_kwh, 3)} kr/kWh</td>
+                <td class="text-end">${appUtils.num(v.internal_percentage, 1)}%</td>
+                <td class="text-end">${appUtils.num(v.external_percentage, 1)}%</td>
             </tr>`).join('');
     }
 

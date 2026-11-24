@@ -622,12 +622,12 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
           <thead>
             <tr>
               <th>Bil</th>
-              <th>Antal ladninger</th>
-              <th>Samlet kWh</th>
-              <th>Samlet pris (DKK)</th>
-              <th>Pris pr kWh</th>
-              <th>Hjemme (%)</th>
-              <th>Ude (%)</th>
+              <th class="text-end">Antal ladninger</th>
+              <th class="text-end">Samlet kWh</th>
+              <th class="text-end">Samlet pris (DKK)</th>
+              <th class="text-end">Pris pr kWh</th>
+              <th class="text-end">Hjemme (%)</th>
+              <th class="text-end">Ude (%)</th>
             </tr>
           </thead>
           <tbody id="vehicleComparisonTableBody">

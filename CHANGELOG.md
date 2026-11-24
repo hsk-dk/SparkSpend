@@ -6,6 +6,11 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (design review of production, findings 4, 5 and 7)
+- **The month's expected bill is the biggest figure on Oversigt:** a small label ("Forventet elregning") over `~3.026 kr` in 32 px, in Danish number format; the three cards under it have 20 px figures.
+- **Jordvarme names its degree-days line.** A legend ("Forbrug (kWh)", "Gradedage (GD)") shows when the line is there, the right axis is titled "Gradedage" instead of "GD", and the line is `#64748b` (4.8:1 against white; the old pale slate was 2.5:1, below the 3:1 a graphic needs).
+- **Figures are right-aligned** (header, figure and unit) in Opsummering on Elbil → Ladninger and in Bilsammenligning; the car stays on the left. `includes/dashboard.js`, `includes/jordvarme.js`, `includes/elbil/charges.js`, `includes/elbil/analytics.js`, `includes/style.css`, `index.php`, `dev/test_review_4_5_7.js` (10).
+
 ### Changed (design review of production, findings 6 and 10)
 - **A charge state has a Danish word.** `releasing` (grey, English) stood next to a green "Afsluttet" on production; the states Monta sends there are now Afsluttet, Lader, Afslutter and Frigivet, and one we do not know is "Ukendt" with Monta's word in the tooltip.
 - **The cost chart's periods are named in Danish:** "Uge 45", "nov. 2026", "5. nov." instead of `2026-W45` (with the year when the axis spans more than one).

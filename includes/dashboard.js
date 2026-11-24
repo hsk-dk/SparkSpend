@@ -844,8 +844,10 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
         if (el) {
             const perDay = cost.per_day || 0;
             const kwhNow = { ev: ev ? ev.home_kwh : 0, hp: hp ? hp.month_kwh : 0, rest: rest ? rest.month_kwh : 0 };
+            // The month's bill is the biggest figure on the page: a small label over it, in 32 px
             el.innerHTML = `<div class="total-cost-top"><span class="total-cost-icon">⚡</span>` +
-                `<span class="total-cost-amount">Forventet elregning: ~${cost.total_proj} kr</span>` +
+                `<span class="total-cost-head"><span class="total-cost-label">Forventet elregning</span>` +
+                `<span class="total-cost-amount">~${_fmt(cost.total_proj, 0)} kr</span></span>` +
                 `<span class="total-cost-breakdown">EV hjemme: ~${Math.round(cost.ev_proj)} · Jordvarme: ~${cost.hp_proj} · Øvrigt: ~${cost.rest_proj}` +
                 (perDay > 0 ? ` · Abonnement: ~${_fmt(cost.subscription_proj, 0)} kr` : ' kr · ekskl. abonnement') + `</span></div>` +
                 _costShareBars(kwhNow, { ev: cost.ev_proj, hp: cost.hp_proj, rest: cost.rest_proj, sub: perDay > 0 ? cost.subscription_proj : 0 });

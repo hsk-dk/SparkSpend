@@ -267,6 +267,12 @@ const jordvarmeApp = (() => {
 
         // Inject or update the HDD line overlay on an existing daily/monthly chart without
         // destroying it — avoids the destroy→recreate blink when weather data arrives.
+        // The degree-days line on the kWh bars: named in the legend and on its axis (it was an unnamed grey line with an axis called "GD"),
+        // and dark enough to be a graphic (the old pale slate was 2.5:1 against white; this one is 4.8:1)
+        const HDD_LABEL = 'Gradedage (GD)';
+        const HDD_COLOR = '#64748b';
+        const hddAxis = () => ({ type: 'linear', position: 'right', beginAtZero: true, title: { display: true, text: 'Gradedage' }, grid: { drawOnChartArea: false } });
+
         function _updateHddOverlay() {
             if (!heatpumpChart) return;
             if (currentMode !== 'daily' && currentMode !== 'monthly') return;
@@ -281,24 +287,22 @@ const jordvarmeApp = (() => {
                         return s > 0 ? parseFloat(s.toFixed(1)) : null;
                     }))
                 : null;
-            const existingIdx = heatpumpChart.data.datasets.findIndex(d => d.label === 'Gradedage (GD)');
+            const existingIdx = heatpumpChart.data.datasets.findIndex(d => d.label === HDD_LABEL);
             if (hddValues && existingIdx === -1) {
                 heatpumpChart.data.datasets.push({
-                    type: 'line', label: 'Gradedage (GD)', data: hddValues,
-                    borderColor: 'rgba(148, 163, 184, 0.85)', backgroundColor: 'transparent',
+                    type: 'line', label: HDD_LABEL, data: hddValues,
+                    borderColor: HDD_COLOR, backgroundColor: 'transparent',
                     borderWidth: 2, pointRadius: 2, pointHoverRadius: 4,
                     tension: 0.3, spanGaps: false, yAxisID: 'y2',
                 });
-                heatpumpChart.options.scales.y2 = {
-                    type: 'linear', position: 'right', beginAtZero: true,
-                    title: { display: true, text: 'GD' }, grid: { drawOnChartArea: false },
-                };
+                heatpumpChart.options.scales.y2 = hddAxis();
             } else if (hddValues && existingIdx !== -1) {
                 heatpumpChart.data.datasets[existingIdx].data = hddValues;
             } else if (!hddValues && existingIdx !== -1) {
                 heatpumpChart.data.datasets.splice(existingIdx, 1);
                 heatpumpChart.options.scales.y2 = { display: false };
             }
+            heatpumpChart.options.plugins.legend.display = !!hddValues;   // a legend only when there is a second thing to name
             heatpumpChart.update('none'); // no animation — smooth in-place update
         }
 
@@ -449,9 +453,9 @@ const jordvarmeApp = (() => {
             if (hddValues) {
                 datasets.push({
                     type: 'line',
-                    label: 'Gradedage (GD)',
+                    label: HDD_LABEL,
                     data: hddValues,
-                    borderColor: 'rgba(148, 163, 184, 0.85)',
+                    borderColor: HDD_COLOR,
                     backgroundColor: 'transparent',
                     borderWidth: 2,
                     pointRadius: 2,
@@ -467,11 +471,8 @@ const jordvarmeApp = (() => {
                 heatpumpChart.data.labels = labels;
                 heatpumpChart.data.datasets.length = 0;
                 datasets.forEach(ds => heatpumpChart.data.datasets.push(ds));
-                heatpumpChart.options.scales.y2 = hddValues
-                    ? { type: 'linear', position: 'right', beginAtZero: true,
-                        title: { display: true, text: 'GD' },
-                        grid: { drawOnChartArea: false } }
-                    : { display: false };
+                heatpumpChart.options.scales.y2 = hddValues ? hddAxis() : { display: false };
+                heatpumpChart.options.plugins.legend.display = !!hddValues;
                 heatpumpChart.update('none');
                 return;
             }
@@ -482,7 +483,7 @@ const jordvarmeApp = (() => {
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { display: false },
+                        legend: { display: !!hddValues, position: 'top' },
                         datalabels: { display: false },
                         tooltip: {
                             filter: item => item.datasetIndex === 0,
@@ -533,11 +534,7 @@ const jordvarmeApp = (() => {
                     },
                     scales: {
                         y:  { beginAtZero: true, title: { display: true, text: 'kWh' } },
-                        y2: hddValues
-                            ? { type: 'linear', position: 'right', beginAtZero: true,
-                                title: { display: true, text: 'GD' },
-                                grid: { drawOnChartArea: false } }
-                            : { display: false },
+                        y2: hddValues ? hddAxis() : { display: false },
                     }
                 }
             });

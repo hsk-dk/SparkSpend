@@ -254,28 +254,28 @@
         const period = (S.dateRangeEl && S.dateRangeEl.value) ? S.dateRangeEl.value : 'alle datoer';
         let html = `<h3>Opsummering <small class="text-muted fw-normal">· ${appUtils.escapeHtml(period)}</small></h3>
         <table class="table table-sm">
-            <tr><th>Bil</th><th>Samlet kWh</th><th>Hjemme (kr)</th><th>Ude (kr)</th><th>Samlet Pris</th><th>Gns. Pris/kWh</th></tr>`;
+            <tr><th>Bil</th><th class="text-end">Samlet kWh</th><th class="text-end">Hjemme (kr)</th><th class="text-end">Ude (kr)</th><th class="text-end">Samlet Pris</th><th class="text-end">Gns. Pris/kWh</th></tr>`;
 
         Object.keys(totals).forEach(v => {
             const avg = totals[v].totalKwh > 0 ? totals[v].totalPris / totals[v].totalKwh : 0;
             html += `<tr>
                 <td>${appUtils.escapeHtml(v)}</td>
-                <td>${appUtils.num(totals[v].totalKwh, 2)} kWh</td>
-                <td>${appUtils.num(totals[v].internalPris, 2)} kr</td>
-                <td>${appUtils.num(totals[v].externalPris, 2)} kr</td>
-                <td>${appUtils.num(totals[v].totalPris, 2)} kr</td>
-                <td>${appUtils.num(avg, 2)} kr/kWh</td>
+                <td class="text-end">${appUtils.num(totals[v].totalKwh, 2)} kWh</td>
+                <td class="text-end">${appUtils.num(totals[v].internalPris, 2)} kr</td>
+                <td class="text-end">${appUtils.num(totals[v].externalPris, 2)} kr</td>
+                <td class="text-end">${appUtils.num(totals[v].totalPris, 2)} kr</td>
+                <td class="text-end">${appUtils.num(avg, 2)} kr/kWh</td>
             </tr>`;
         });
 
         const overallAvg = overallKwh > 0 ? overallPris / overallKwh : 0;
         html += `<tr style="font-weight:bold;">
             <td>Total</td>
-            <td>${appUtils.num(overallKwh, 2)} kWh</td>
-            <td>${appUtils.num(internalPrice, 2)} kr</td>
-            <td>${appUtils.num(externalPrice, 2)} kr</td>
-            <td>${appUtils.num(overallPris, 2)} kr</td>
-            <td>${appUtils.num(overallAvg, 2)} kr/kWh</td>
+            <td class="text-end">${appUtils.num(overallKwh, 2)} kWh</td>
+            <td class="text-end">${appUtils.num(internalPrice, 2)} kr</td>
+            <td class="text-end">${appUtils.num(externalPrice, 2)} kr</td>
+            <td class="text-end">${appUtils.num(overallPris, 2)} kr</td>
+            <td class="text-end">${appUtils.num(overallAvg, 2)} kr/kWh</td>
         </tr></table>`;
         if (summaryTextEl) summaryTextEl.innerHTML = html;
 

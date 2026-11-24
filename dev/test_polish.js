@@ -61,7 +61,7 @@ const an = read('includes/elbil/analytics.js');
 check('its points are not labelled with the raw sum (dataLabels off; the tooltip has the figure)', /datalabels: \{ display: false \}/.test(an));
 check('its y axis is formatted (no 400.00000000000000)', /ticks: \{ callback: v => appUtils\.num\(v, 0\) \}/.test(an));
 check('its series are Hjemme / Ude like the rest of the app, not Indre / Ekstern', /label: 'Hjemme'/.test(an) && /label: 'Ude'/.test(an) && !/Indre ladning/.test(an));
-check('the car comparison says Hjemme (%) / Ude (%)', /<th>Hjemme \(%\)<\/th>/.test(read('index.php')) && /<th>Ude \(%\)<\/th>/.test(read('index.php')));
+check('the car comparison says Hjemme (%) / Ude (%)', /<th[^>]*>Hjemme \(%\)<\/th>/.test(read('index.php')) && /<th[^>]*>Ude \(%\)<\/th>/.test(read('index.php')));
 check('a car with no charges in the period is not a row ("Ukendt" with 0 kWh)', /filter\(v => Number\(v\.charge_count\) > 0\)/.test(an));
 const ef = read('includes/elbil/efficiency.js');
 check('the efficiency charts say km pr. kWh and kr pr. km, with formatted axes', /'km pr\. kWh'/.test(ef) && /'kr pr\. km'/.test(ef) && !/KM per kWh|Kr per KM/.test(ef));

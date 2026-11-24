@@ -1843,9 +1843,17 @@ main:focus { outline: none; }   /* it is only focused by the skip link, to start
   font-size: var(--text-lg);
 }
 
+.total-cost-card .total-cost-head { display: flex; flex-direction: column; gap: 2px; }
+.total-cost-card .total-cost-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--muted-strong, #4b5563);
+}
 .total-cost-card .total-cost-amount {
-  font-weight: 600;
-  font-size: var(--text-md);
+  font-weight: 700;
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
 }
 
 .total-cost-card .total-cost-breakdown {
