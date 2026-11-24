@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Fixed
+- **The charge table in "Elspot-tidsmønster" was missing when Elbil → Analyse was the first page opened.** The charge list is fetched on its own and landed after the prices, so the table of charges (which needs it) was left out until a period button was pressed. It is drawn again when the list arrives (and follows the filters). The same gap existed with the old chart; found on production. `includes/elbil/tou.js`, `includes/elbil/charges.js`.
+
 ### Changed (technical debt, step 5)
 - **The time-of-use heatmaps on Elbil → Analyse ("Elspot-tidsmønster") are tables.** The price by hour and weekday, and your charges by hour and weekday, are now two tables (side by side on a wide screen, stacked on a phone) with the figure in every cell, tinted by its value (`appUtils.heatTable`). Hours are the rows and Man to Søn the columns, so 24 × 7 fits a phone with no sideways scroll; the old charts were unreadable at that width. The tint is capped at 50 %, so the text keeps at least 4.5:1 (price in slate, charges in the EV blue); a screen reader gets a real table with a caption and row and column headers, and a mouse gets the day, hour and value in the cell's title. No ApexCharts chart is left in the app. `includes/app.js`, `includes/elbil/tou.js`, `includes/style.css`, `dev/test_heat_tables.js` (16).
 

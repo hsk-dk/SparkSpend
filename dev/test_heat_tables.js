@@ -32,7 +32,10 @@ check('nothing at all: a table of dashes, no NaN', !/NaN|Infinity/.test(heatTabl
 
 console.log('\nthe page');
 check('no ApexCharts left in the file, and the tables come from appUtils.heatTable', !/ApexCharts/.test(tou.replace(/\/\/.*$/gm, '')) && (tou.match(/appUtils\.heatTable\(/g) || []).length === 2);
-check('hours are the rows, Man to Søn the columns', /cols: dayNames, rows: hours/.test(tou) && /dayNames = \['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'\]/.test(tou));
+check('hours are the rows, Man to Søn the columns', /cols: DAY_NAMES, rows: HOURS/.test(tou) && /DAY_NAMES = \['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'\]/.test(tou));
+const charges = read('includes/elbil/charges.js');
+check('the charge table is drawn again when the charge list arrives (opened straight on Analyse, the list lands after the prices)', /M\.tou\) M\.tou\.refreshCharges\(\)/.test(charges) && /function refreshCharges\(\) \{[^}]*lastPrices[^}]*renderTou/.test(tou) && /M\.tou = \{ fetchTouHeatmap, refreshCharges \}/.test(tou));
+check('...but not over a message ("Ingen prisdata"): only when a table is already there', /container\.querySelector\('table'\)\) renderTou/.test(tou));
 check('heatTable is exported on appUtils', /\n  heatTable,\n/.test(app));
 check('the tint is a custom property over the table\'s colour: price in slate, charges in the EV colour', /\.heat-table td \{[^}]*color-mix\(in srgb, var\(--heat-color\) calc\(var\(--heat, 0\) \* 100%\), transparent\)/.test(css) && /\.heat-price\s+\{ --heat-color: #334155; \}/.test(css) && /\.heat-ev\s+\{ --heat-color: var\(--data-ev\); \}/.test(css));
 

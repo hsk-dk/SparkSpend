@@ -14,6 +14,12 @@
     // -------------------------------------------------------------------------
     // Time-of-use heatmap (Elspot-tidsmønster)
     // -------------------------------------------------------------------------
+    // The price matrix of the last fetch (hours x weekdays), kept so the tables can be drawn again when the charges arrive: the charge
+    // list is fetched on its own and may land after the prices (a page opened straight on Analyse)
+    let lastPrices = null;
+    const DAY_NAMES = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'];
+    const HOURS     = Array.from({length: 24}, (_, h) => String(h).padStart(2, '0') + ':00');
+
     async function fetchTouHeatmap(days = 90) {
         const area = window.sparkConfig?.elspotArea || '';
         const gln  = window.sparkConfig?.elspotGln  || '';
@@ -46,35 +52,9 @@
                 cnts[dow][r.hour]++;
             }
 
-            const dayNames = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'];
-            const hours    = Array.from({length: 24}, (_, h) => String(h).padStart(2, '0') + ':00');
-
             // Rows are the hours and the columns the weekdays (Man to Søn): 24 x 7 fits a phone without sideways scroll
-            const prices = hours.map((_, h) => dayNames.map((__, dow) => (cnts[dow][h] > 0 ? sums[dow][h] / cnts[dow][h] : null)));
-
-            // Charge count overlay using current _allCharges
-            const cCnts = Array.from({length: 7}, () => new Int32Array(24));
-            for (const c of S.allCharges) {
-                if (!c.datetime) continue;
-                const cd  = new Date(c.datetime);
-                const dow = (cd.getDay() + 6) % 7;
-                cCnts[dow][cd.getHours()]++;
-            }
-            const charges = hours.map((_, h) => dayNames.map((__, dow) => cCnts[dow][h]));
-
-            // Heat tables, not charts: the figure stands in every cell, and a screen reader gets a real table
-            const priceTable = appUtils.heatTable({
-                caption: 'Gns. elpris (kr/kWh inkl. afgifter)', cols: dayNames, rows: hours, values: prices, cls: 'heat-price',
-                fmt: v => appUtils.num(v, 2),
-                title: (hour, day, v) => `${day} kl. ${hour}: ${appUtils.num(v, 3)} kr/kWh`,
-            });
-            const chargeTable = S.allCharges.length === 0 ? '' : appUtils.heatTable({
-                caption: 'Antal ladninger pr. time/ugedag', cols: dayNames, rows: hours, values: charges, cls: 'heat-ev',
-                fmt: v => String(v),
-                title: (hour, day, v) => `${day} kl. ${hour}: ${v} ladning${v === 1 ? '' : 'er'}`,
-            });
-            container.innerHTML = '<div class="row g-4"><div class="' + (chargeTable ? 'col-lg-6' : 'col-12') + '">' + priceTable + '</div>' +
-                (chargeTable ? '<div class="col-lg-6">' + chargeTable + '</div>' : '') + '</div>';
+            lastPrices = HOURS.map((_, h) => DAY_NAMES.map((__, dow) => (cnts[dow][h] > 0 ? sums[dow][h] / cnts[dow][h] : null)));
+            renderTou(container);
         } catch (e) {
             console.error('fetchTouHeatmap:', e);
             if (container) container.innerHTML =
@@ -82,5 +62,37 @@
         }
     }
 
-    M.tou = { fetchTouHeatmap };
+    function renderTou(container) {
+        // Charge count overlay using the current charge list
+        const cCnts = Array.from({length: 7}, () => new Int32Array(24));
+        for (const c of S.allCharges) {
+            if (!c.datetime) continue;
+            const cd  = new Date(c.datetime);
+            const dow = (cd.getDay() + 6) % 7;
+            cCnts[dow][cd.getHours()]++;
+        }
+        const charges = HOURS.map((_, h) => DAY_NAMES.map((__, dow) => cCnts[dow][h]));
+
+        // Heat tables, not charts: the figure stands in every cell, and a screen reader gets a real table
+        const priceTable = appUtils.heatTable({
+            caption: 'Gns. elpris (kr/kWh inkl. afgifter)', cols: DAY_NAMES, rows: HOURS, values: lastPrices, cls: 'heat-price',
+            fmt: v => appUtils.num(v, 2),
+            title: (hour, day, v) => `${day} kl. ${hour}: ${appUtils.num(v, 3)} kr/kWh`,
+        });
+        const chargeTable = S.allCharges.length === 0 ? '' : appUtils.heatTable({
+            caption: 'Antal ladninger pr. time/ugedag', cols: DAY_NAMES, rows: HOURS, values: charges, cls: 'heat-ev',
+            fmt: v => String(v),
+            title: (hour, day, v) => `${day} kl. ${hour}: ${v} ladning${v === 1 ? '' : 'er'}`,
+        });
+        container.innerHTML = '<div class="row g-4"><div class="' + (chargeTable ? 'col-lg-6' : 'col-12') + '">' + priceTable + '</div>' +
+            (chargeTable ? '<div class="col-lg-6">' + chargeTable + '</div>' : '') + '</div>';
+    }
+
+    /** Called when the charge list has been (re)fetched: draw the tables again if the prices are already there. */
+    function refreshCharges() {
+        const container = document.getElementById('touHeatmapContainer');
+        if (lastPrices && container && container.querySelector('table')) renderTou(container);
+    }
+
+    M.tou = { fetchTouHeatmap, refreshCharges };
 })();

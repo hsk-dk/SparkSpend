@@ -27,6 +27,7 @@
             S.allCharges   = await Api.get('charges', params);
             _visibleRows  = _PAGE_SIZE;
             _applySortAndRender();
+            if (M.tou) M.tou.refreshCharges();   // the heat table of charges on Analyse follows the list (it may be drawn before the list arrives)
         } catch (e) {
             appUtils.showRetryError(S.chargeTableBodyEl, {
                 message: 'Kunne ikke hente ladninger: ' + e.message,
