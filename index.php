@@ -166,6 +166,10 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     <div id="anomaly-list"></div>
   </div>
 
+  <div class="dash-toolbar">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="dashDetailsToggle" aria-pressed="false">Vis detaljer</button>
+  </div>
+
   <div class="dashboard-grid">
 
     <!-- EV Dashboard Card -->
@@ -178,7 +182,12 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
         </div>
       </div>
       <div class="dash-body">
-        <div class="dash-stats">
+        <div class="dash-sum">
+          <div class="dash-fig">—</div>
+          <div class="dash-sum-sub"></div>
+          <div class="dash-verdict" hidden></div>
+        </div>
+        <div class="dash-stats dash-detail">
           <div class="dash-stat">
             <div class="dash-stat-charges dash-stat-value">—</div>
             <div class="dash-stat-label">Ladninger</div>
@@ -196,10 +205,10 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
             <div class="dash-stat-label">kr/kWh</div>
           </div>
         </div>
-        <div class="dash-meta">
+        <div class="dash-meta dash-detail">
           <span class="dash-projected"></span>
         </div>
-        <div class="dash-split-wrap" style="display:none">
+        <div class="dash-split-wrap dash-detail" style="display:none">
           <div class="dash-split-row" data-basis="kwh">
             <span class="dash-split-cap">kWh</span>
             <div class="dash-split-track">
@@ -220,8 +229,8 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
           </div>
           <div class="dash-split-share"></div>
         </div>
-        <div class="dash-drive" style="display:none"></div>
-        <div class="dash-trend"></div>
+        <div class="dash-drive dash-detail" style="display:none"></div>
+        <div class="dash-trend dash-detail"></div>
         <div class="dash-sparkline">
           <canvas id="ev-sparkline"></canvas>
         </div>
@@ -239,7 +248,12 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
         </div>
       </div>
       <div class="dash-body">
-        <div class="dash-stats">
+        <div class="dash-sum">
+          <div class="dash-fig">—</div>
+          <div class="dash-sum-sub"></div>
+          <div class="dash-verdict" hidden></div>
+        </div>
+        <div class="dash-stats dash-detail">
           <div class="dash-stat">
             <div class="dash-stat-kwh dash-stat-value">—</div>
             <div class="dash-stat-label">kWh</div>
@@ -253,10 +267,10 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
             <div class="dash-stat-label">~kr</div>
           </div>
         </div>
-        <div class="dash-meta">
+        <div class="dash-meta dash-detail">
           <span class="dash-projected"></span>
         </div>
-        <div class="dash-trend"></div>
+        <div class="dash-trend dash-detail"></div>
         <div class="dash-sparkline">
           <canvas id="hp-sparkline"></canvas>
         </div>
@@ -274,7 +288,12 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
         </div>
       </div>
       <div class="dash-body">
-        <div class="dash-stats">
+        <div class="dash-sum">
+          <div class="dash-fig">—</div>
+          <div class="dash-sum-sub"></div>
+          <div class="dash-verdict" hidden></div>
+        </div>
+        <div class="dash-stats dash-detail">
           <div class="dash-stat">
             <div class="dash-stat-kwh dash-stat-value">—</div>
             <div class="dash-stat-label">kWh</div>
@@ -288,15 +307,15 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
             <div class="dash-stat-label">~kr</div>
           </div>
         </div>
-        <div class="dash-meta">
+        <div class="dash-meta dash-detail">
           <span class="dash-projected"></span>
         </div>
-        <div class="dash-comp" style="display:none">
+        <div class="dash-comp dash-detail" style="display:none">
           <div class="dash-comp-cap"></div>
           <div class="dash-split-track dash-comp-track" role="img"></div>
           <div class="dash-comp-legend"></div>
         </div>
-        <div class="dash-trend"></div>
+        <div class="dash-trend dash-detail"></div>
         <div class="dash-sparkline">
           <canvas id="hus-sparkline"></canvas>
         </div>

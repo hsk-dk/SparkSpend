@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (Oversigt as a summary)
+- **Oversigt is a summary; the detail is one switch away.** The design panel's proposals 1 and 3. The month's bill is one big figure over ONE band in kr with the names on the pieces ("Elbil 1.101 · Jordvarme 770 · Øvrigt 1.144"; on a phone the names move to keys under the band) instead of two bars and a legend, with "hidtil ~1.003 kr" beside it. Each card has a figure (kr), the forecast and what it is made of ("af ~1.280 kr · 493 kWh · 14 ladninger"), ONE verdict ("Pris ↑ 60 % mod 1.–24. okt.", red for a rise in money, neutral for kWh; Jordvarme's is the weather-corrected change, with the degree-day reason as its tooltip) and the sparkline. The rest (the KPI row, every comparison against last month and last year, the home/away split, the drive line, the house composition, the old two bars and their percentages) is behind **"Vis detaljer"**, a switch remembered in this browser; nothing is removed from the page. On the seed data the three cards go from 258 to 90 words and the bill card from 69 to 14. `includes/dashboard.js`, `includes/style.css`, `index.php`, `dev/test_overview_compact.js` (24).
+
 ### Fixed (phones at 320 px)
 - **Hus → Forbrug was 9 px wider than a 320 px screen.** The period row (« Forrige · November 2026 · Næste » and the "Skjul El-bil" switch I added) did not wrap. All eight pages were measured at 320 px: this was the only one. The row now wraps, the arrows are « and » on a phone (the words show from 576 px; the buttons are named "Forrige periode" and "Næste periode" for a screen reader), and the phone rule that made every button full width no longer stretches the period buttons (they stood one under the other, 178 px high; now 96 px) and they are 44 px wide. Same arrows on Jordvarme. `index.php`, `includes/style.css`, `dev/test_phone_320.js` (4).
 

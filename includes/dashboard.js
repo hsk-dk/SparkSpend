@@ -75,6 +75,44 @@ function _trendLine(label, pctMonth, pctYear, tone, extra = '', now = new Date()
     return `<div class="trend-line"${title ? ` title="${title}"` : ''}><span class="trend-label">${label}</span>${parts.join('')}${extra}</div>`;
 }
 
+/**
+ * The verdict of a card: ONE comparison in one short phrase, "Pris ↑ 60 % mod 1.–24. okt." (the rest of the comparisons are behind
+ * "Vis detaljer"). tone 'cost': a rise is red, a fall green; otherwise neutral (more kWh is not automatically bad).
+ * @returns {{text:string, tone:string}|null} null without a figure to compare
+ */
+function _verdict(label, pct, against, tone = 'neutral') {
+    if (pct === null || pct === undefined || !Number.isFinite(Number(pct))) return null;
+    pct = Number(pct);
+    const flat = Math.round(pct) === 0;   // "↑0 %" would claim a rise of nothing
+    const text = flat ? `${label} uændret mod ${against}` : `${label} ${pct >= 0 ? '↑' : '↓'} ${_fmt(Math.abs(pct), 0)} % mod ${against}`;
+    return { text, tone: tone === 'cost' && !flat ? (pct >= 0 ? 'up' : 'down') : 'neutral' };
+}
+
+/** "af ~1.280 kr · 493 kWh · 14 ladninger": the line under a card's figure. A missing forecast leaves it out. */
+function _cardSub(forecast, unit, parts = []) {
+    const hasForecast = forecast !== null && forecast !== undefined && Number.isFinite(Number(forecast));
+    return [hasForecast ? `af ~${_fmt(forecast, 0)} ${unit}` : null, ...parts].filter(Boolean).join(' \u00b7 ');
+}
+
+/**
+ * Fill a card's summary (the figure, the line under it, the verdict). Only the keys that are given change, so the late arrivals
+ * (the cost model, the weather correction) can replace the figure or the verdict without touching the rest.
+ */
+function _setSummary(cardId, { fig, figTitle, sub, verdict, verdictTitle } = {}) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    if (fig !== undefined) { const el = card.querySelector('.dash-fig'); if (el) { el.textContent = fig; el.title = figTitle || ''; } }
+    if (sub !== undefined) { const el = card.querySelector('.dash-sum-sub'); if (el) el.textContent = sub; }
+    if (verdict !== undefined) {
+        const el = card.querySelector('.dash-verdict');
+        if (!el) return;
+        el.hidden = !verdict;
+        el.className = 'dash-verdict' + (verdict ? ' is-' + verdict.tone : '');
+        el.textContent = verdict ? verdict.text : '';
+        el.title = verdict ? (verdictTitle || '') : '';
+    }
+}
+
 function _setCardNote(cardId, text) {
     const body = document.getElementById(cardId)?.querySelector('.dash-body');
     if (!body) return;
@@ -240,6 +278,12 @@ function renderEvCard(ev) {
     }
 
     const showTrends = now.getDate() >= 5;
+    _setSummary('ev-dashboard-card', {
+        fig: _fmt(ev.month_cost, 0) + ' kr' + (unpriced ? '*' : ''),
+        figTitle: costEl ? costEl.title : '',
+        sub: _cardSub(ev.projected_cost, 'kr', [`${_fmt(ev.month_kwh, 0)} kWh`, `${ev.month_charges} ladning${ev.month_charges === 1 ? '' : 'er'}`]),
+        verdict: showTrends ? _verdict('Pris', ev.pct_change_cost, _comparisonLabels(now).prev, 'cost') : null,
+    });
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
@@ -285,12 +329,18 @@ function renderHeatpumpCard(hp) {
     _setProjectionBasis(card, hp.projection_basis);
 
     const showTrends = now.getDate() >= 5;
+    // In kWh until the cost model has answered (then _enrichCardsWithCost puts the kr in its place)
+    _setSummary('hp-dashboard-card', {
+        fig: `${_fmt(hp.month_kwh, 0)} kWh`,
+        sub: _cardSub(hp.projected_kwh, 'kWh'),
+        verdict: showTrends ? _verdict('kWh', hp.pct_change, _comparisonLabels(now).prev) : null,
+    });
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
         if (showTrends) html += _trendLine('kWh', hp.pct_change, hp.pct_change_year, 'neutral');
         trendEl.innerHTML = html;
-        trendEl.className = 'dash-trend';
+        trendEl.className = 'dash-trend dash-detail';
     }
 
     const hpSparkStart = new Date(); hpSparkStart.setDate(hpSparkStart.getDate() - 29); hpSparkStart.setHours(0,0,0,0);
@@ -362,6 +412,11 @@ function renderHusCard(rest, hus = null) {
     }
 
     const showTrends = now.getDate() >= 5;
+    _setSummary('hus-dashboard-card', {
+        fig: `${_fmt(rest.month_kwh, 0)} kWh`,
+        sub: _cardSub(rest.projected_kwh, 'kWh'),
+        verdict: showTrends ? _verdict('kWh', rest.pct_change, _comparisonLabels(now).prev) : null,
+    });
     const trendEl = card.querySelector('.dash-trend');
     if (trendEl) {
         let html = '';
@@ -372,7 +427,7 @@ function renderHusCard(rest, hus = null) {
                     `(${_fmt(rest.negative_kwh, 1)} kWh)</div>`;
         }
         trendEl.innerHTML = html;
-        trendEl.className = 'dash-trend';
+        trendEl.className = 'dash-trend dash-detail';
     }
 
     const husSparkStart = new Date(); husSparkStart.setDate(husSparkStart.getDate() - 29); husSparkStart.setHours(0,0,0,0);
@@ -473,6 +528,14 @@ async function _enrichHpWithWeather(card, hp) {
         const trendEl = card.querySelector('.dash-trend');
         if (!trendEl) return;
         const labels = _comparisonLabels(now);
+        if (now.getDate() >= 5 && pctPrev !== null) {
+            // The card's verdict is the weather-corrected change: a cold month is not a heat pump that got worse
+            const why = _hddExplanation(hddThis, hddPrev, labels.prev);
+            _setSummary('hp-dashboard-card', {
+                verdict: _verdict('Vejrkorrigeret', pctPrev, labels.prev),
+                verdictTitle: 'Justeret for gradedage (HDD 17°C): kWh pr. gradedag mod det samme for sammenligningsperioden.' + (why ? ' ' + why + '.' : ''),
+            });
+        }
         trendEl.innerHTML += _trendLine('Vejrkorr.', pctPrev, pctYear, 'neutral', '', now,
             'Justeret for gradedage (HDD 17°C): kWh pr. gradedag, mod det samme for de to sammenligningsperioder');
         for (const [pct, hddThen, against] of [[pctPrev, hddPrev, labels.prev], [pctYear, hddYear, labels.year]]) {
@@ -761,6 +824,33 @@ function _sharePercents(values) {
 }
 
 /**
+ * The month's expected bill as ONE band in kr with the names on the pieces ("Elbil 1.101 · Jordvarme 770 · Øvrigt 1.144"), instead of
+ * two bars and a legend. A piece too narrow for its name (under 14 %) goes without; on a phone every piece goes without and the keys
+ * under the band carry the names. Text on the teal piece is dark: white on it is 3:1.
+ * @param {{ev:number, hp:number, rest:number, sub:number}} cost expected kr for the whole month
+ * @returns {string} HTML; '' without a positive total
+ */
+function _billBand(cost) {
+    const parts = [
+        { label: 'Elbil',     value: Number(cost.ev),   color: '#224b81', text: '#ffffff' },
+        { label: 'Jordvarme', value: Number(cost.hp),   color: '#0ea495', text: '#0b0b0b' },
+        { label: 'Øvrigt',    value: Number(cost.rest), color: '#9e5f00', text: '#ffffff' },
+        { label: 'Abonnement', value: Number(cost.sub), color: _SHARE_SUB_COLOR, text: '#0b0b0b' },
+    ].filter(x => Number.isFinite(x.value) && x.value > 0);
+    const total = parts.reduce((s, x) => s + x.value, 0);
+    if (!(total > 0)) return '';
+    const seg = x => {
+        const pct = x.value / total * 100;
+        const named = pct >= 14;
+        return `<span class="bill-seg${named ? ' is-named' : ''}" style="width:${pct.toFixed(2)}%;background:${x.color};color:${x.text}" ` +
+               `title="${x.label}: ${_fmt(x.value, 0)} kr">${named ? `<span class="bill-seg-name">${x.label} ${_fmt(x.value, 0)}</span>` : ''}</span>`;
+    };
+    const keys = parts.map(x => `<span class="bill-key"><i class="tc-dot" style="background:${x.color}"></i>${x.label} ${_fmt(x.value, 0)}</span>`).join('');
+    return `<div class="bill-band" role="img" aria-label="${parts.map(x => `${x.label} ${_fmt(x.value, 0)} kr`).join(', ')}">${parts.map(seg).join('')}</div>` +
+           `<div class="bill-keys">${keys}</div>`;
+}
+
+/**
  * Two stacked bars for the band above the cards: where the house meter's kWh went so far, and what the month's
  * kr are expected to be, in the same three colours. The point is the difference between them: the EV is about half of
  * the kWh but, charged at night, a smaller share of the kr. kwh = {ev, hp, rest} (month to date); cost = {ev, hp,
@@ -795,7 +885,7 @@ function _costShareBars(kwh, cost) {
     // On a phone the legend is four lines under two bars, about a sixth of the screen before the first card: folded there
     // (the bars' own title and aria-label carry the figures), open on a wide screen where it is one line.
     const wide = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(min-width: 601px)').matches : true;
-    return `<div class="total-cost-bars">` +
+    return `<div class="total-cost-bars dash-detail">` +
         row('kWh hidtil', kTotal, 'kWh', kParts) +
         row('kr forventet', cTotal, 'kr', cParts) +
         `<details class="tc-fold"${wide ? ' open' : ''}><summary>Fordeling i procent</summary><div class="tc-legend">${legend}</div></details></div>`;
@@ -822,6 +912,7 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
         const el = document.getElementById('hp-cost-stat');
         if (el) {
             el.querySelector('.dash-est-cost').textContent = _fmt(cost.hp_mtd, 0);
+            _setSummary('hp-dashboard-card', { fig: `${_fmt(cost.hp_mtd, 0)} kr`, figTitle: el.title, sub: _cardSub(cost.hp_proj, 'kr', [`${_fmt(hp.month_kwh, 0)} kWh`]) });
             el.title = `Estimeret elvarme-model, ${basisNote} (inkl. systemtarif, nettarif, elafgift og moms)`;
             el.style.display = '';
         }
@@ -831,6 +922,7 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
         const el = document.getElementById('hus-cost-stat');
         if (el) {
             el.querySelector('.dash-est-cost').textContent = _fmt(cost.rest_mtd, 0);
+            _setSummary('hus-dashboard-card', { fig: `${_fmt(cost.rest_mtd, 0)} kr`, figTitle: el.title, sub: _cardSub(cost.rest_proj, 'kr', [`${_fmt(rest.month_kwh, 0)} kWh`]) });
             el.title = `Estimeret pris for det øvrige forbrug, ${basisNote}: første ≈${Math.round(cost.high_kwh_month)} kWh/md af VP+Rest til fuld elafgift, resten til elvarmesats`;
             el.style.display = '';
         }
@@ -848,8 +940,10 @@ function _enrichCardsWithCost(hp, rest, ev, cost) {
             el.innerHTML = `<div class="total-cost-top"><span class="total-cost-icon">⚡</span>` +
                 `<span class="total-cost-head"><span class="total-cost-label">Forventet elregning</span>` +
                 `<span class="total-cost-amount">~${_fmt(cost.total_proj, 0)} kr</span></span>` +
-                `<span class="total-cost-breakdown">EV hjemme: ~${Math.round(cost.ev_proj)} · Jordvarme: ~${cost.hp_proj} · Øvrigt: ~${cost.rest_proj}` +
-                (perDay > 0 ? ` · Abonnement: ~${_fmt(cost.subscription_proj, 0)} kr` : ' kr · ekskl. abonnement') + `</span></div>` +
+                `<span class="total-cost-mtd">hidtil ~${_fmt(cost.total_mtd, 0)} kr</span></div>` +
+                _billBand({ ev: cost.ev_proj, hp: cost.hp_proj, rest: cost.rest_proj, sub: perDay > 0 ? cost.subscription_proj : 0 }) +
+                `<div class="total-cost-breakdown dash-detail">EV hjemme: ~${Math.round(cost.ev_proj)} · Jordvarme: ~${cost.hp_proj} · Øvrigt: ~${cost.rest_proj}` +
+                (perDay > 0 ? ` · Abonnement: ~${_fmt(cost.subscription_proj, 0)} kr` : ' kr · ekskl. abonnement') + `</div>` +
                 _costShareBars(kwhNow, { ev: cost.ev_proj, hp: cost.hp_proj, rest: cost.rest_proj, sub: perDay > 0 ? cost.subscription_proj : 0 });
             el.title = `Estimat for hele måneden. Hidtil: ~${_fmt(cost.total_mtd, 0)} kr. ` +
                        `EV hjemme: faktisk pris fra Monta (inkl. tariffer og afgifter); resten af måneden til ladeprisen de seneste 8 dage. Ladning ude er ikke med: den betales til ladeoperatøren. ` +
@@ -1203,3 +1297,25 @@ function _renderSeasonBadge(card, pctChangeYear) {
     badge.textContent = text;
     dailyEl.appendChild(badge);
 }
+
+// "Vis detaljer": Oversigt shows the summary of each card (the figure, the forecast, one verdict) and the labelled bill band; the rest
+// (every comparison, the splits, the bars with percentages) is one switch away, remembered in this browser.
+(function initDashDetailsToggle() {
+    const section = document.getElementById('oversigt-section');
+    const button  = document.getElementById('dashDetailsToggle');
+    if (!section || !button) return;
+    const KEY = 'sparkspend.dashDetails';
+    const apply = on => {
+        section.classList.toggle('show-details', on);
+        button.setAttribute('aria-pressed', on ? 'true' : 'false');
+        button.textContent = on ? 'Skjul detaljer' : 'Vis detaljer';
+    };
+    let on = false;
+    try { on = window.localStorage.getItem(KEY) === '1'; } catch (e) { /* storage blocked: the default stands */ }
+    apply(on);
+    button.addEventListener('click', () => {
+        on = !on;
+        apply(on);
+        try { window.localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) { /* storage blocked: it just is not remembered */ }
+    });
+})();
