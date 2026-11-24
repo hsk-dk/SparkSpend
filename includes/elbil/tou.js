@@ -1,7 +1,7 @@
 /**
  * SparkSpend Elbil - time-of-use heatmap
  *
- * The Elspot time-of-use heatmap on the comparison tab (price by hour/weekday and charge counts).
+ * The Elspot time-of-use heat tables on the Analyse tab (price by hour/weekday and charge counts).
  * Part of the Elbil module (includes/elbil/*.js, loaded in the order listed in index.php);
  * shared state is Elbil.state, other parts are reached through Elbil.modules.
  */
@@ -47,14 +47,10 @@
             }
 
             const dayNames = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'];
-            const hours    = Array.from({length: 24}, (_, h) => h + ':00');
+            const hours    = Array.from({length: 24}, (_, h) => String(h).padStart(2, '0') + ':00');
 
-            const priceSeries = dayNames.map((name, dow) => ({
-                name,
-                data: Array.from({length: 24}, (_, h) =>
-                    cnts[dow][h] > 0 ? Math.round(sums[dow][h] / cnts[dow][h] * 1000) / 1000 : 0
-                )
-            }));
+            // Rows are the hours and the columns the weekdays (Man to Søn): 24 x 7 fits a phone without sideways scroll
+            const prices = hours.map((_, h) => dayNames.map((__, dow) => (cnts[dow][h] > 0 ? sums[dow][h] / cnts[dow][h] : null)));
 
             // Charge count overlay using current _allCharges
             const cCnts = Array.from({length: 7}, () => new Int32Array(24));
@@ -64,43 +60,21 @@
                 const dow = (cd.getDay() + 6) % 7;
                 cCnts[dow][cd.getHours()]++;
             }
-            const chargeSeries = dayNames.map((name, dow) => ({
-                name,
-                data: Array.from({length: 24}, (_, h) => cCnts[dow][h])
-            }));
+            const charges = hours.map((_, h) => dayNames.map((__, dow) => cCnts[dow][h]));
 
-            container.innerHTML =
-                '<div id="touPriceChart"></div>' +
-                (S.allCharges.length > 0 ? '<div id="touChargeChart" class="mt-3"></div>' : '');
-
-            // ApexCharts draws the FIRST series at the bottom: reverse so a Danish week reads Man (top) to Søn (bottom)
-            const heatmapOpts = (series, title, color, fmtFn) => ({
-                series: series.slice().reverse(),
-                chart: { type: 'heatmap', height: 210, toolbar: { show: false },
-                         animations: { enabled: false } },
-                title: { text: title, align: 'left', style: { fontSize: '13px', fontWeight: 600 } },
-                dataLabels: { enabled: false },
-                colors:     [color],
-                xaxis:      { categories: hours, labels: { rotate: -45, style: { fontSize: '10px' } } },
-                yaxis:      { labels: { style: { fontSize: '11px' } } },
-                tooltip:    { y: { formatter: fmtFn } },
-                plotOptions: { heatmap: { enableShades: true } },
-                legend:     { show: false }
+            // Heat tables, not charts: the figure stands in every cell, and a screen reader gets a real table
+            const priceTable = appUtils.heatTable({
+                caption: 'Gns. elpris (kr/kWh inkl. afgifter)', cols: dayNames, rows: hours, values: prices, cls: 'heat-price',
+                fmt: v => appUtils.num(v, 2),
+                title: (hour, day, v) => `${day} kl. ${hour}: ${appUtils.num(v, 3)} kr/kWh`,
             });
-
-            new ApexCharts(
-                document.getElementById('touPriceChart'),
-                heatmapOpts(priceSeries, 'Gns. elpris (kr/kWh inkl. afgifter)', '#22c55e',
-                    v => v > 0 ? appUtils.num(v, 3) + ' kr/kWh' : '—')
-            ).render();
-
-            if (S.allCharges.length > 0) {
-                new ApexCharts(
-                    document.getElementById('touChargeChart'),
-                    heatmapOpts(chargeSeries, 'Antal ladninger pr. time/ugedag', '#224b81',   // the EV colour
-                        v => v + ' ladning' + (v === 1 ? '' : 'er'))
-                ).render();
-            }
+            const chargeTable = S.allCharges.length === 0 ? '' : appUtils.heatTable({
+                caption: 'Antal ladninger pr. time/ugedag', cols: dayNames, rows: hours, values: charges, cls: 'heat-ev',
+                fmt: v => String(v),
+                title: (hour, day, v) => `${day} kl. ${hour}: ${v} ladning${v === 1 ? '' : 'er'}`,
+            });
+            container.innerHTML = '<div class="row g-4"><div class="' + (chargeTable ? 'col-lg-6' : 'col-12') + '">' + priceTable + '</div>' +
+                (chargeTable ? '<div class="col-lg-6">' + chargeTable + '</div>' : '') + '</div>';
         } catch (e) {
             console.error('fetchTouHeatmap:', e);
             if (container) container.innerHTML =

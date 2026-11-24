@@ -604,6 +604,29 @@ const confirmDialog = (opts = {}) => {
   });
 };
 
+/**
+ * A heat table: rows x columns of numbers, each cell tinted by its value (the tint is the --heat custom property, 0 to maxAlpha, over
+ * the --heat-color of the table's class). The figure is in every cell, so the colour is never the only way to read it, and the
+ * tint is capped so the text keeps 4.5:1 (dev/test_heat_tables.js measures it). `values` is rows x columns, null for no data.
+ * @returns {string} HTML: a table with a caption, column headers and a header per row
+ */
+const heatTable = ({ caption, cols, rows, values, cls, maxAlpha = 0.5, fmt, title }) => {
+  const shown = values.reduce((all, row) => all.concat(row), []).filter(v => Number.isFinite(v) && v > 0);
+  const hi = shown.length ? Math.max(...shown) : 0;
+  const lo = shown.length ? Math.min(...shown) : 0;
+  const heat = v => {
+    if (!(Number.isFinite(v) && v > 0)) return 0;
+    const a = hi === lo ? maxAlpha : 0.08 + (maxAlpha - 0.08) * (v - lo) / (hi - lo);
+    return Math.round(a * 1000) / 1000;
+  };
+  const head = cols.map(c => `<th scope="col">${c}</th>`).join('');
+  const body = rows.map((r, i) => `<tr><th scope="row">${r}</th>` + cols.map((c, j) => {
+    const v = values[i][j];
+    return Number.isFinite(v) ? `<td style="--heat:${heat(v)}" title="${title(r, c, v)}">${fmt(v)}</td>` : '<td>–</td>';
+  }).join('') + '</tr>').join('');
+  return `<table class="heat-table ${cls}"><caption>${caption}</caption><thead><tr><td></td>${head}</tr></thead><tbody>${body}</tbody></table>`;
+};
+
 // The Useful design system's series colours (--series-1...6, D23) for charts with many series (one line per year), and the marker
 // shape that goes with each (a cue that does not depend on colour). The tokens are read from the pinned useful.css; the fallback is
 // the same six values (dev/test_datacolors.js checks they are equal), for a page where the stylesheet has not loaded.
@@ -618,6 +641,7 @@ const seriesColors = () => {
 window.appUtils = {
   seriesColors,
   SERIES_POINTS,
+  heatTable,
   debounce,
   initializeTooltips,
   formatCurrency,

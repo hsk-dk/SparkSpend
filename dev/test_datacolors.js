@@ -67,7 +67,7 @@ const dash = read('includes/dashboard.js');
 check('the three sparklines use them', dash.includes(`'${EV}', _evSparkChart`) && dash.includes(`'${HP}', _hpSparkChart`) && dash.includes(`'${REST}', _husSparkChart`));
 check('the house composition bar uses them (EV hjemme, Jordvarme, Øvrigt)', dash.includes(`label: 'EV hjemme', color: '${EV}'`) && dash.includes(`label: 'Jordvarme', color: '${HP}'`) && dash.includes(`label: 'Øvrigt',    color: '${REST}'`));
 has('includes/jordvarme.js', new RegExp(`backgroundColor: "${HP}"`, 'i'), 'the Jordvarme bars use the jordvarme colour, opaque');
-has('includes/elbil/tou.js', new RegExp(`'Antal ladninger pr\\. time/ugedag', '${EV}'`, 'i'), 'the heatmap of charges is in the EV colour');
+check('the heat table of charges is in the EV colour (tinted from --data-ev)', /\.heat-ev\s+\{ --heat-color: var\(--data-ev\); \}/.test(css) && /cls: 'heat-ev'/.test(read('includes/elbil/tou.js')));
 check('the card icons are elbil, jordvarme and "Øvrigt" (Hus)', /#ev-dashboard-card \.dash-icon\s*\{ background: var\(--data-ev\); \}/.test(css) && /#hp-dashboard-card \.dash-icon\s*\{ background: var\(--data-hp\); \}/.test(css) && /#hus-dashboard-card \.dash-icon \{ background: var\(--data-rest\); \}/.test(css));
 check('the EV card\'s home bar and the house composition use the tokens', /\.dash-split-home-fill \{[^}]*var\(--data-ev\)/.test(css) && /\.dash-split-hp-fill \{[^}]*var\(--data-hp\)/.test(css) && /\.dash-split-rest-fill \{[^}]*var\(--data-rest\)/.test(css));
 check('the teal is never text (3.1:1): no color: var(--data-hp)', !/(?<![-\w])color\s*:\s*var\(--data-hp\)/.test(css));

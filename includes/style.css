@@ -2426,3 +2426,28 @@ th.sort-active { color: var(--accent-strong); }
   .btn-close-drawer { min-width: var(--target-size); }
   .site-footer a { padding: 14px 8px; }
 }
+
+/* Heat tables (Elbil -> Analyse, time-of-use): a figure in every cell, tinted by its value. The tint is capped in app.js (heatTable)
+   so the text keeps 4.5:1; dev/test_heat_tables.js measures it. */
+.heat-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.heat-table caption {
+  caption-side: top;
+  padding: 0 0 8px;
+  color: var(--bs-body-color);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: left;
+}
+.heat-table th, .heat-table td { padding: 2px 1px; border: 1px solid #fff; }
+.heat-table thead th { font-weight: 600; }
+.heat-table tbody th { width: 3.5rem; padding-right: 8px; font-weight: 400; text-align: right; }
+.heat-table td { background-color: color-mix(in srgb, var(--heat-color) calc(var(--heat, 0) * 100%), transparent); }
+.heat-price { --heat-color: #334155; }
+.heat-ev    { --heat-color: var(--data-ev); }

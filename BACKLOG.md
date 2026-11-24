@@ -52,7 +52,7 @@ Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen p�
 
 ### Teknisk gæld
 
-- **To chart-biblioteker indlæses altid (L).** Chart.js (+ 2 plugins) og ApexCharts på hver side: dobbelt download og to forskellige tooltip-mønstre. Plan: `docs/plan-teknisk-gaeld.md`. Trin 1 (datoadapteren, ubrugt) trin 2 (elprissøjlerne på Oversigt) trin 3 (omkostningstendensen) og trin 4 (effektivitetslinjerne) er lavet 2026-11-24; resten afventer tre valg.
+- **To chart-biblioteker indlæses altid (L).** Chart.js (+ 2 plugins) og ApexCharts på hver side: dobbelt download og to forskellige tooltip-mønstre. Plan: `docs/plan-teknisk-gaeld.md`. Trin 1 (datoadapteren, ubrugt) trin 2 (elprissøjlerne på Oversigt) trin 3 (omkostningstendensen) trin 4 (effektivitetslinjerne) og trin 5 (heatmaps som tabeller) er lavet 2026-11-24; ApexCharts bruges ikke længere af noget diagram (trin 6 fjerner biblioteket); resten afventer tre valg.
 
 ### Fravalgt
 

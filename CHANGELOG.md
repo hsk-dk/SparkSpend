@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (technical debt, step 5)
+- **The time-of-use heatmaps on Elbil → Analyse ("Elspot-tidsmønster") are tables.** The price by hour and weekday, and your charges by hour and weekday, are now two tables (side by side on a wide screen, stacked on a phone) with the figure in every cell, tinted by its value (`appUtils.heatTable`). Hours are the rows and Man to Søn the columns, so 24 × 7 fits a phone with no sideways scroll; the old charts were unreadable at that width. The tint is capped at 50 %, so the text keeps at least 4.5:1 (price in slate, charges in the EV blue); a screen reader gets a real table with a caption and row and column headers, and a mouse gets the day, hour and value in the cell's title. No ApexCharts chart is left in the app. `includes/app.js`, `includes/elbil/tou.js`, `includes/style.css`, `dev/test_heat_tables.js` (16).
+
 ### Changed (technical debt, step 4)
 - **The two charts on Elbil → Analyse that follow a car's consumption ("Kumuleret km pr. kWh pr. bil" and "Kumuleret kr pr. km pr. bil") are Chart.js charts.** One line per car on a day axis (a category per day from the first to the last measurement, so no date adapter is needed; a day without a measurement is a gap the line spans), in the design system's series colours with a marker shape per car, a tooltip with the full date, and a text alternative. A car name is no longer HTML-escaped for the chart (it is drawn on a canvas, so it is text). `includes/elbil/efficiency.js`, `dev/test_efficiency_charts.js` (10).
 
