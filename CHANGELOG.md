@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Removed (technical debt, step 1)
+- **The Chart.js date adapter is no longer loaded.** `chartjs-adapter-date-fns` (about 50 KB on every page) was never used: no chart has a time axis. Checked on all seven pages with the console open (no errors, every chart drawn). Plan: `docs/plan-teknisk-gaeld.md`.
+
 ### Changed (Hus → Regning, wide screens)
 - **A bar behind each kr figure.** The table was 24 rows × 9 columns of numbers and nothing else. El-bil kr, VP kr* and Restforbrug kr* now have a bar behind the figure, as long as the month's share of that column's largest month, in the domain colour at 24 % (dark text on it is above 4.5:1, measured). The figure stays in the cell, so the bar is a second way to read it; the Total row has none, and a phone keeps its cards without bars. `includes/regning.js`, `includes/style.css`, `dev/test_regning_bars.js` (15).
 

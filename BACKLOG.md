@@ -52,7 +52,7 @@ Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen p�
 
 ### Teknisk gæld
 
-- **To chart-biblioteker indlæses altid (L).** Chart.js (+ 2 plugins) og ApexCharts på hver side: dobbelt download og to forskellige tooltip-mønstre. Større refaktor af alle faner; opdelt i trin, hvis den tages.
+- **To chart-biblioteker indlæses altid (L).** Chart.js (+ 2 plugins) og ApexCharts på hver side: dobbelt download og to forskellige tooltip-mønstre. Plan: `docs/plan-teknisk-gaeld.md`. Trin 1 (datoadapteren, ubrugt) er lavet 2026-11-24; resten afventer tre valg.
 
 ### Fravalgt
 
