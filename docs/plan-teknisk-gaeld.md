@@ -32,7 +32,7 @@ Eneste egentlige hul: **Chart.js har ingen heatmap**. De to heatmaps løses som 
 | # | Trin | Størrelse | Gevinst / risiko |
 |---|---|---|---|
 | 1 | ✅ (2026-11-24) **Fjern `chartjs-adapter-date-fns`** (ingen bruger den). Verificér ved at slette script-linjen og køre alle sider med konsollen åben. Fjern også fra CSP/SW-notater i CHANGELOG. | S | ca. 50 KB, ingen risiko |
-| 2 | **Dashboard elpris-søjler → Chart.js.** Distribuerede farver pr. søjle (`backgroundColor` som liste), "billigst"-vindue som plugin eller en farvet baggrund bag søjlerne, tooltip som i dag. | S–M | Det mindste Apex-sted, godt første skridt |
+| 2 | ✅ (2026-11-24) **Dashboard elpris-søjler → Chart.js.** Distribuerede farver pr. søjle (`backgroundColor` som liste), "billigst"-vindue som plugin eller en farvet baggrund bag søjlerne, tooltip som i dag. | S–M | Det mindste Apex-sted, godt første skridt |
 | 3 | **Omkostningstendens (stablet areal) → Chart.js** (`fill: true`, `stack`). Dato-kategorier som tekstakse, dedupliceringen bevares (grunden, Apex' A/B/C-suffikser, falder væk). | M | Seriefarver fra `appUtils.seriesColors()`/domænefarver |
 | 4 | **Effektivitet (2 linjer med datoakse) → Chart.js.** Her har man brug for en tidsakse: enten adapteren igen (så trin 1 udgår) eller datoer som kategorier. **Foreslået: kategorier**, så adapteren kan blive væk. | M | Tjek at tomme dage ikke giver ujævn akse |
 | 5 | **Heatmaps → HTML-tabeller** (`tou.js`). Ny lille hjælper `appUtils.heatTable(rows, cols, values, color, fmt)` med `<caption>`, `th scope`, tal i cellen (farven er en andendel, aldrig den eneste kode). Test: kontrast + ugedagenes rækkefølge Man→Søn. | M | Fjerner det sidste Apex-sted |

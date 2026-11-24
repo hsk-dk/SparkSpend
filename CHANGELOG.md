@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (technical debt, step 2)
+- **The price chart on Oversigt ("Elpris i morgen") is a Chart.js chart.** It was one of six ApexCharts charts. Same look: a bar per hour coloured by how dear it is, the cheapest 2-hour window shaded and labelled "Billigst", the tooltip with the hour (14:00–15:00) and kr/kWh. It now also gets the text alternative the other Chart.js charts have (lowest, highest, latest). `includes/dashboard.js`, `dev/test_elspot_chart.js` (7).
+
 ### Removed (technical debt, step 1)
 - **The Chart.js date adapter is no longer loaded.** `chartjs-adapter-date-fns` (about 50 KB on every page) was never used: no chart has a time axis. Checked on all seven pages with the console open (no errors, every chart drawn). Plan: `docs/plan-teknisk-gaeld.md`.
 

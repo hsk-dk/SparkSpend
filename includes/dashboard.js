@@ -646,7 +646,7 @@ async function loadElspotForecast(force = false) {
                 ` · gns. ${appUtils.num(cheapAvg, 3)} kr/kWh`;
         }
 
-        // ApexCharts bar chart
+        // Chart.js bars: one colour per bar by how dear the hour is, the cheapest 2-hour window shaded behind them
         const chartEl = document.getElementById('elspot-forecast-chart');
         if (!chartEl) return;
 
@@ -660,39 +660,63 @@ async function loadElspotForecast(force = false) {
             if (t < 0.66) return '#f59e0b';
             return '#ef4444';
         });
+        const hh = n => String(n).padStart(2, '0') + ':00';
 
         if (_forecastChart) { _forecastChart.destroy(); _forecastChart = null; }
-        _forecastChart = new ApexCharts(chartEl, {
-            series: [{ name: 'kr/kWh', data: hours.map(h => Math.round(h.kr_kwh * 1000) / 1000) }],
-            chart:  { type: 'bar', height: 180, toolbar: { show: false }, animations: { enabled: false } },
-            colors: colors,
-            plotOptions: { bar: { distributed: true, borderRadius: 2, columnWidth: '80%' } },
-            dataLabels: { enabled: false },
-            legend:     { show: false },
-            xaxis: {
-                categories: hours.map(h => String(h.hour).padStart(2, '0') + ':00'),
-                labels: { rotate: -45, style: { fontSize: '9px' } },
-                tickAmount: 6,
+        chartEl.innerHTML = '<div style="position:relative;height:180px"><canvas></canvas></div>';
+        _forecastChart = new Chart(chartEl.querySelector('canvas').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: hours.map(h => hh(h.hour)),
+                datasets: [{
+                    label: 'kr/kWh',
+                    data: hours.map(h => Math.round(h.kr_kwh * 1000) / 1000),
+                    backgroundColor: colors,
+                    borderWidth: 0,
+                    borderRadius: 2,
+                    categoryPercentage: 0.9,
+                    barPercentage: 0.9,
+                }],
             },
-            yaxis: { labels: { formatter: v => appUtils.num(v, 2) }, title: { text: 'kr/kWh', style: { fontSize: '11px' } } },
-            tooltip: {
-                y: { formatter: v => appUtils.num(v, 3) + ' kr/kWh' },
-                x: { formatter: (_, { dataPointIndex }) => {
-                    const h = hours[dataPointIndex];
-                    return `${String(h.hour).padStart(2,'0')}:00–${String(h.hour+1).padStart(2,'0')}:00`;
-                }}
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    datalabels: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => `${hh(hours[items[0].dataIndex].hour)}–${hh(hours[items[0].dataIndex].hour + 1)}`,
+                            label: item => appUtils.num(item.raw, 3) + ' kr/kWh',
+                        },
+                    },
+                },
+                scales: {
+                    x: { ticks: { maxRotation: 45, minRotation: 45, autoSkip: true, maxTicksLimit: 12, font: { size: 11 } }, grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { callback: v => appUtils.num(v, 2), font: { size: 11 } }, title: { display: true, text: 'kr/kWh', font: { size: 12 } } },
+                },
             },
-            annotations: {
-                xaxis: [{
-                    x: String(cheapH1).padStart(2, '0') + ':00',
-                    x2: String(cheapH2).padStart(2, '0') + ':00',
-                    fillColor: '#22c55e',
-                    opacity: 0.15,
-                    label: { text: 'Billigst', style: { color: '#166534', background: '#dcfce7', fontSize: '10px' } }
-                }]
-            }
+            plugins: [{
+                id: 'cheapestWindow',
+                beforeDatasetsDraw(chart) {
+                    const { ctx, chartArea, scales } = chart;
+                    const first = scales.x.getPixelForValue(bestIdx), last = scales.x.getPixelForValue(bestIdx + 1);
+                    const half = (last - first) / 2;
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+                    ctx.fillRect(first - half, chartArea.top, last - first + 2 * half, chartArea.bottom - chartArea.top);
+                    ctx.font = '600 12px sans-serif';
+                    const w = ctx.measureText('Billigst').width + 12;
+                    ctx.fillStyle = '#dcfce7';
+                    ctx.fillRect(first - half, chartArea.top, w, 18);
+                    ctx.fillStyle = '#166534';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('Billigst', first - half + 6, chartArea.top + 9);
+                    ctx.restore();
+                },
+            }],
         });
-        _forecastChart.render();
         _forecastDay      = today;
         _forecastLoadedAt = Date.now();
     } catch (e) {
