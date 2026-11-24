@@ -30,8 +30,8 @@ check('no forecast: just the facts', sb._cardSub(null, 'kr', ['6 kWh']) === '6 k
 
 console.log('\nthe bill band');
 const band = sb._billBand({ ev: 1101, hp: 770, rest: 1144, sub: 15 });
-check('one band with a piece per part and the names on the wide ones (Abonnement, 0,5 %, has none)', (band.match(/class="bill-seg( is-named)?"/g) || []).length === 4 && band.includes('Elbil 1.101<') && band.includes('Jordvarme 770<') && band.includes('Øvrigt 1.144<') && !band.split('<div class="bill-keys">')[0].includes('>Abonnement'));
-check('keys for the phone name every part, and the band is one image for a screen reader with the kr', (band.match(/class="bill-key"/g) || []).length === 4 && band.includes('role="img" aria-label="Elbil 1.101 kr, Jordvarme 770 kr, Øvrigt 1.144 kr, Abonnement 15 kr"'));
+check('one band with a piece per part and the names on the wide ones (Abonnement, 0,5 %, has none)', (band.match(/class="bill-seg( is-named)?"/g) || []).length === 4 && band.includes('EV hjemme 1.101<') && band.includes('Jordvarme 770<') && band.includes('Øvrigt 1.144<') && !band.split('<div class="bill-keys">')[0].includes('>Abonnement'));
+check('keys for the phone name every part, and the band is one image for a screen reader with the kr', (band.match(/class="bill-key"/g) || []).length === 4 && band.includes('role="img" aria-label="EV hjemme 1.101 kr, Jordvarme 770 kr, Øvrigt 1.144 kr, Abonnement 15 kr"'));
 check('no positive total: no band', sb._billBand({ ev: 0, hp: 0, rest: 0, sub: 0 }) === '' && sb._billBand({ ev: NaN, hp: null, rest: undefined, sub: 0 }) === '');
 check('the old two bars are detail, not gone', dash.includes('<div class="total-cost-bars dash-detail">') && dash.includes('class="total-cost-breakdown dash-detail"'));
 

@@ -832,7 +832,7 @@ function _sharePercents(values) {
  */
 function _billBand(cost) {
     const parts = [
-        { label: 'Elbil',     value: Number(cost.ev),   color: '#224b81', text: '#ffffff' },
+        { label: 'EV hjemme', value: Number(cost.ev),   color: '#224b81', text: '#ffffff' },   // home charging only: the Elbil card's figure adds charging away
         { label: 'Jordvarme', value: Number(cost.hp),   color: '#0ea495', text: '#0b0b0b' },
         { label: 'Øvrigt',    value: Number(cost.rest), color: '#9e5f00', text: '#ffffff' },
         { label: 'Abonnement', value: Number(cost.sub), color: _SHARE_SUB_COLOR, text: '#0b0b0b' },

@@ -2473,7 +2473,7 @@ th.sort-active { color: var(--accent-strong); }
 /* ===== OVERSIGT: the summary of a card, the bill band, "Vis detaljer" ===== */
 
 .dash-toolbar { display: flex; justify-content: flex-end; margin: 8px 0 0; }
-.dash-toolbar button { width: auto; }   /* not the phone full-width button */
+.dash-toolbar button { width: auto; background: var(--color-surface); color: var(--muted-strong, #4b5563); border-color: rgba(36, 49, 64, 0.25); }   /* not the phone full-width button; solid, it sits on the photo */
 .dash-sum { display: flex; flex-direction: column; gap: 2px; }
 .dash-fig { font-size: var(--text-xl); font-weight: 700; line-height: 1.1; letter-spacing: -0.3px; font-variant-numeric: tabular-nums; color: var(--brand-ink); }
 .dash-sum-sub { font-size: var(--text-sm); color: var(--muted-strong, #4b5563); font-variant-numeric: tabular-nums; }
