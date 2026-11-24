@@ -694,9 +694,9 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
     <div class="row">
       <div class="col-md-7">
         <div class="d-flex align-items-center mb-2" id="heatpumpPeriodNav">
-          <button class="btn btn-sm btn-secondary me-2" id="heatpumpPrev">&laquo; Forrige</button>
+          <button class="btn btn-sm btn-secondary me-2" id="heatpumpPrev" aria-label="Forrige periode">&laquo;<span class="d-none d-sm-inline"> Forrige</span></button>
           <span id="heatpumpPeriodLabel" class="fw-bold"></span>
-          <button class="btn btn-sm btn-secondary ms-2" id="heatpumpNext">Næste &raquo;</button>
+          <button class="btn btn-sm btn-secondary ms-2" id="heatpumpNext" aria-label="Næste periode"><span class="d-none d-sm-inline">Næste </span>&raquo;</button>
         </div>
         <div class="chart-fill"><canvas id="heatpumpChart"></canvas></div>
         <div id="heatpumpNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
@@ -743,10 +743,10 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
 
       <div class="row">
         <div class="col-md-7">
-          <div class="d-flex align-items-center mb-2" id="husPeriodNav">
-            <button class="btn btn-sm btn-secondary me-2" id="husPrev">&laquo; Forrige</button>
+          <div class="d-flex align-items-center flex-wrap row-gap-2 mb-2" id="husPeriodNav">
+            <button class="btn btn-sm btn-secondary me-2" id="husPrev" aria-label="Forrige periode">&laquo;<span class="d-none d-sm-inline"> Forrige</span></button>
             <span id="husPeriodLabel" class="fw-bold"></span>
-            <button class="btn btn-sm btn-secondary ms-2" id="husNext">Næste &raquo;</button>
+            <button class="btn btn-sm btn-secondary ms-2" id="husNext" aria-label="Næste periode"><span class="d-none d-sm-inline">Næste </span>&raquo;</button>
             <button class="btn btn-sm btn-outline-secondary ms-auto" id="husEvToggle" type="button" aria-pressed="false">Skjul El-bil</button>
           </div>
           <div class="chart-fill"><canvas id="husChart"></canvas></div>

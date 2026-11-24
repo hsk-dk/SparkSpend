@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Fixed (phones at 320 px)
+- **Hus → Forbrug was 9 px wider than a 320 px screen.** The period row (« Forrige · November 2026 · Næste » and the "Skjul El-bil" switch I added) did not wrap. All eight pages were measured at 320 px: this was the only one. The row now wraps, the arrows are « and » on a phone (the words show from 576 px; the buttons are named "Forrige periode" and "Næste periode" for a screen reader), and the phone rule that made every button full width no longer stretches the period buttons (they stood one under the other, 178 px high; now 96 px) and they are 44 px wide. Same arrows on Jordvarme. `index.php`, `includes/style.css`, `dev/test_phone_320.js` (4).
+
 ### Changed (design review of production, findings 8, 9 and 11)
 - **No card in a card.** The charts inside a card on Elbil → Analyse have no box of their own (border, shadow and padding gone), and a panel inside a card (Statistik, Omkostningsstatistik) has a hairline and no shadow.
 - **No dead surfaces.** The sparklines on the three Oversigt cards sit at the bottom of their cards, level across them (the shorter cards left a hole under the content); the Jordvarme and Hus charts are drawn in their own 300 px box beside the statistics panel (they were 190 px high over an empty surface); the Opsummering card has no empty band under its table.

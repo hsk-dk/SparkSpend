@@ -2368,6 +2368,8 @@ th.sort-active { color: var(--accent-strong); }
 @media (max-width: 480px) {
   /* the generic "button { width: 100% }" must not stretch the year chips; the period selector is a 2 x 2 grid */
   .year-chip-bar .year-chip { width: auto; }
+  /* ... nor the period buttons (« November 2026 »): at 320 px three full-width buttons stood one under the other (178 px) */
+  #heatpumpPeriodNav button, #husPeriodNav button { width: auto; min-width: var(--target-size); }
   .hp-mode-nav { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
 }
 
