@@ -6,6 +6,10 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Fixed (Oversigt: empty surfaces)
+- **Every Oversigt card had an empty band of 35 px at its bottom.** The invisible "Se detaljer →" hint (it shows on mouse hover only) was the last flex item of the card and reserved a row of its own, plus the gap, whether or not it was shown, and on a phone it never is. It is now out of the flow, top right level with the title (and shows on keyboard focus too, not only on hover): the cards are 297 px high instead of 332 on production.
+- **With "Vis detaljer" the shorter cards had a hole of 160–170 px above their sparkline** (the three cards were as tall as the Elbil card, and the sparkline sat at the bottom). With the detail on, each card is as tall as its own content. `includes/style.css`, `dev/test_overview_compact.js` (27).
+
 ### Removed (technical debt, steps 7 and 8)
 - **The datalabels plugin is gone.** `chartjs-plugin-datalabels` (about 13 KB on every page) drew the percentage on the slices of ONE doughnut (Hus → Forbrug) while the 14 other charts each switched it off, and it caused the `reading '_listened'` crashes that `app.js` and `nav.js` worked around. The share of each slice is now in the legend ("El-bil 65 %", whole numbers that add up to 100) and still in the tooltip; the script tag, the registration in `app.js`, the 14 `datalabels: { display: false }` switches and the comments about the crash are removed. The page now loads Chart.js and nothing else for charts. `dev/test_one_chart_library.js` (7) fails if a plugin or the word comes back.
 - **Step 8 (load Chart.js only where it is used) is not worth doing.** Measured on all pages: the landing page (Oversigt) draws four charts on its first paint, and every other page has at least one; only Hus → Regning (a table) has none, and Chart.js is already `defer`red and cached by the service worker. `includes/app.js`, `includes/nav.js`, `includes/regning.js`, `index.php`, nine more scripts, `dev/test_frontend.php`.

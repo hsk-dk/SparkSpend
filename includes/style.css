@@ -1687,18 +1687,24 @@ header {
 
 /* ===== DASHBOARD CARD NAVIGATE AFFORDANCE ===== */
 
+/* The hint is out of the flow (top right, level with the title): as the last flex item it reserved a 19 px row plus the gap, an empty
+   band of 35 px at the bottom of every card that was never there for a finger and only filled for a mouse. It also shows on keyboard focus. */
+.dashboard-card { position: relative; }
 .dashboard-card::after {
   content: 'Se detaljer \2192';
+  position: absolute;
+  top: 24px;
+  right: 24px;
   font-size: var(--text-xs);
   color: var(--brand-accent);
   opacity: 0;
   transition: opacity 0.18s ease;
-  align-self: flex-end;
   font-weight: 500;
   pointer-events: none;
 }
 
-.dashboard-card:hover::after {
+.dashboard-card:hover::after,
+.dashboard-card:focus-visible::after {
   opacity: 1;
 }
 
@@ -2482,6 +2488,10 @@ th.sort-active { color: var(--accent-strong); }
 .dash-verdict[hidden] { display: none; }
 .dash-verdict.is-up   { background: #fdecec; color: #9f2a26; }
 .dash-verdict.is-down { background: #e6f4ea; color: #166534; }
+
+/* With the detail the cards are of very different heights: each is as tall as its own content (equal heights left a hole of 160 px
+   between the comparisons and the sparkline of the two shorter ones) */
+#oversigt-section.show-details .dashboard-grid { align-items: start; }
 
 /* Without "Vis detaljer" only the summary and the sparkline are on the card */
 #oversigt-section:not(.show-details) .dash-detail { display: none; }

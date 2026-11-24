@@ -50,6 +50,13 @@ check('a switch with aria-pressed, remembered in localStorage, that puts .show-d
 check('without it the detail is hidden, with it everything is as before', css.includes('#oversigt-section:not(.show-details) .dash-detail { display: none; }'));
 check('storage that is blocked does not break the page (reading and writing are both guarded)', (dash.match(/catch \(e\) \{ \/\* storage blocked/g) || []).length === 2);
 
+console.log('\nno dead surfaces');
+const raw = read('includes/style.css');
+const hint = (raw.match(/\.dashboard-card::after \{[^}]*\}/) || [''])[0];
+check('the "Se detaljer →" hint is out of the flow (it reserved an empty 35 px band at the bottom of every card, also on a phone)', /position: absolute;/.test(hint) && /top: 24px;/.test(hint) && /right: 24px;/.test(hint) && !/align-self/.test(hint) && /\.dashboard-card \{ position: relative; \}/.test(raw));
+check('the hint also shows on keyboard focus, not only on mouse hover', raw.includes('.dashboard-card:focus-visible::after'));
+check('with the detail the cards are as tall as their own content, so the shorter ones have no hole above the sparkline', raw.includes('#oversigt-section.show-details .dashboard-grid { align-items: start; }'));
+
 console.log('\nlook');
 const px = tok => ({ xs: 12, sm: 14, md: 16, lg: 20, xl: 24, '2xl': 32 })[tok];
 const fig = css.match(/\.dash-fig \{[^}]*font-size: var\(--text-(\w+)\)/), bill = css.match(/\.total-cost-card \.total-cost-amount \{[^}]*font-size: var\(--text-(\w+)\)/);
