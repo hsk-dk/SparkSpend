@@ -343,7 +343,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
   <!-- Opsummering og statistikker (respekterer filtrer øverst) -->
 <div id="summaryBox">
   <!-- Opsummeringstabel -->
-  <div id="summaryText" style="margin-bottom: 24px;">
+  <div id="summaryText">
     <!-- Her indsættes opsummeringstabellen -->
   </div>
 </div>
@@ -698,7 +698,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
           <span id="heatpumpPeriodLabel" class="fw-bold"></span>
           <button class="btn btn-sm btn-secondary ms-2" id="heatpumpNext">Næste &raquo;</button>
         </div>
-        <canvas id="heatpumpChart"></canvas>
+        <div class="chart-fill"><canvas id="heatpumpChart"></canvas></div>
         <div id="heatpumpNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
         <div id="heatpumpError" class="text-danger text-center py-4" style="display:none">Fejl ved hentning af data.</div>
       </div>
@@ -749,7 +749,7 @@ PeerGuard::enforce();   // only the auth proxy may reach the pages (TRUSTED_PROX
             <button class="btn btn-sm btn-secondary ms-2" id="husNext">Næste &raquo;</button>
             <button class="btn btn-sm btn-outline-secondary ms-auto" id="husEvToggle" type="button" aria-pressed="false">Skjul El-bil</button>
           </div>
-          <canvas id="husChart"></canvas>
+          <div class="chart-fill"><canvas id="husChart"></canvas></div>
           <div id="husNoData" class="text-muted text-center py-4" style="display:none">Ingen data tilgængelig for denne periode.</div>
           <div id="husError" class="text-danger text-center py-4" style="display:none">Fejl ved hentning af data.</div>
         </div>

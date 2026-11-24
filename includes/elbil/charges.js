@@ -253,7 +253,7 @@
         const summaryTextEl = document.getElementById('summaryText');
         const period = (S.dateRangeEl && S.dateRangeEl.value) ? S.dateRangeEl.value : 'alle datoer';
         let html = `<h3>Opsummering <small class="text-muted fw-normal">· ${appUtils.escapeHtml(period)}</small></h3>
-        <table class="table table-sm">
+        <table class="table table-sm mb-0">
             <tr><th>Bil</th><th class="text-end">Samlet kWh</th><th class="text-end">Hjemme (kr)</th><th class="text-end">Ude (kr)</th><th class="text-end">Samlet Pris</th><th class="text-end">Gns. Pris/kWh</th></tr>`;
 
         Object.keys(totals).forEach(v => {

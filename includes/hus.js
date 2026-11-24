@@ -280,6 +280,7 @@ const husApp = (() => {
                 data: { labels, datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: {
                             display: true, position: 'top',
@@ -360,6 +361,7 @@ const husApp = (() => {
                 data: { labels: MONTH_NAMES, datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: false },
                         datalabels: { display: false },
@@ -421,6 +423,7 @@ const husApp = (() => {
                 data: { labels, datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,   // the height is the .chart-fill box's
                     animation: false,
                     plugins: {
                         legend: { display: false },

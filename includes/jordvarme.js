@@ -482,6 +482,7 @@ const jordvarmeApp = (() => {
                 data: { labels, datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: !!hddValues, position: 'top' },
                         datalabels: { display: false },
@@ -623,6 +624,7 @@ const jordvarmeApp = (() => {
                 data: { labels: MONTH_NAMES, datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: false },
                         datalabels: { display: false },
@@ -1039,6 +1041,7 @@ const jordvarmeApp = (() => {
                 data: { labels, datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,   // the height is the .chart-fill box's
                     plugins: {
                         legend: { display: false },
                         datalabels: { display: false },

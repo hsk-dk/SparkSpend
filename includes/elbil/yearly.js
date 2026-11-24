@@ -17,6 +17,12 @@
     const EV_YEAR_COLORS = appUtils.seriesColors();   // the system's --series-1...6 (D23), see dev/test_datacolors.js
     const EV_YEAR_POINTS = appUtils.SERIES_POINTS;   // a second cue besides colour
     const EV_MONTH_NAMES = ['Jan','Feb','Mar','Apr','Maj','Jun','Jul','Aug','Sep','Okt','Nov','Dec'];
+    // A year with fewer months than this is a few points, not a trend: it is drawn as points without a line and left out of the average
+    const SPARSE_MONTHS = 3;
+    /** The years that have data for fewer than SPARSE_MONTHS months. yearMap: Map<year, Array(12) of number|null> */
+    function _sparseYears(yearMap) {
+        return new Set([...yearMap.entries()].filter(([, arr]) => arr.filter(v => v !== null && v !== undefined).length < SPARSE_MONTHS).map(([y]) => y));
+    }
     let evYearCompareChart = null;
     let evYearCompareData  = null;
     let evYearMetric       = 'kwh'; // 'kwh' | 'cost'
@@ -64,6 +70,7 @@
         });
 
         const years = [...yearMap.keys()].sort();
+        const sparse = _sparseYears(yearMap);
 
         const datasets = years.map((year, i) => {
             const color = EV_YEAR_COLORS[i % EV_YEAR_COLORS.length];
@@ -77,6 +84,7 @@
                 pointStyle: EV_YEAR_POINTS[i % EV_YEAR_POINTS.length],
                 pointHoverRadius: 6,
                 ...appUtils.monthLineStyle(year, color),
+                showLine: !sparse.has(year),   // two points are not a line
                 spanGaps: false,
             };
         });
@@ -84,7 +92,7 @@
         // Monthly average across all years (dashed reference line)
         const avgData = Array.from({ length: 12 }, (_, m) => {
             // the running month is not a full month: leave it out of the average
-            const vals = [...yearMap.entries()].map(([y, arr]) => appUtils.runningMonthIndex(y) === m ? null : arr[m]).filter(v => v !== null);
+            const vals = [...yearMap.entries()].filter(([y]) => !sparse.has(y)).map(([y, arr]) => appUtils.runningMonthIndex(y) === m ? null : arr[m]).filter(v => v !== null);
             return vals.length > 0
                 ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1))
                 : null;
@@ -113,7 +121,8 @@
                     datalabels: { display: false },
                     tooltip: {
                         callbacks: {
-                            afterLabel: c => appUtils.runningMonthIndex(c.dataset.label) === c.dataIndex ? 'Måneden er ikke slut' : '',
+                            afterLabel: c => appUtils.runningMonthIndex(c.dataset.label) === c.dataIndex ? 'Måneden er ikke slut'
+                                : sparse.has(c.dataset.label) ? 'Kun få måneder med data: ikke med i gennemsnittet' : '',
                             label: c => {
                                 if (c.parsed.y === null) return `${c.dataset.label}: ingen data`;
                                 const v = c.parsed.y;

@@ -6,6 +6,11 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (design review of production, findings 8, 9 and 11)
+- **No card in a card.** The charts inside a card on Elbil → Analyse have no box of their own (border, shadow and padding gone), and a panel inside a card (Statistik, Omkostningsstatistik) has a hairline and no shadow.
+- **No dead surfaces.** The sparklines on the three Oversigt cards sit at the bottom of their cards, level across them (the shorter cards left a hole under the content); the Jordvarme and Hus charts are drawn in their own 300 px box beside the statistics panel (they were 190 px high over an empty surface); the Opsummering card has no empty band under its table.
+- **A year with only a few months is not drawn as a trend.** On the Elbil year comparison a year with fewer than three months of data (2024: November and December) is drawn as points without a line, says so in its tooltip, and is left out of the grey average. `includes/style.css`, `index.php`, `includes/hus.js`, `includes/jordvarme.js`, `includes/elbil/charges.js`, `includes/elbil/yearly.js`, `dev/test_review_8_9_11.js` (10).
+
 ### Changed (design review of production, findings 4, 5 and 7)
 - **The month's expected bill is the biggest figure on Oversigt:** a small label ("Forventet elregning") over `~3.026 kr` in 32 px, in Danish number format; the three cards under it have 20 px figures.
 - **Jordvarme names its degree-days line.** A legend ("Forbrug (kWh)", "Gradedage (GD)") shows when the line is there, the right axis is titled "Gradedage" instead of "GD", and the line is `#64748b` (4.8:1 against white; the old pale slate was 2.5:1, below the 3:1 a graphic needs).

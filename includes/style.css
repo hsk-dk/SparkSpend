@@ -326,6 +326,13 @@ h3 {
   padding: 20px;
 }
 
+/* A panel inside a card (Statistik, Omkostningsstatistik) is a panel, not a second card: a hairline and no shadow */
+.card .card {
+  margin-bottom: 0;
+  box-shadow: none;
+}
+.card .card:hover { box-shadow: none; }
+
 /* Form Elements */
 label {
   display: block;
@@ -659,24 +666,16 @@ tr:last-child td {
   box-shadow: var(--shadow);
 }
 
+/* The charts inside a card are not cards themselves: a box (border, shadow, padding) inside the card was a card in a card. */
 #kmPerKwhChart,
 #krPerKmChart,
 #costTrendChart {
-  background: var(--color-surface);
-  border: 1px solid rgba(36, 49, 64, 0.08);
-  border-radius: 16px;
-  padding: 20px;
-  margin: 20px 0;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.2s ease;
-  min-height: 400px;
+  margin: 12px 0;
 }
 
-#kmPerKwhChart:hover,
-#krPerKmChart:hover,
-#costTrendChart:hover {
-  box-shadow: var(--shadow);
-}
+/* A chart beside a statistics panel (Jordvarme, Hus) has its own height, so it does not stop at 190 px over an empty surface */
+.chart-fill { position: relative; height: 300px; }
+.chart-fill:has(> canvas[style*="display: none"]) { display: none; }   /* the page hides the canvas when there is no data */
 
 /* Modals */
 .modal-content {
@@ -1216,6 +1215,7 @@ header {
 .dash-body {
   display: flex;
   flex-direction: column;
+  flex: 1;      /* the cards of a row are as tall as the tallest: the body fills its card ... */
   gap: 12px;
 }
 
@@ -1257,6 +1257,7 @@ header {
 .dash-sparkline {
   height: 52px;
   width: 100%;
+  margin-top: auto;   /* ... and the sparklines sit at the bottom of it, level across the three cards, instead of leaving a hole under the shorter ones */
 }
 
 .dash-sparkline canvas {
