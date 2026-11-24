@@ -36,8 +36,7 @@
     }
 
     function _renderCostTrendChart(dailyData) {
-        // Aggregate duplicate dates defensively (ApexCharts adds A/B/C suffixes
-        // when the same category appears multiple times).
+        // Aggregate duplicate dates defensively: one point per date, so a repeated date cannot show twice on the axis.
         const merged = new Map();
         for (const d of dailyData) {
             if (!merged.has(d.date)) {
@@ -61,20 +60,43 @@
         const internal = deduped.map(d => d.internal_cost);
         const external = deduped.map(d => d.external_cost);
 
-        const opts = {
-            chart: { type: 'area', height: 400, stacked: true },
-            series: [{ name: 'Hjemme (kr)', data: internal }, { name: 'Ude (kr)', data: external }],
-            xaxis: { categories: dates },
-            yaxis: { title: { text: 'Omkostning (kr)' }, labels: { formatter: v => appUtils.num(v, 0) } },
-            dataLabels: { enabled: false },   // the default labelled the points with the raw sum (382.28999999999996); the tooltip has the figure
-            title: { text: 'Omkostningstendenser' },
-            stroke: { curve: 'straight' },
-            tooltip: { y: { formatter: v => appUtils.num(v, 2) + ' kr' } }
-        };
-
-        if (costTrendChartInstance) costTrendChartInstance.destroy();
-        costTrendChartInstance = new ApexCharts(document.querySelector('#costTrendChart'), opts);
-        costTrendChartInstance.render();
+        // Hjemme in the EV colour (the house meter's car), Ude in the system's fourth series colour: a lighter step, so the two
+        // layers of the stack differ in lightness as well as hue.
+        const HOME = '#224b81', AWAY = '#c87f6d';
+        const host = document.getElementById('costTrendChart');
+        if (!host) return;
+        if (costTrendChartInstance) { costTrendChartInstance.destroy(); costTrendChartInstance = null; }
+        host.innerHTML = '<div style="position:relative;height:360px"><canvas data-a11y-title="Omkostningstendenser"></canvas></div>';
+        costTrendChartInstance = new Chart(host.querySelector('canvas').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [
+                    { label: 'Hjemme', data: internal, borderColor: HOME, backgroundColor: HOME + 'd9', borderWidth: 2, fill: 'origin', pointRadius: 0, pointHoverRadius: 4 },
+                    { label: 'Ude',    data: external, borderColor: AWAY, backgroundColor: AWAY + 'd9', borderWidth: 2, fill: '-1',     pointRadius: 0, pointHoverRadius: 4 },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    title: { display: true, text: 'Omkostningstendenser', align: 'start', font: { size: 16, weight: '600' } },
+                    legend: { position: 'bottom' },
+                    datalabels: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: item => ` ${item.dataset.label}: ${appUtils.num(item.raw, 2)} kr`,
+                            footer: items => `I alt: ${appUtils.num(items.reduce((s, i) => s + i.raw, 0), 2)} kr`,
+                        },
+                    },
+                },
+                scales: {
+                    x: { ticks: { autoSkip: true, maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Omkostning (kr)' }, ticks: { callback: v => appUtils.num(v, 0) } },
+                },
+            },
+        });
     }
 
     function _renderCostStatistics(stats) {

@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (technical debt, step 3)
+- **"Omkostningstendenser" on Elbil → Analyse is a Chart.js chart.** A stacked area of Hjemme and Ude per day, week or month, with the title, a legend, and a tooltip that gives each layer and the total ("I alt"). The colours are now the EV blue `#224b81` and the design system's fourth series colour `#c87f6d` (before: Apex's default blue and green), so the two layers differ in lightness as well as hue, both at least 3:1 against white. It also gets a text alternative. `includes/elbil/analytics.js`, `dev/test_cost_trend_chart.js` (8).
+
 ### Changed (technical debt, step 2)
 - **The price chart on Oversigt ("Elpris i morgen") is a Chart.js chart.** It was one of six ApexCharts charts. Same look: a bar per hour coloured by how dear it is, the cheapest 2-hour window shaded and labelled "Billigst", the tooltip with the hour (14:00–15:00) and kr/kWh. It now also gets the text alternative the other Chart.js charts have (lowest, highest, latest). `includes/dashboard.js`, `dev/test_elspot_chart.js` (7).
 
