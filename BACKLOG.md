@@ -41,6 +41,23 @@ Alle otte visninger gennemgået i browseren på 1280 og 375 px, først med seed-
 
 Ikke gennemgået: modalerne (Administrér, synk, systemlog), temperaturlinjen på Jordvarme med rigtige vejrdata og skærmlæser i praksis (tilgængelighedsrettelserne er målt i DOM og med tastatur, ikke hørt med en skærmlæser). Mulige næste skridt: flyt fokus til det nye indhold, når man skifter side; en tabel som alternativ til de store diagrammer (tekstalternativet giver laveste, højeste og seneste, ikke alle punkter); `aria-live` ved indlæsning.
 
+### Designgennemgang i rollen som senior designer (2026-11-24, produktion i Chrome ved 1920 px, rigtige data)
+
+Alle sider gennemgået. Telefon kunne ikke ses i Chrome (vinduet kan ikke gøres smalt, og siden må ikke indlejres i en ramme); det gælder de tidligere mobilgennemgange. Det der virker og skal bevares: ærligheden om data (stiplede måneder, "kun 3 mdr. data", grå søjle uden fordeling), domænefarverne, årssammenligningens markører og forklaringsknapper, Basislast, Årsrapport og Hus → Forbrug, heat-tabellerne.
+
+1. ~~**Penge skrives to måder (S).**~~ (lavet 2026-11-24) `kr.` med punktum og to decimaler (Årsrapportens EV pris `7.709,30 kr.`) stod ved siden af `2.787 kr`. Rettelse til gennemgangen: punktummet i `0.00 kr` var min fejllæsning af et skærmbillede (DOM'en viser `0,00 kr`). `formatCurrency` er nu `1.234,50 kr` (hårdt mellemrum, intet punktum), og EV pris er hele kr som kolonnerne ved siden af.
+2. ~~**Overskriftshierarkiet var vendt om (S).**~~ (lavet 2026-11-24) Kortets titel (h3) var 16 px og underoverskrifterne (h5, Bootstraps 20 px) større. h3 er nu 20 px og h5 i kort 16 px.
+3. ~~**Oversigtens forskelslinjer var rodede (S).**~~ (lavet 2026-11-24) De er nu et lille gitter: etiket, én række pr. sammenligning med datoen i dæmpet tekst og tallet højrejusteret og fed under hinanden; "Udeladning ..."-sætningen er almindelig tekst i stedet for fed kursiv. Rød/grøn er stadig kun til penge.
+4. **Det vigtigste tal har ikke den vigtigste størrelse (S).** "Forventet elregning: ~3024 kr" er en 16 px overskrift, mens kortene under har større tal, og bjælkerne er tungere end tallet. `includes/dashboard.js`, `includes/style.css`
+5. **Jordvarmes akse mangler forklaring (S).** Den grå linje har ingen forklaring og aksen hedder "GD". Sammenhængen med rigtige vejrdata er reel (de høje søjler følger linjen), så punktet under "Design, UX og datavisualisering" er afklaret: grafen er rigtig, men uforståelig. Skriv "Gradedage" og sæt en forklaring på. `includes/jordvarme.js`
+6. **Uoversatte og rå tekster (S).** Ladestatussen `releasing` står engelsk og grå ved siden af et grønt "Afsluttet"; ugerne på omkostningsdiagrammet hedder `2026-W45` i stedet for "Uge 45". `includes/elbil/charges.js`, `includes/elbil/analytics.js`
+7. **Tal venstrejusteret i nogle tabeller (S).** Opsummering og Bilsammenligning (Elbil) har tal til venstre; Årssammenligning og Ladeoptimering har dem til højre. Tal skal altid højrejusteres. `includes/elbil/charges.js`, `index.php`
+8. **Kort i kort i kort (S–M).** Diagrammerne i Omkostningsanalyse og "Kumuleret udvikling" har egen ramme og skygge inde i et kort: støj uden gruppering. `includes/style.css`
+9. **Døde flader (S).** Tom plads under Opsummeringen; Jordvarme- og Hus-kortene på Oversigt er lige så høje som Elbil-kortet og halvt tomme; Jordvarmes diagram står smalt over en tom flade, fordi statistikken ved siden af er højere.
+10. **Mine egne valg, der skal rettes (S).** Elprisdiagrammet har tidsmærker skråt i 45° på en bred skærm (jeg tvang `minRotation: 45`; de skal være vandrette, når der er plads), og prisfarverne er relative inden for dagen, så 2,2 kr/kWh kan være grønt, selvom det er højt. `includes/dashboard.js`
+11. **Årssammenligningens 2024-linje (S).** To punkter (nov 100, dec 480 kWh) ser ud som en dramatisk stigning, og den grå gennemsnitslinje blander ufuldstændige år. `includes/elbil/yearly.js`
+12. **Elbil → Analyse er 4.500 px lang (M).** Syv moduler på én side. Del i Analyse (optimering, omkostning, ladesteder, tidsmønster) og Effektivitet (forbrug pr. km, kurver). Strukturbeslutning: tag den sammen med ejeren.
+
 ### Features (ingen af dem findes i koden)
 
 - **CSV/Excel-eksport af opladningshistorik og Jordvarme-måneder (M).** Ingen eksport findes nogen steder.

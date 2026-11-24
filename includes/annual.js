@@ -247,7 +247,7 @@ const annualApp = (() => {
                 <td class="fw-bold">${y.year}${_partialNote(y) ? ` <span class="text-muted fw-normal small">${_partialNote(y)}</span>` : ''}</td>
                 <td class="text-end">${y.ev.charges}</td>
                 <td class="text-end">${_fmtKwh(y.ev.kwh)}</td>
-                <td class="text-end">${appUtils.formatCurrency(y.ev.cost)}</td>
+                <td class="text-end">${_fmtKr(y.ev.cost)}</td>
                 <td class="text-end">${_fmtKwh(y.heatpump.kwh)}</td>
                 ${vpKrCell}
                 ${restCell}

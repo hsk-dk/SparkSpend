@@ -278,12 +278,16 @@ h2 {
 }
 
 h3 {
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: -0.2px;
   color: var(--brand-ink);
   margin-bottom: 16px;
 }
+
+/* A card's title (h3, 20 px) is above its sub-headings (h5, 16 px). Bootstrap's own h5 is 20 px, which made "Størst potentiale" and a
+   car's name louder than the title of the card around them. */
+.card h5:not(.modal-title) { font-size: var(--text-md); font-weight: 600; letter-spacing: -0.1px; color: var(--brand-ink); }
 
 /* Summary Box */
 #summaryBox {
@@ -2323,11 +2327,13 @@ th.sort-active { color: var(--accent-strong); }
 .data-note i { color: #b45309; margin-right: 4px; }
 
 /* Compact comparison lines on the overview cards (see _trendLine) */
-.trend-line { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; font-size: var(--text-sm); line-height: 1.5; }
-.trend-label { font-weight: 600; color: #475569; min-width: 2.6em; }
-.trend-sep { color: var(--muted-strong); }   /* a separator is still text to a contrast check: #94a3b8 was 2.6:1 */
+.trend-line { display: grid; grid-template-columns: 4.6em minmax(0, 1fr) max-content; justify-content: start; column-gap: 10px; align-items: baseline; font-size: var(--text-sm); line-height: 1.5; margin-bottom: 4px; }
+.trend-label { grid-row: span 2; font-weight: 600; color: #475569; }
+.trend-vs { font-weight: 400; color: var(--muted-strong, #4b5563); }
+.trend-pct { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .trend-neutral-dir { color: #334155; }
-.trend-line > span { white-space: nowrap; }
+/* The note under the comparisons ("Udeladning: 7 % af kWh ...") is a sentence, not a figure: plain, in the muted text colour */
+.trend-driver { margin-top: 6px; font-size: var(--text-sm); font-weight: 400; color: var(--muted-strong, #4b5563); }
 
 /* Two levels of navigation, two looks: the sub-nav pills choose WHAT (Forbrug / Regning, Ladninger / Analyse),
    this segmented control inside a card chooses the PERIOD (Daglig / Månedlig / Sammenligning / År til dato). */

@@ -52,7 +52,10 @@ function _comparisonLabels(now) {
 }
 
 /**
- * One compact comparison line: "kWh  vs. 1.–20. okt. ↑99 % · vs. 1.–20. nov. 2025 ↑14 %". The labels are the dates compared,
+ * One compact comparison block (a small grid: label, then one row per comparison with the figure right-aligned):
+ *     kWh   vs. 1.–20. okt.        ↑99 %
+ *           vs. 1.–20. nov. 2025   ↑14 %
+ * The labels are the dates compared,
  * not "forrige mdr", so it is clear that a month so far is set against the same days (and the forecast against the whole month).
  * tone 'cost': a rise is red, a fall green. tone 'neutral' (consumption): the arrow only shows the
  * direction - less use is not automatically good (fewer drives), more is not automatically bad. Red is for money only.
@@ -64,11 +67,12 @@ function _trendLine(label, pctMonth, pctYear, tone, extra = '', now = new Date()
         const flat = Math.round(pct) === 0;          // "↑0 %" would claim a rise of nothing
         const up = pct >= 0;
         const cls = tone === 'cost' && !flat ? (up ? 'trend-up' : 'trend-down') : 'trend-neutral-dir';
-        return `<span class="${cls}">${txt} ${flat ? '→' : up ? '↑' : '↓'}${_fmt(Math.abs(pct), 0)} %</span>`;
+        // The dates and the figures are separate cells, so the figures line up under each other
+        return `<span class="trend-vs">${txt}</span><span class="${cls} trend-pct">${flat ? '→' : up ? '↑' : '↓'}${_fmt(Math.abs(pct), 0)} %</span>`;
     };
     const parts = [part('vs. ' + labels.prev, pctMonth), part('vs. ' + labels.year, pctYear)].filter(Boolean);
     if (!parts.length) return '';
-    return `<div class="trend-line"${title ? ` title="${title}"` : ''}><span class="trend-label">${label}</span>${parts.join('<span class="trend-sep" aria-hidden="true">·</span>')}${extra}</div>`;
+    return `<div class="trend-line"${title ? ` title="${title}"` : ''}><span class="trend-label">${label}</span>${parts.join('')}${extra}</div>`;
 }
 
 function _setCardNote(cardId, text) {
@@ -249,7 +253,7 @@ function renderEvCard(ev) {
             const ppChange   = Math.round(curExtPct - ev.prev_ext_kwh_pct);
             if (Math.abs(ppChange) >= 5) {
                 const up = ppChange > 0;
-                html += `<div class="trend-neutral">` +
+                html += `<div class="trend-driver">` +
                         `Udeladning: ${curExtPct}% af kWh${shares && shares.hasKr ? `, ${shares.extKrPct}% af kr` : ''} (${up ? '↑' : '↓'}${Math.abs(ppChange)}\u00a0pp) ` +
                         `— ${up ? 'trækker gennemsnitsprisen op' : 'trækker gennemsnitsprisen ned'}</div>`;
             }

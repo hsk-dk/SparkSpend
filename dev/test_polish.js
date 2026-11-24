@@ -69,7 +69,15 @@ check('the efficiency charts say km pr. kWh and kr pr. km, with formatted axes',
 console.log('\nsmall things');
 const dash = read('includes/dashboard.js'), css = read('includes/style.css');
 check('the subscription has a key in the cost band\'s legend (the grey bit at the end of the kr bar)', /Abonnement <b>\$\{cPct\[3\]\}/.test(dash));
-check('the "·" between figures is hidden from screen readers and no longer 2.6:1', /class=\\"trend-sep\\" aria-hidden=\\"true\\"|class="trend-sep" aria-hidden="true"/.test(dash) && /\.trend-sep \{ color: var\(--muted-strong\)/.test(css));
+check('the comparison lines are a grid: the dates and the figures are separate cells, the figures right-aligned (no "·" between running text)', /class="trend-vs"/.test(dash) && /trend-pct/.test(dash) && !/trend-sep/.test(dash) && /\.trend-pct \{[^}]*text-align: right/.test(css) && /\.trend-line \{ display: grid/.test(css));
+const fcm = app.match(/\nconst formatCurrency = [^\n]*;/);
+const nbsp = String.fromCharCode(160);
+check('money is written one way: Danish figure, a non-breaking space and "kr" (no "kr." with a stop, no Intl currency)', !!fcm && (() => { const s2 = vm.createContext({ Number, Math, Intl }); vm.runInContext(grab('num') + '\n' + fcm[0] + '\nthis.f = formatCurrency;', s2); return s2.f(1234.5) === '1.234,50' + nbsp + 'kr' && s2.f(0) === '0,00' + nbsp + 'kr'; })() && !/style: 'currency'/.test(app));
+check('the Årsrapport EV price column is whole kr like the columns beside it', /<td class="text-end">\$\{_fmtKr\(y\.ev\.cost\)\}<\/td>/.test(read('includes/annual.js')));
+const hh = r => (css.match(new RegExp(r + ' \\{[^}]*\\}')) || [''])[0];
+const px = (rule) => { const m = rule.match(/font-size: var\(--text-(\w+)\)/); return m ? { sm: 14, md: 16, lg: 20, xl: 24 }[m[1]] : NaN; };
+const h3px = px(hh('\\nh3')), h5px = px(hh('\\.card h5:not\\(\\.modal-title\\)'));
+check('a card\'s title (h3) is larger than its sub-headings (h5), 20 px over 16 px', h3px === 20 && h5px === 16, h3px + ' / ' + h5px);
 const reg = read('includes/regning.js');
 check('the doughnut and its cards use the shares that add up to 100', /appUtils\.percents\(data\)/.test(reg) && /appUtils\.percents\(\[totEv, totHp, totRest\]\)/.test(reg) && !/Math\.round\(v \/ total \* 100\)|Math\.round\(ctx\.raw \/ total \* 100\)/.test(reg));
 check('the Jordvarme and Hus year tables say why a year\'s total can differ from the Årsrapport', /Årsrapporten bruger tællerdifferenser/.test(read('includes/jordvarme.js')) && /Årsrapporten bruger tællerdifferenser/.test(read('includes/hus.js')));

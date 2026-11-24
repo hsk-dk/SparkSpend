@@ -6,6 +6,11 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (design review of production, findings 1–3)
+- **Money is written one way.** `appUtils.formatCurrency` gives `1.234,50 kr` (a non-breaking space, no stop after "kr"; it was the browser's currency format, `1.234,50 kr.`), and the Årsrapport's EV price column is whole kr like the columns beside it (it had `7.709,30 kr.` next to `2.787 kr`).
+- **A card's title is above its sub-headings.** h3 is 20 px and h5 inside a card 16 px; Bootstrap's h5 was 20 px, so "Størst potentiale" and a car's name were louder than the title of their card.
+- **The comparison lines on the Oversigt cards are a small grid.** The label, then one row per comparison with the dates in muted text and the figure right-aligned and bold under the other; before, "kWh vs. 1.–24. okt. ↑96 % · vs. …" broke in the middle of a line with a dangling "·". The "Udeladning: …" sentence is plain text instead of bold italic. Red and green are still for money only. `includes/app.js`, `includes/annual.js`, `includes/dashboard.js`, `includes/style.css`, `dev/test_polish.js`, `dev/test_dashboard_js.js`.
+
 ### Removed (technical debt, step 6)
 - **ApexCharts is gone.** The library (about 520 KB, on every page) is no longer loaded, and with it the Danish locale block in `app.js`, the Apex branch of the screen reader labelling in `a11y.js` (with its MutationObserver on the whole page) and the lint globals. Every chart is now a Chart.js canvas with the one plugin's text alternative; the app has one tooltip pattern. `dev/test_one_chart_library.js` (5) fails if a second chart library comes back. Checked on all pages: no console errors, every canvas labelled.
 

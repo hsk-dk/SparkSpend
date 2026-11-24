@@ -69,14 +69,7 @@ const percents = (values) => {
  * @param {number} value - Value to format
  * @returns {string} Formatted value
  */
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('da-DK', {
-    style: 'currency',
-    currency: 'DKK',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
-};
+const formatCurrency = (value) => `${num(value, 2)} kr`;
 
 /**
  * Format date to Danish locale

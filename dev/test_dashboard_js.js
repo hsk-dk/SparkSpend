@@ -144,7 +144,7 @@ check('29 Feb 2028: last year (2027) has no 29th, so it is cut at the 28th', lab
 check('January looks back to December of the year before', lab('2027-01-15T12:00:00').prev === '1.–15. dec.' && lab('2027-01-15T12:00:00').prevMonth === 'december');
 check('May has no dot (it is not an abbreviation)', lab('2026-06-10T12:00:00').prev === '1.–10. maj' && lab('2026-06-10T12:00:00').prevMonth === 'maj');
 const tl = cl._trendLine('kWh', 99.4, 14.1, 'neutral', '', new Date('2026-11-20T12:00:00'));
-check('the trend line names the dates, not "forrige mdr"', tl.includes('vs. 1.–20. okt. ↑99 %') && tl.includes('vs. 1.–20. nov. 2025 ↑14 %') && !tl.includes('forrige mdr'), tl);
+check('the trend line names the dates, not "forrige mdr", with each figure in its own cell', tl.includes('>vs. 1.–20. okt.</span>') && tl.includes('>↑99 %</span>') && tl.includes('>vs. 1.–20. nov. 2025</span>') && tl.includes('>↑14 %</span>') && !tl.includes('forrige mdr'), tl);
 check('kWh lines are neutral: no red, no green', !tl.includes('trend-up') && !tl.includes('trend-down') && tl.includes('trend-neutral-dir'));
 const money = cl._trendLine('Pris', 57.9, -3, 'cost', '', new Date('2026-11-20T12:00:00'));
 check('money lines: a rise is red, a fall is green', money.includes('trend-up') && money.includes('trend-down'), money);
