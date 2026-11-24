@@ -6,6 +6,9 @@ All notable changes to SparkSpend are listed here in reverse chronological order
 
 ## [Unreleased]
 
+### Changed (technical debt, step 4)
+- **The two charts on Elbil → Analyse that follow a car's consumption ("Kumuleret km pr. kWh pr. bil" and "Kumuleret kr pr. km pr. bil") are Chart.js charts.** One line per car on a day axis (a category per day from the first to the last measurement, so no date adapter is needed; a day without a measurement is a gap the line spans), in the design system's series colours with a marker shape per car, a tooltip with the full date, and a text alternative. A car name is no longer HTML-escaped for the chart (it is drawn on a canvas, so it is text). `includes/elbil/efficiency.js`, `dev/test_efficiency_charts.js` (10).
+
 ### Changed (technical debt, step 3)
 - **"Omkostningstendenser" on Elbil → Analyse is a Chart.js chart.** A stacked area of Hjemme and Ude per day, week or month, with the title, a legend, and a tooltip that gives each layer and the total ("I alt"). The colours are now the EV blue `#224b81` and the design system's fourth series colour `#c87f6d` (before: Apex's default blue and green), so the two layers differ in lightness as well as hue, both at least 3:1 against white. It also gets a text alternative. `includes/elbil/analytics.js`, `dev/test_cost_trend_chart.js` (8).
 

@@ -122,27 +122,90 @@
             .catch(() => { /* temperature is optional context */ });
     }
 
+    // "2026-11-05" as a Danish day ("5. nov."); built from the parts, so the time zone cannot move it to another day
+    function _dayText(iso, withYear) {
+        const [y, m, d] = iso.split('-').map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString('da-DK', withYear ? { day: 'numeric', month: 'long', year: 'numeric' } : { day: 'numeric', month: 'short' });
+    }
+
+    // One line per car on a day axis. The axis is every day from the first to the last measurement (a category per day, so the
+    // spacing is true to time without a date adapter); a day with no measurement is a gap that the line spans.
+    function _efficiencyLineChart(hostId, previous, title, yTitle, decimals, bySeries) {
+        const host = document.getElementById(hostId);
+        if (!host) return null;
+        if (previous) previous.destroy();
+        const days = [...new Set(bySeries.flatMap(s => [...s.points.keys()]))].sort();
+        if (days.length === 0) { host.innerHTML = ''; return null; }
+        const labels = [];
+        const lastDay = days[days.length - 1];
+        let [y, m, d] = days[0].split('-').map(Number);
+        for (;;) {
+            const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            labels.push(iso);
+            if (iso >= lastDay) break;
+            const next = new Date(y, m - 1, d + 1);
+            y = next.getFullYear(); m = next.getMonth() + 1; d = next.getDate();
+        }
+        const colors = appUtils.seriesColors();
+        const datasets = bySeries.map((s, i) => ({
+            label: s.name,
+            data: labels.map(l => (s.points.has(l) ? s.points.get(l) : null)),
+            borderColor: colors[i % colors.length],
+            backgroundColor: colors[i % colors.length],
+            pointStyle: appUtils.SERIES_POINTS[i % appUtils.SERIES_POINTS.length],
+            borderWidth: 2, pointRadius: 4, pointHoverRadius: 6, spanGaps: true, tension: 0,
+        }));
+        host.innerHTML = '<div style="position:relative;height:360px"><canvas></canvas></div>';
+        const canvas = host.querySelector('canvas');
+        canvas.setAttribute('data-a11y-title', title);
+        return new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    title: { display: true, text: title, align: 'start', font: { size: 16, weight: '600' } },
+                    legend: { position: 'bottom', labels: { usePointStyle: true } },
+                    datalabels: { display: false },
+                    tooltip: {
+                        filter: item => item.raw !== null,
+                        callbacks: {
+                            title: items => _dayText(items[0].label, true),
+                            label: item => ` ${item.dataset.label}: ${appUtils.num(item.raw, decimals)}`,
+                        },
+                    },
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Dato' }, ticks: { autoSkip: true, maxTicksLimit: 10, maxRotation: 0, callback(v) { return _dayText(this.getLabelForValue(v), false); } }, grid: { display: false } },
+                    y: { beginAtZero: true, title: { display: true, text: yTitle }, ticks: { callback: v => appUtils.num(v, decimals) } },
+                },
+            },
+        });
+    }
+
     function _renderEfficiencyCharts(data) {
         const grouped = {};
         data.forEach(e => { (grouped[e.vehicleId] = grouped[e.vehicleId] || []).push(e); });
 
+        // Per car, the last measurement of each day (the series is cumulative, so the last one of a day is where it stood)
         const kmSeries = [], krSeries = [];
         Object.keys(grouped).forEach(vid => {
             const entries = grouped[vid].sort((a, b) => a.timestamp - b.timestamp);
-            const vName   = (S.vehicles.find(v => v.id == vid) || {}).vehicleName || 'Bil ' + vid;
-            kmSeries.push({ name: appUtils.escapeHtml(vName), data: entries.map(e => [e.timestamp * 1000, e.totalKmPerKwh]) });
-            krSeries.push({ name: appUtils.escapeHtml(vName), data: entries.map(e => [e.timestamp * 1000, e.totalKrPerKm]) });
+            const name    = (S.vehicles.find(v => v.id == vid) || {}).vehicleName || 'Bil ' + vid;
+            const km = new Map(), kr = new Map();
+            entries.forEach(e => {
+                const day = appUtils.ymd(new Date(e.timestamp * 1000));
+                km.set(day, e.totalKmPerKwh);
+                kr.set(day, e.totalKrPerKm);
+            });
+            kmSeries.push({ name, points: km });
+            krSeries.push({ name, points: kr });
         });
 
-        const baseOpts = { chart: { type: 'line', height: 300 }, xaxis: { type: 'datetime', title: { text: 'Dato' } }, stroke: { curve: 'straight', width: 2 }, markers: { size: 4 } };
-
-        if (kmPerKwhChartInstance) kmPerKwhChartInstance.destroy();
-        kmPerKwhChartInstance = new ApexCharts(document.querySelector('#kmPerKwhChart'), { ...baseOpts, series: kmSeries, yaxis: { title: { text: 'km pr. kWh' }, min: 0, labels: { formatter: v => appUtils.num(v, 1) } }, title: { text: 'Kumuleret km pr. kWh pr. bil' } });
-        kmPerKwhChartInstance.render();
-
-        if (krPerKmChartInstance) krPerKmChartInstance.destroy();
-        krPerKmChartInstance = new ApexCharts(document.querySelector('#krPerKmChart'), { ...baseOpts, series: krSeries, yaxis: { title: { text: 'kr pr. km' }, min: 0, labels: { formatter: v => appUtils.num(v, 2) } }, title: { text: 'Kumuleret kr pr. km pr. bil' } });
-        krPerKmChartInstance.render();
+        kmPerKwhChartInstance = _efficiencyLineChart('kmPerKwhChart', kmPerKwhChartInstance, 'Kumuleret km pr. kWh pr. bil', 'km pr. kWh', 1, kmSeries);
+        krPerKmChartInstance  = _efficiencyLineChart('krPerKmChart', krPerKmChartInstance, 'Kumuleret kr pr. km pr. bil', 'kr pr. km', 2, krSeries);
     }
 
     M.efficiency = { fetchEfficiencyStats, _renderEfficiency, _renderEfficiencySummary, _fillEfficiencyTemps, _renderEfficiencyCharts };
